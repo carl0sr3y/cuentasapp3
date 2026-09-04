@@ -18,6 +18,7 @@ const tiendaRoutes = require('./routes/tienda');
 const historialRoutes = require('./routes/historial');
 const reportesRoutes = require('./routes/reportes');
 const backupsRoutes = require('./routes/backups');
+const pushRoutes = require('./routes/push');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -42,6 +43,7 @@ app.use('/api/tienda', tiendaRoutes);
 app.use('/api/historial', historialRoutes);
 app.use('/api/reportes', reportesRoutes);
 app.use('/api/backups', backupsRoutes);
+app.use('/api/push', pushRoutes);
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', (req, res) => {
@@ -70,7 +72,7 @@ async function start() {
     crearBackup().catch(e => console.error('Error creando backup:', e.message));
   }, { timezone: 'America/Guatemala' });
 
-    // Borra el historial general cada domingo a las 11:30pm (hora Guatemala).
+  // Borra el historial general cada domingo a las 11:30pm (hora Guatemala).
   cron.schedule('30 23 * * 0', () => {
     limpiarHistorialSemanal().catch(e => console.error('Error limpiando historial:', e.message));
   }, { timezone: 'America/Guatemala' });

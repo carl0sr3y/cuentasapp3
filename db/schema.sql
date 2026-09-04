@@ -65,3 +65,14 @@ CREATE INDEX IF NOT EXISTS idx_movtienda_fecha ON movimientos_tienda(fecha);
 CREATE INDEX IF NOT EXISTS idx_historial_fecha ON historial_general(fecha DESC);
 CREATE INDEX IF NOT EXISTS idx_cuentas_nombre ON cuentas(nombre);
 CREATE INDEX IF NOT EXISTS idx_backups_fecha ON backups(fecha_creacion);
+
+-- Suscripciones a notificaciones push (una fila por dispositivo/navegador que las active)
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id SERIAL PRIMARY KEY,
+  usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+  client_id TEXT,
+  endpoint TEXT UNIQUE NOT NULL,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
+);

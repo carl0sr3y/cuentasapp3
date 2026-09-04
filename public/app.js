@@ -64,7 +64,7 @@ let ws = null;
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws?clientId=${CLIENT_ID}`);
-    ws.onopen = () => { wsConnected = true; updateSyncDot(); refrescarTodo(); };
+  ws.onopen = () => { wsConnected = true; updateSyncDot(); refrescarTodo(); };
   ws.onclose = () => { wsConnected = false; updateSyncDot(); setTimeout(connectWS, 2000 + Math.random() * 2000); };
   ws.onerror = () => { try { ws.close(); } catch (e) {} };
   ws.onmessage = (ev) => {
@@ -222,6 +222,7 @@ async function enterApp() {
   TIENDA = tienda;
   document.getElementById('avatarInitial').textContent = initialOf(AUTH.nombre || AUTH.usuario);
   document.getElementById('userLabel').textContent = AUTH.nombre || AUTH.usuario;
+  await checkPushStatus();
   renderNotifBtn();
   renderDeudas();
   renderTienda();
@@ -231,16 +232,63 @@ async function enterApp() {
 /* ============================================================
    BARRA SUPERIOR
    ============================================================ */
-let notificacionesActivas = true;
+/* ============================================================
+   NOTIFICACIONES PUSH (reales: llegan aunque el navegador esté cerrado)
+   ============================================================ */
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+let notificacionesActivas = false;
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return null;
+  try { return await navigator.serviceWorker.register('/sw.js'); } catch (e) { return null; }
+}
+async function checkPushStatus() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) { notificacionesActivas = false; return; }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    notificacionesActivas = !!sub;
+  } catch (e) { notificacionesActivas = false; }
+}
+async function enablePush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) { toast('Tu navegador no soporta notificaciones push'); return; }
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast('Necesitas dar permiso de notificaciones para activarlas'); return; }
+    const { publicKey } = await api('/push/vapid-public-key');
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+    const json = sub.toJSON();
+    await api('/push/subscribe', { method: 'POST', body: { endpoint: json.endpoint, keys: json.keys, clientId: CLIENT_ID } });
+    notificacionesActivas = true;
+    renderNotifBtn();
+    toast('Notificaciones activadas en este dispositivo');
+  } catch (e) { toast('No se pudieron activar las notificaciones'); }
+}
+async function disablePush() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      await api('/push/unsubscribe', { method: 'POST', body: { endpoint: sub.endpoint } });
+      await sub.unsubscribe();
+    }
+  } catch (e) { /* ignorar */ }
+  notificacionesActivas = false;
+  renderNotifBtn();
+  toast('Notificaciones desactivadas en este dispositivo');
+}
 function renderNotifBtn() {
   const b = document.getElementById('notifBtn');
   b.innerHTML = notificacionesActivas ? ICONS.bell : ICONS.bellOff;
   b.classList.toggle('active-state', notificacionesActivas);
 }
 document.getElementById('notifBtn').addEventListener('click', () => {
-  notificacionesActivas = !notificacionesActivas;
-  renderNotifBtn();
-  toast(notificacionesActivas ? 'Notificaciones activadas' : 'Notificaciones desactivadas');
+  if (notificacionesActivas) disablePush(); else enablePush();
 });
 document.getElementById('historialBtn').innerHTML = ICONS.history;
 document.getElementById('historialBtn').addEventListener('click', openHistorialPage);
@@ -908,4 +956,5 @@ function generarPdfTienda(movs, label) {
    INICIO
    ============================================================ */
 updateSyncDot();
+registerServiceWorker();
 initAuth();

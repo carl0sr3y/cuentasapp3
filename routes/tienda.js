@@ -2,11 +2,13 @@ const express = require('express');
 const { pool } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { broadcast } = require('../lib/realtime');
+const { sendPushToOthers } = require('../lib/push');
 
 const router = express.Router();
 router.use(requireAuth);
 
 function clientIdOf(req) { return req.headers['x-client-id'] || null; }
+function money(n) { return 'Q ' + Number(n).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
 async function registrarHistorial(usuarioId, accion, detalle, extra = {}) {
   const { tipo = null, monto = null, referencia_id = null } = extra;
@@ -52,6 +54,11 @@ router.post('/', async (req, res) => {
     { tipo, monto: montoFinal }
   );
   broadcast({ scope: 'tienda', by: req.user.nombre, excludeClientId: clientIdOf(req) });
+  sendPushToOthers({
+    title: `${tipo === 'entrada' ? 'Entrada' : 'Salida'} de tienda`,
+    body: `${req.user.nombre}: ${tipo === 'entrada' ? 'Entrada' : 'Salida'} de ${money(montoNum)}`,
+    excludeClientId: clientIdOf(req),
+  }).catch(e => console.error('Error enviando push:', e.message));
   res.json({ movimiento: mov, balance: saldoResultante });
 });
 

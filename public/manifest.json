@@ -1,0 +1,11 @@
+{
+  "name": "Cuentas-App",
+  "short_name": "Cuentas-App",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#17181A",
+  "theme_color": "#17181A",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
