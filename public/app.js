@@ -224,6 +224,7 @@ document.getElementById('notifBtn').addEventListener('click', () => {
   renderNotifBtn();
   toast(notificacionesActivas ? 'Notificaciones activadas' : 'Notificaciones desactivadas');
 });
+document.getElementById('historialBtn').innerHTML = ICONS.history;
 document.getElementById('historialBtn').addEventListener('click', openHistorialPage);
 document.getElementById('avatarBtn').addEventListener('click', openAccountSettingsPage);
 
