@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Cuentas-App</title>
+<link rel="stylesheet" href="/styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+<div id="loginScreen"></div>
+
+<div id="mainScreen" class="hidden">
+  <header class="topbar">
+    <div class="brand"><span class="brand-dot"></span>Cuentas-App</div>
+    <div class="sync-wrap" id="syncWrap" title="Estado de sincronización"><span class="sync-dot" id="syncDot"></span></div>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="notifBtn" title="Notificaciones"></button>
+    <button class="icon-btn" id="historialBtn" title="Historial"></button>
+    <button class="icon-btn" id="avatarBtn" style="width:auto;padding:0 4px 0 0;display:flex;align-items:center;gap:0;">
+      <span class="avatar" id="avatarInitial">A</span>
+      <span class="username-label" id="userLabel"></span>
+    </button>
+  </header>
+
+  <div class="tabbar">
+    <button class="tab-btn active" data-tab="deudas">Deudas</button>
+    <button class="tab-btn" data-tab="tienda">Movimientos de la tienda</button>
+  </div>
+
+  <div class="view" id="deudasView"></div>
+  <div class="view hidden" id="tiendaView"></div>
+</div>
+
+<div id="modalRoot"></div>
+<div id="pageRoot"></div>
+<div id="toast"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
