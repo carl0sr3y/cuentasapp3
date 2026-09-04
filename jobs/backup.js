@@ -36,4 +36,12 @@ async function limpiarBackupsVencidos() {
   return rowCount;
 }
 
-module.exports = { crearBackup, limpiarBackupsVencidos };
+// Borra por completo el historial general una vez a la semana.
+// No se pierde nada real: ya quedó guardado en el backup diario de esa semana.
+async function limpiarHistorialSemanal() {
+  const { rowCount } = await pool.query('DELETE FROM historial_general');
+  console.log(`Historial general reiniciado (semanal): ${rowCount} registros eliminados`);
+  return rowCount;
+}
+
+module.exports = { crearBackup, limpiarBackupsVencidos, limpiarHistorialSemanal };

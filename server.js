@@ -9,7 +9,7 @@ const cron = require('node-cron');
 const { pool, migrate } = require('./db/pool');
 const { COOKIE_NAME } = require('./middleware/auth');
 const realtime = require('./lib/realtime');
-const { crearBackup, limpiarBackupsVencidos } = require('./jobs/backup');
+const { crearBackup, limpiarBackupsVencidos, limpiarHistorialSemanal } = require('./jobs/backup');
 
 const authRoutes = require('./routes/auth');
 const usuariosRoutes = require('./routes/usuarios');
@@ -68,6 +68,11 @@ async function start() {
   // Backup diario a las 11:30pm hora de Guatemala.
   cron.schedule('30 23 * * *', () => {
     crearBackup().catch(e => console.error('Error creando backup:', e.message));
+  }, { timezone: 'America/Guatemala' });
+
+    // Borra el historial general cada domingo a las 11:30pm (hora Guatemala).
+  cron.schedule('30 23 * * 0', () => {
+    limpiarHistorialSemanal().catch(e => console.error('Error limpiando historial:', e.message));
   }, { timezone: 'America/Guatemala' });
 
   server.listen(PORT, () => console.log(`Cuentas-App escuchando en el puerto ${PORT}`));
