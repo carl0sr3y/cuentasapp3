@@ -64,7 +64,7 @@ let ws = null;
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws?clientId=${CLIENT_ID}`);
-  ws.onopen = () => { wsConnected = true; updateSyncDot(); };
+    ws.onopen = () => { wsConnected = true; updateSyncDot(); refrescarTodo(); };
   ws.onclose = () => { wsConnected = false; updateSyncDot(); setTimeout(connectWS, 2000 + Math.random() * 2000); };
   ws.onerror = () => { try { ws.close(); } catch (e) {} };
   ws.onmessage = (ev) => {
@@ -93,6 +93,24 @@ async function handleRealtimeRefresh({ scope, id, by }) {
     if (by) toast('Actualizado por ' + by);
   } catch (e) { /* si falla el refresco silencioso, se intentará en el próximo evento */ }
 }
+
+// Vuelve a pedir los datos actuales: se usa al reconectar el WebSocket o al
+// volver a encender la pantalla, por si nos perdimos cambios mientras tanto.
+async function refrescarTodo() {
+  try {
+    CUENTAS = await api('/cuentas');
+    TIENDA = await api('/tienda');
+    if (currentTab === 'deudas') renderDeudas();
+    if (currentTab === 'tienda') renderTienda();
+    if (currentAccountDetail) {
+      currentAccountDetail = await api(`/cuentas/${currentAccountDetail.id}`);
+      if (document.getElementById('detailPage')) renderAccountDetailPage();
+    }
+  } catch (e) { /* si falla, se reintentará en el próximo evento */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && AUTH) refrescarTodo();
+});
 
 /* ============================================================
    ESTADO
