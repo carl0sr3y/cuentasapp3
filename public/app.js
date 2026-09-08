@@ -1183,6 +1183,8 @@ function generarPdfFactura() {
 
 async function generarPdfTienda(movs, label) {
   const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  pdfHeader(doc, 'Movimientos de la tienda');
   doc.setFontSize(10); doc.setTextColor(100, 100, 100);
   doc.text('Rango: ' + label, 14, 36);
   const rows = movs.map(m => [fmtDateShort(m.fecha), fmtTime(m.fecha), m.tipo, m.descripcion || '', money(m.monto), money(m.saldo_resultante), m.usuario || '']);
