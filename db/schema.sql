@@ -76,3 +76,20 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   auth TEXT NOT NULL,
   fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Foto de factura adjunta a un movimiento de tienda (comprimida, en base64)
+ALTER TABLE movimientos_tienda ADD COLUMN IF NOT EXISTS foto TEXT;
+
+-- Backups generales ahora tienen tipo y nombre para mostrar (ej. "Semana del 7 - 13/8/2026")
+ALTER TABLE backups ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'general';
+ALTER TABLE backups ADD COLUMN IF NOT EXISTS nombre TEXT;
+
+-- Backups mensuales de movimientos de tienda (incluyen fotos y resumen), separados de los generales
+CREATE TABLE IF NOT EXISTS backups_tienda (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  data JSONB NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  descargado BOOLEAN NOT NULL DEFAULT false,
+  fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
+);

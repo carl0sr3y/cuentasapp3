@@ -21,6 +21,8 @@ const ICONS = {
   download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
   userPlus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/></svg>`,
   key: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3"/></svg>`,
+  camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
+  receipt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h16v20l-3-2-3 2-3-2-3 2-3-2-1 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>`,
 };
 
 /* ============================================================
@@ -39,15 +41,29 @@ function updateSyncDot() {
   dot.classList.add('sync-green');
 }
 
+function showOfflineBanner(msg) {
+  const b = document.getElementById('offlineBanner');
+  if (msg) document.getElementById('offlineMsg').textContent = msg;
+  b.classList.remove('hidden');
+}
+document.getElementById('reloadBtn').addEventListener('click', () => location.reload());
+window.addEventListener('offline', () => showOfflineBanner('Perdiste la conexión a internet.'));
+
 async function api(path, opts = {}) {
   pendingRequests++; updateSyncDot();
   try {
-    const res = await fetch('/api' + path, {
-      method: opts.method || 'GET',
-      headers: { 'Content-Type': 'application/json', 'X-Client-Id': CLIENT_ID },
-      credentials: 'include',
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-    });
+    let res;
+    try {
+      res = await fetch('/api' + path, {
+        method: opts.method || 'GET',
+        headers: { 'Content-Type': 'application/json', 'X-Client-Id': CLIENT_ID },
+        credentials: 'include',
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+    } catch (networkErr) {
+      showOfflineBanner('No se pudo conectar con el servidor. Revisa tu internet y vuelve a intentar.');
+      throw 'Sin conexión con el servidor';
+    }
     let data = null;
     try { data = await res.json(); } catch (e) { /* sin cuerpo JSON */ }
     if (!res.ok) throw (data && data.error) || 'Error de red';
@@ -226,7 +242,21 @@ async function enterApp() {
   renderNotifBtn();
   renderDeudas();
   renderTienda();
+  history.replaceState({ view: 'deudas' }, '', location.href);
   connectWS();
+  checkPendingTiendaBackup();
+}
+
+// Si hay un backup mensual de tienda que todavía no se ha descargado en ningún
+// dispositivo, lo descarga automáticamente ahora y lo marca como descargado.
+async function checkPendingTiendaBackup() {
+  try {
+    const pending = await api('/backups/tienda/pending');
+    if (!pending) return;
+    window.location.href = `/api/backups/tienda/${pending.id}/download`;
+    await api(`/backups/tienda/${pending.id}/mark-downloaded`, { method: 'POST' });
+    toast(`Se descargó el backup de tienda: ${pending.nombre}`);
+  } catch (e) { /* silencioso */ }
 }
 
 /* ============================================================
@@ -294,14 +324,48 @@ document.getElementById('historialBtn').innerHTML = ICONS.history;
 document.getElementById('historialBtn').addEventListener('click', openHistorialPage);
 document.getElementById('avatarBtn').addEventListener('click', openAccountSettingsPage);
 
+function setTabUI(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('deudasView').classList.toggle('hidden', tab !== 'deudas');
+  document.getElementById('tiendaView').classList.toggle('hidden', tab !== 'tienda');
+}
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    currentTab = btn.dataset.tab;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
-    document.getElementById('deudasView').classList.toggle('hidden', currentTab !== 'deudas');
-    document.getElementById('tiendaView').classList.toggle('hidden', currentTab !== 'tienda');
+    if (currentTab === btn.dataset.tab) return;
+    setTabUI(btn.dataset.tab);
+    history.pushState({ view: btn.dataset.tab }, '', location.href);
   });
 });
+
+/* ============================================================
+   NAVEGACIÓN: el botón "atrás" del navegador regresa dentro de la
+   app (a la pestaña o pantalla anterior) en vez de salir de la página.
+   ============================================================ */
+window.addEventListener('popstate', (e) => {
+  if (!AUTH) return;
+  applyHistoryState(e.state);
+});
+async function applyHistoryState(state) {
+  state = state || { view: 'deudas' };
+  document.getElementById('pageRoot').innerHTML = '';
+  document.getElementById('modalRoot').innerHTML = '';
+  currentAccountDetail = null;
+
+  if (state.view === 'accountDetail' && state.id) {
+    await openAccountDetail(state.id, { fromHistory: true });
+  } else if (state.view === 'historial') {
+    await openHistorialPage({ fromHistory: true });
+  } else if (state.view === 'users') {
+    await openAccountSettingsPage({ fromHistory: true });
+  } else if (state.view === 'invoice') {
+    openInvoicePage({ fromHistory: true });
+  } else if (state.view === 'tienda') {
+    setTabUI('tienda');
+  } else {
+    setTabUI('deudas');
+  }
+}
 
 /* ============================================================
    VISTA DEUDAS
@@ -309,13 +373,6 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 function renderDeudas() {
   const el = document.getElementById('deudasView');
   const total = totalGeneral();
-  const favoritos = CUENTAS.filter(c => c.favorito);
-  const q = searchQuery.trim().toLowerCase();
-  const filtered = CUENTAS.filter(c => c.nombre.toLowerCase().includes(q));
-  const sorted = [...filtered].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-  const groups = {};
-  sorted.forEach(c => { const L = initialOf(c.nombre); (groups[L] = groups[L] || []).push(c); });
-  const letters = Object.keys(groups).sort();
 
   el.innerHTML = `
     <div class="balance-block">
@@ -328,32 +385,50 @@ function renderDeudas() {
       <button class="action-btn" id="btnPdfGeneral">${ICONS.pdf}PDF general</button>
     </div>
     <div class="search-wrap">${ICONS.search}<input class="search-input" id="searchAccounts" placeholder="Buscar cuenta..." value="${searchQuery.replace(/"/g, '&quot;')}"></div>
-    ${favoritos.length ? `
-      <div class="section-title">Clientes favoritos</div>
-      <div class="fav-row">${favoritos.map(c => `
-        <div class="fav-chip" data-open="${c.id}">
-          <div class="circ">${initialOf(c.nombre)}</div>
-          <div class="info"><div class="name">${escapeHtml(c.nombre)}</div><div class="bal ${c.balance >= 0 ? 'pos' : 'neg'}">${money(c.balance)}</div></div>
-        </div>`).join('')}</div>` : ''}
-    <div class="section-title">Tus cuentas <span class="count">(${CUENTAS.length})</span></div>
-    <div id="accountListWrap">
-      ${sorted.length === 0 ? `
-        <div class="empty-state">${ICONS.inbox}<p>${CUENTAS.length === 0 ? 'Aún no tienes cuentas. Crea la primera con el botón de arriba.' : 'No se encontraron cuentas con ese nombre.'}</p></div>
-      ` : letters.map(L => `
-        <div class="letter-group">
-          <div class="letter-head">${L}</div>
-          ${groups[L].map(c => accountCardHtml(c)).join('')}
-        </div>
-      `).join('')}
-    </div>
+    <div id="favSection"></div>
+    <div class="section-title">Tus cuentas <span class="count" id="accountsCount">(${CUENTAS.length})</span></div>
+    <div id="accountListWrap"></div>
   `;
 
   document.getElementById('btnCrearCuenta').onclick = openCreateAccountModal;
   document.getElementById('btnEliminarCuentas').onclick = toggleSelectMode;
   document.getElementById('btnPdfGeneral').onclick = generarPdfGeneral;
-  document.getElementById('searchAccounts').oninput = (e) => { searchQuery = e.target.value; renderDeudas(); };
-  el.querySelectorAll('.fav-chip').forEach(f => f.onclick = () => openAccountDetail(f.dataset.open));
-  bindAccountCardEvents(el);
+  // Solo actualiza la lista (no reconstruye el input), para no perder el foco/teclado en móvil
+  document.getElementById('searchAccounts').oninput = (e) => { searchQuery = e.target.value; renderAccountsListOnly(); };
+  renderAccountsListOnly();
+}
+
+function renderAccountsListOnly() {
+  const favoritos = CUENTAS.filter(c => c.favorito);
+  const q = searchQuery.trim().toLowerCase();
+  const filtered = CUENTAS.filter(c => c.nombre.toLowerCase().includes(q));
+  const sorted = [...filtered].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const groups = {};
+  sorted.forEach(c => { const L = initialOf(c.nombre); (groups[L] = groups[L] || []).push(c); });
+  const letters = Object.keys(groups).sort();
+
+  document.getElementById('favSection').innerHTML = favoritos.length ? `
+    <div class="section-title">Clientes favoritos</div>
+    <div class="fav-row">${favoritos.map(c => `
+      <div class="fav-chip" data-open="${c.id}">
+        <div class="circ">${initialOf(c.nombre)}</div>
+        <div class="info"><div class="name">${escapeHtml(c.nombre)}</div><div class="bal ${c.balance >= 0 ? 'pos' : 'neg'}">${money(c.balance)}</div></div>
+      </div>`).join('')}</div>` : '';
+
+  document.getElementById('accountsCount').textContent = `(${CUENTAS.length})`;
+
+  const wrap = document.getElementById('accountListWrap');
+  wrap.innerHTML = sorted.length === 0 ? `
+    <div class="empty-state">${ICONS.inbox}<p>${CUENTAS.length === 0 ? 'Aún no tienes cuentas. Crea la primera con el botón de arriba.' : 'No se encontraron cuentas con ese nombre.'}</p></div>
+  ` : letters.map(L => `
+    <div class="letter-group">
+      <div class="letter-head">${L}</div>
+      ${groups[L].map(c => accountCardHtml(c)).join('')}
+    </div>
+  `).join('');
+
+  document.querySelectorAll('#favSection .fav-chip').forEach(f => f.onclick = () => openAccountDetail(f.dataset.open));
+  bindAccountCardEvents(wrap);
   renderSelectBar();
 }
 function accountCardHtml(c) {
@@ -459,10 +534,11 @@ function openCreateAccountModal() {
 /* ============================================================
    DETALLE DE CUENTA
    ============================================================ */
-async function openAccountDetail(id) {
+async function openAccountDetail(id, opts = {}) {
   try {
     currentAccountDetail = await api(`/cuentas/${id}`);
     renderAccountDetailPage();
+    if (!opts.fromHistory) history.pushState({ view: 'accountDetail', id: String(id) }, '', location.href);
   } catch (e) { toast('No se pudo abrir la cuenta'); }
 }
 function renderAccountDetailPage() {
@@ -504,7 +580,7 @@ function renderAccountDetailPage() {
       </div>
     </div>
   `;
-  document.getElementById('detailBack').onclick = () => { root.innerHTML = ''; currentAccountDetail = null; };
+  document.getElementById('detailBack').onclick = () => { history.back(); };
   document.getElementById('btnAbono').onclick = () => openMovModal('abono', c.id);
   document.getElementById('btnCargo').onclick = () => openMovModal('cargo', c.id);
   document.getElementById('btnPdfCuenta').onclick = () => generarPdfCuenta(c);
@@ -519,11 +595,30 @@ function movRowHtml(m) {
         <div class="mov-desc">${escapeHtml(m.descripcion || (isIn ? 'Abono' : 'Cargo'))}</div>
         <div class="mov-time">${fmtTime(m.fecha)}${m.usuario ? ' · <span class="mov-author">' + escapeHtml(m.usuario) + '</span>' : ''}</div>
       </div>
+      ${m.foto ? `<button class="mov-photo-btn" data-photo="${m.id}" title="Ver factura">${ICONS.camera}</button>` : ''}
       <div class="mov-amounts">
         <div class="mov-monto ${isIn ? 'pos' : 'neg'}">${isIn ? '+' : ''}${money(m.monto)}</div>
         <div class="mov-saldo">saldo: ${money(m.saldo_resultante)}</div>
       </div>
     </div>`;
+}
+function bindPhotoButtons(container, movs) {
+  container.querySelectorAll('[data-photo]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const m = movs.find(x => String(x.id) === btn.dataset.photo);
+      if (m && m.foto) openPhotoLightbox(m.foto);
+    });
+  });
+}
+function openPhotoLightbox(dataUrl) {
+  showModal(`
+    <h3>Factura</h3>
+    <img src="${dataUrl}" style="width:100%;border-radius:10px;margin:8px 0;display:block;">
+    <div class="modal-actions">
+      <button class="btn-confirm" data-close style="width:100%;">Cerrar</button>
+    </div>
+  `, { center: true });
 }
 function bindMovLongPress(container, onDelete) {
   let timer = null;
@@ -589,17 +684,19 @@ function renderTienda() {
   const groups = {};
   movs.forEach(m => { const key = fmtDateShort(m.fecha); (groups[key] = groups[key] || []).push(m); });
   const dateKeys = Object.keys(groups);
+  const balanceHoy = TIENDA.balanceHoy || 0;
 
   el.innerHTML = `
     <div class="balance-block">
-      <div class="balance-label">Balance de la tienda</div>
-      <div class="balance-amount ${TIENDA.balance >= 0 ? 'pos' : 'neg'}">${money(TIENDA.balance)}</div>
+      <div class="balance-label">Balance de hoy</div>
+      <div class="balance-amount ${balanceHoy >= 0 ? 'pos' : 'neg'}">${money(balanceHoy)}</div>
     </div>
     <div class="action-row two">
       <button class="action-btn success" id="btnEntrada">${ICONS.arrowDown}Entrada</button>
       <button class="action-btn danger" id="btnSalida">${ICONS.arrowUp}Salida</button>
     </div>
-    <button class="pdf-btn" id="btnPdfTienda">${ICONS.pdf} Generar PDF</button>
+    <button class="pdf-btn" id="btnFactura">${ICONS.receipt} Generar factura</button>
+    <button class="pdf-btn" id="btnPdfTienda">${ICONS.pdf} Generar PDF de movimientos</button>
     ${movs.length ? `<div class="swipe-hint">Mantén presionado un movimiento para eliminarlo</div>` : ''}
     <div id="tiendaMovList">
       ${movs.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Sin movimientos registrados en la tienda todavía.</p></div>` :
@@ -615,29 +712,70 @@ function renderTienda() {
   document.getElementById('btnEntrada').onclick = () => openTiendaMovModal('entrada');
   document.getElementById('btnSalida').onclick = () => openTiendaMovModal('salida');
   document.getElementById('btnPdfTienda').onclick = openPdfTiendaFilterModal;
-  bindMovLongPress(document.getElementById('tiendaMovList'), confirmDeleteMovTienda);
+  document.getElementById('btnFactura').onclick = openInvoicePage;
+  const listEl = document.getElementById('tiendaMovList');
+  bindMovLongPress(listEl, confirmDeleteMovTienda);
+  bindPhotoButtons(listEl, movs);
+}
+function compressImage(file, maxWidth = 1000, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxWidth) { height = Math.round(height * (maxWidth / width)); width = maxWidth; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('No se pudo leer la imagen'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+    reader.readAsDataURL(file);
+  });
 }
 function openTiendaMovModal(tipo) {
   const isEntrada = tipo === 'entrada';
+  let fotoDataUrl = null;
   showModal(`
     <h3>${isEntrada ? 'Nueva entrada' : 'Nueva salida'}</h3>
     <p class="desc">${isEntrada ? 'Registra dinero que entra a la tienda.' : 'Registra dinero que sale de la tienda.'}</p>
     <div class="field"><label>Descripción</label><input id="tMovDesc" type="text" placeholder="Ej. Venta del día"></div>
     <div class="field"><label>Monto (Q)</label><input id="tMovMonto" type="number" step="0.01" min="0" placeholder="0.00"></div>
+    <div class="photo-field">
+      <label>Foto de la factura (opcional)</label>
+      <button type="button" class="photo-capture-btn" id="btnTomarFoto">${ICONS.camera} Tomar o elegir foto</button>
+      <input type="file" accept="image/*" capture="environment" id="tMovFotoInput" style="display:none;">
+      <div id="fotoPreviewWrap"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" data-close>Cancelar</button>
       <button class="btn-confirm" id="confirmTMov">Guardar</button>
     </div>
   `);
   setTimeout(() => document.getElementById('tMovDesc').focus(), 50);
+  document.getElementById('btnTomarFoto').onclick = () => document.getElementById('tMovFotoInput').click();
+  document.getElementById('tMovFotoInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      fotoDataUrl = await compressImage(file);
+      document.getElementById('fotoPreviewWrap').innerHTML = `
+        <div class="photo-preview"><img src="${fotoDataUrl}"><button type="button" class="remove-photo" id="btnQuitarFoto">${ICONS.trash}</button></div>`;
+      document.getElementById('btnQuitarFoto').onclick = () => { fotoDataUrl = null; document.getElementById('fotoPreviewWrap').innerHTML = ''; };
+    } catch (err) { toast('No se pudo procesar la foto'); }
+  });
   document.getElementById('confirmTMov').onclick = async () => {
     const descripcion = document.getElementById('tMovDesc').value.trim();
     const monto = parseFloat(document.getElementById('tMovMonto').value);
     if (isNaN(monto) || monto <= 0) return;
     try {
-      const { movimiento, balance } = await api('/tienda', { method: 'POST', body: { tipo, descripcion, monto } });
+      const { movimiento, balance } = await api('/tienda', { method: 'POST', body: { tipo, descripcion, monto, foto: fotoDataUrl } });
       TIENDA.movimientos.push(movimiento);
-      TIENDA.balance = balance;
+      TIENDA = await api('/tienda');
       closeModal(); renderTienda();
       toast(isEntrada ? 'Entrada registrada' : 'Salida registrada');
     } catch (e) { toast('No se pudo guardar el movimiento'); }
@@ -657,9 +795,10 @@ function confirmDeleteMovTienda(movId) {
 /* ============================================================
    HISTORIAL GENERAL + COPIAS DE SEGURIDAD
    ============================================================ */
-async function openHistorialPage() {
-  let hist = [], backups = [];
-  try { [hist, backups] = await Promise.all([api('/historial'), api('/backups')]); } catch (e) { toast('No se pudo cargar el historial'); }
+async function openHistorialPage(opts = {}) {
+  let hist = [], backups = [], backupsTienda = [];
+  try { [hist, backups, backupsTienda] = await Promise.all([api('/historial'), api('/backups'), api('/backups/tienda')]); } catch (e) { toast('No se pudo cargar el historial'); }
+  if (!opts.fromHistory) history.pushState({ view: 'historial' }, '', location.href);
   const root = document.getElementById('pageRoot');
   const groups = {};
   hist.forEach(h => { const key = fmtDateShort(h.fecha); (groups[key] = groups[key] || []).push(h); });
@@ -671,6 +810,7 @@ async function openHistorialPage() {
         <h2>Historial general</h2>
       </div>
       <div class="detail-body">
+        <p class="desc" style="margin:0 0 14px;">Se muestran los últimos 7 días de actividad.</p>
         ${hist.length === 0 ? `<div class="empty-state">${ICONS.history}<p>Aún no hay acciones registradas.</p></div>` :
           dateKeys.map(dk => `
             <div class="history-date-group">
@@ -688,38 +828,46 @@ async function openHistorialPage() {
             </div>
           `).join('')
         }
-        <div class="section-title" style="margin-top:22px;">Copias de seguridad</div>
-        <p class="desc" style="margin:-6px 0 14px;">Se genera una automáticamente cada día a las 11:30pm (hora de Guatemala). Se pueden descargar, pero se eliminan solas 48 horas después de creadas.</p>
+        <div class="section-title" style="margin-top:22px;">Copias de seguridad general</div>
+        <p class="desc" style="margin:-6px 0 14px;">Se genera una cada domingo (cierra la semana lunes-domingo). Se conservan las últimas 4 semanas.</p>
         ${backups.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Todavía no se ha generado ninguna copia.</p></div>` :
-          backups.map(b => backupRowHtml(b)).join('')
+          backups.map(b => backupRowHtml(b, 'general')).join('')
+        }
+        <div class="section-title" style="margin-top:22px;">Copias de seguridad de tienda</div>
+        <p class="desc" style="margin:-6px 0 14px;">Se genera una a fin de cada mes, con las fotos de facturas y un resumen. Se conservan los últimos 2 meses.</p>
+        ${backupsTienda.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Todavía no se ha generado ninguna copia de tienda.</p></div>` :
+          backupsTienda.map(b => backupRowHtml(b, 'tienda')).join('')
         }
       </div>
     </div>`;
-  document.getElementById('histBack').onclick = () => { root.innerHTML = ''; };
+  document.getElementById('histBack').onclick = () => { history.back(); };
   root.querySelectorAll('[data-download]').forEach(btn => {
-    btn.addEventListener('click', () => { window.location.href = `/api/backups/${btn.dataset.download}/download`; });
+    btn.addEventListener('click', () => {
+      const url = btn.dataset.scope === 'tienda' ? `/api/backups/tienda/${btn.dataset.download}/download` : `/api/backups/${btn.dataset.download}/download`;
+      window.location.href = url;
+    });
   });
 }
-function backupRowHtml(b) {
-  const horasRestantes = Math.max(0, Math.round((new Date(b.expira_en) - new Date()) / 3600000));
+function backupRowHtml(b, scope) {
   const kb = (b.size_bytes / 1024).toFixed(1);
   return `
     <div class="backup-row">
       <div class="backup-info">
-        <div class="backup-date">${fmtDateTimeShort(b.fecha_creacion)}</div>
-        <div class="backup-meta">${kb} KB · se elimina en ${horasRestantes}h</div>
+        <div class="backup-date">${escapeHtml(b.nombre || fmtDateTimeShort(b.fecha_creacion))}</div>
+        <div class="backup-meta">${kb} KB</div>
       </div>
-      <button class="backup-dl" data-download="${b.id}" title="Descargar">${ICONS.download}</button>
+      <button class="backup-dl" data-download="${b.id}" data-scope="${scope}" title="Descargar">${ICONS.download}</button>
     </div>`;
 }
 
 /* ============================================================
    CUENTA Y USUARIOS (avatar)
    ============================================================ */
-async function openAccountSettingsPage() {
+async function openAccountSettingsPage(opts = {}) {
   let usuarios = [];
   try { usuarios = await api('/usuarios'); } catch (e) { toast('No se pudo cargar la lista de usuarios'); }
   renderUsersPage(usuarios);
+  if (!opts.fromHistory) history.pushState({ view: 'users' }, '', location.href);
 }
 function renderUsersPage(usuariosParam) {
   const root = document.getElementById('pageRoot');
@@ -758,7 +906,7 @@ function renderUsersPage(usuariosParam) {
           <button class="pdf-btn" id="btnAddUser" style="margin-top:14px;">${ICONS.userPlus} Crear nuevo administrador</button>
         </div>
       </div>`;
-    document.getElementById('usersBack').onclick = () => { root.innerHTML = ''; };
+    document.getElementById('usersBack').onclick = () => { history.back(); };
     document.getElementById('btnChangeOwnPass').onclick = () => openChangePasswordModal(AUTH.id, AUTH.nombre, true);
     document.getElementById('btnAddUser').onclick = openCreateUserModal;
     root.querySelectorAll('[data-changepass]').forEach(b => {
@@ -936,10 +1084,105 @@ function openPdfTiendaFilterModal() {
     closeModal();
   };
 }
-function generarPdfTienda(movs, label) {
+function getImageSize(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => resolve({ w: 1, h: 1 });
+    img.src = dataUrl;
+  });
+}
+/* ============================================================
+   GENERADOR DE FACTURAS (simple, sin base de datos por ahora)
+   ============================================================ */
+let invoiceItems = [];
+function openInvoicePage(opts = {}) {
+  if (invoiceItems.length === 0) invoiceItems = [{ producto: '', precio: '', cantidad: '1' }];
+  renderInvoicePage();
+  if (!opts.fromHistory) history.pushState({ view: 'invoice' }, '', location.href);
+}
+function renderInvoicePage() {
+  const root = document.getElementById('pageRoot');
+  const fecha = new Date().toISOString();
+  root.innerHTML = `
+    <div class="page-slide" id="invoicePage">
+      <div class="page-header">
+        <button class="back-btn" id="invoiceBack">${ICONS.back}</button>
+        <h2>Generar factura</h2>
+      </div>
+      <div class="detail-body">
+        <p class="desc" style="margin:0 0 16px;">${fmtDateShort(fecha)} · ${fmtTime(fecha)}</p>
+        <div class="section-title">Productos</div>
+        <div id="invoiceItemsWrap"></div>
+        <button class="pdf-btn" id="btnAddItem" style="margin-top:4px;">${ICONS.plus} Agregar producto</button>
+        <div class="balance-block">
+          <div class="balance-label">Total</div>
+          <div class="balance-amount pos" id="invoiceTotal">${money(0)}</div>
+        </div>
+        <button class="pdf-btn" id="btnGenInvoicePdf">${ICONS.pdf} Generar PDF de la factura</button>
+      </div>
+    </div>`;
+  document.getElementById('invoiceBack').onclick = () => history.back();
+  document.getElementById('btnAddItem').onclick = () => { invoiceItems.push({ producto: '', precio: '', cantidad: '1' }); renderInvoiceItems(); };
+  document.getElementById('btnGenInvoicePdf').onclick = generarPdfFactura;
+  renderInvoiceItems();
+}
+function renderInvoiceItems() {
+  const wrap = document.getElementById('invoiceItemsWrap');
+  wrap.innerHTML = invoiceItems.map((it, idx) => `
+    <div class="invoice-item-row" data-idx="${idx}">
+      <input type="text" class="invoice-input inv-producto" data-idx="${idx}" placeholder="Producto" value="${escapeHtml(it.producto)}">
+      <input type="number" step="0.01" min="0" class="invoice-input inv-precio" data-idx="${idx}" placeholder="Precio" value="${it.precio}">
+      <input type="number" step="1" min="1" class="invoice-input inv-cantidad" data-idx="${idx}" placeholder="Cant." value="${it.cantidad}">
+      <div class="invoice-subtotal" id="invSubtotal-${idx}">${money((parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0))}</div>
+      <button class="invoice-remove" data-remove="${idx}">${ICONS.trash}</button>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.inv-producto').forEach(inp => inp.oninput = (e) => { invoiceItems[e.target.dataset.idx].producto = e.target.value; });
+  wrap.querySelectorAll('.inv-precio').forEach(inp => inp.oninput = (e) => { invoiceItems[e.target.dataset.idx].precio = e.target.value; updateInvoiceRow(e.target.dataset.idx); });
+  wrap.querySelectorAll('.inv-cantidad').forEach(inp => inp.oninput = (e) => { invoiceItems[e.target.dataset.idx].cantidad = e.target.value; updateInvoiceRow(e.target.dataset.idx); });
+  wrap.querySelectorAll('[data-remove]').forEach(btn => btn.onclick = () => {
+    invoiceItems.splice(Number(btn.dataset.remove), 1);
+    if (invoiceItems.length === 0) invoiceItems.push({ producto: '', precio: '', cantidad: '1' });
+    renderInvoiceItems();
+  });
+  updateInvoiceTotal();
+}
+function updateInvoiceRow(idx) {
+  const it = invoiceItems[idx];
+  const sub = (parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0);
+  const el = document.getElementById('invSubtotal-' + idx);
+  if (el) el.textContent = money(sub);
+  updateInvoiceTotal();
+}
+function updateInvoiceTotal() {
+  const total = invoiceItems.reduce((s, it) => s + (parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0), 0);
+  const el = document.getElementById('invoiceTotal');
+  if (el) el.textContent = money(total);
+}
+function generarPdfFactura() {
+  const validItems = invoiceItems.filter(it => it.producto.trim() && parseFloat(it.precio) > 0 && parseFloat(it.cantidad) > 0);
+  if (validItems.length === 0) { toast('Agrega al menos un producto con precio y cantidad'); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  pdfHeader(doc, 'Movimientos de la tienda');
+  pdfHeader(doc, 'Factura');
+  const fecha = new Date();
+  doc.setFontSize(10); doc.setTextColor(100, 100, 100);
+  doc.text(`Fecha: ${fmtDateShort(fecha.toISOString())}   Hora: ${fmtTime(fecha.toISOString())}`, 14, 36);
+  const rows = validItems.map(it => [it.producto, money(parseFloat(it.precio)), it.cantidad, money(parseFloat(it.precio) * parseFloat(it.cantidad))]);
+  const total = validItems.reduce((s, it) => s + parseFloat(it.precio) * parseFloat(it.cantidad), 0);
+  doc.autoTable({ startY: 43, head: [['Producto', 'Precio', 'Cantidad', 'Subtotal']], body: rows, styles: { fontSize: 9.5 }, headStyles: { fillColor: [40, 40, 40] } });
+  const finalY = doc.lastAutoTable.finalY + 12;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(30, 30, 30);
+  doc.text('Total: ' + money(total), 14, finalY);
+  doc.save('factura-' + fecha.toISOString().slice(0, 10) + '-' + fecha.getTime() + '.pdf');
+  toast('Factura generada');
+  invoiceItems = [{ producto: '', precio: '', cantidad: '1' }];
+}
+
+
+async function generarPdfTienda(movs, label) {
+  const { jsPDF } = window.jspdf;
   doc.setFontSize(10); doc.setTextColor(100, 100, 100);
   doc.text('Rango: ' + label, 14, 36);
   const rows = movs.map(m => [fmtDateShort(m.fecha), fmtTime(m.fecha), m.tipo, m.descripcion || '', money(m.monto), money(m.saldo_resultante), m.usuario || '']);
@@ -948,6 +1191,20 @@ function generarPdfTienda(movs, label) {
   } else {
     doc.setFontSize(10); doc.setTextColor(140, 140, 140); doc.text('No hay movimientos en este rango.', 14, 43);
   }
+
+  const conFoto = movs.filter(m => m.foto);
+  for (const m of conFoto) {
+    doc.addPage();
+    pdfHeader(doc, 'Factura — ' + fmtDateShort(m.fecha) + ' ' + fmtTime(m.fecha));
+    doc.setFontSize(10); doc.setTextColor(80, 80, 80);
+    doc.text(`${m.tipo === 'entrada' ? 'Entrada' : 'Salida'} · ${m.descripcion || ''} · ${money(m.monto)}`, 14, 36);
+    const { w, h } = await getImageSize(m.foto);
+    const maxW = 182, maxH = 230;
+    let drawW = maxW, drawH = (h / w) * drawW;
+    if (drawH > maxH) { drawH = maxH; drawW = (w / h) * drawH; }
+    doc.addImage(m.foto, 'JPEG', 14, 44, drawW, drawH);
+  }
+
   doc.save('tienda-movimientos.pdf');
   toast('PDF generado');
 }

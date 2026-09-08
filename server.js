@@ -9,7 +9,7 @@ const cron = require('node-cron');
 const { pool, migrate } = require('./db/pool');
 const { COOKIE_NAME } = require('./middleware/auth');
 const realtime = require('./lib/realtime');
-const { crearBackup, limpiarBackupsVencidos, limpiarHistorialSemanal } = require('./jobs/backup');
+const { limpiarHistorialRodante, crearBackupGeneral, crearBackupTienda } = require('./jobs/backup');
 
 const authRoutes = require('./routes/auth');
 const usuariosRoutes = require('./routes/usuarios');
@@ -61,20 +61,21 @@ async function start() {
     process.exit(1);
   }
 
-  // Limpieza de backups vencidos al arrancar, y luego cada hora.
-  limpiarBackupsVencidos().catch(e => console.error('Error limpiando backups:', e.message));
-  cron.schedule('0 * * * *', () => {
-    limpiarBackupsVencidos().catch(e => console.error('Error limpiando backups:', e.message));
-  });
-
-  // Backup diario a las 11:30pm hora de Guatemala.
-  cron.schedule('30 23 * * *', () => {
-    crearBackup().catch(e => console.error('Error creando backup:', e.message));
+  // Historial general: cada día a las 11:45pm se recorta a los últimos 7 días.
+  cron.schedule('45 23 * * *', () => {
+    limpiarHistorialRodante().catch(e => console.error('Error limpiando historial:', e.message));
   }, { timezone: 'America/Guatemala' });
 
-  // Borra el historial general cada domingo a las 11:30pm (hora Guatemala).
-  cron.schedule('30 23 * * 0', () => {
-    limpiarHistorialSemanal().catch(e => console.error('Error limpiando historial:', e.message));
+  // Backup general (cuentas + movimientos + historial): cada domingo a las 11:59pm,
+  // cierra la semana lunes-domingo. Guarda las últimas 4 semanas.
+  cron.schedule('59 23 * * 0', () => {
+    crearBackupGeneral().catch(e => console.error('Error creando backup general:', e.message));
+  }, { timezone: 'America/Guatemala' });
+
+  // Backup de tienda (con fotos y resumen): el día 1 de cada mes a las 00:05,
+  // archiva el mes que acaba de terminar y lo borra de la tabla en vivo. Guarda 2 meses.
+  cron.schedule('5 0 1 * *', () => {
+    crearBackupTienda().catch(e => console.error('Error creando backup de tienda:', e.message));
   }, { timezone: 'America/Guatemala' });
 
   server.listen(PORT, () => console.log(`Cuentas-App escuchando en el puerto ${PORT}`));

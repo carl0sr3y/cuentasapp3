@@ -20,20 +20,29 @@ async function registrarHistorial(usuarioId, accion, detalle, extra = {}) {
 
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT m.id, m.tipo, m.descripcion, m.monto, m.saldo_resultante, m.fecha, u.nombre AS usuario
+    `SELECT m.id, m.tipo, m.descripcion, m.monto, m.saldo_resultante, m.fecha, m.foto, u.nombre AS usuario
      FROM movimientos_tienda m LEFT JOIN usuarios u ON u.id = m.usuario_id
      ORDER BY m.fecha ASC, m.id ASC`
   );
   const balance = rows.length ? Number(rows[rows.length - 1].saldo_resultante) : 0;
-  res.json({ balance, movimientos: rows });
+  const { rows: hoyRows } = await pool.query(
+    `SELECT COALESCE(SUM(monto),0) AS total FROM movimientos_tienda
+     WHERE (fecha AT TIME ZONE 'America/Guatemala')::date = (now() AT TIME ZONE 'America/Guatemala')::date`
+  );
+  const balanceHoy = Number(hoyRows[0].total);
+  res.json({ balance, balanceHoy, movimientos: rows });
 });
 
 router.post('/', async (req, res) => {
-  const { tipo, descripcion, monto } = req.body || {};
+  const { tipo, descripcion, monto, foto } = req.body || {};
   if (!['entrada', 'salida'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido' });
   const montoNum = Math.abs(Number(monto));
   if (!montoNum || montoNum <= 0) return res.status(400).json({ error: 'Monto inválido' });
   const montoFinal = tipo === 'entrada' ? montoNum : -montoNum;
+
+  if (foto && Buffer.byteLength(foto, 'utf8') > 4 * 1024 * 1024) {
+    return res.status(400).json({ error: 'La foto es demasiado grande' });
+  }
 
   const { rows: last } = await pool.query(
     `SELECT saldo_resultante FROM movimientos_tienda ORDER BY fecha DESC, id DESC LIMIT 1`
@@ -42,15 +51,15 @@ router.post('/', async (req, res) => {
   const saldoResultante = saldoAnterior + montoFinal;
 
   const { rows } = await pool.query(
-    `INSERT INTO movimientos_tienda (usuario_id, tipo, descripcion, monto, saldo_resultante)
-     VALUES ($1,$2,$3,$4,$5) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha`,
-    [req.user.id, tipo, (descripcion || '').trim(), montoFinal, saldoResultante]
+    `INSERT INTO movimientos_tienda (usuario_id, tipo, descripcion, monto, saldo_resultante, foto)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha, foto`,
+    [req.user.id, tipo, (descripcion || '').trim(), montoFinal, saldoResultante, foto || null]
   );
   const mov = { ...rows[0], usuario: req.user.nombre };
   await registrarHistorial(
     req.user.id,
     tipo === 'entrada' ? 'Entrada' : 'Salida',
-    `${tipo === 'entrada' ? 'Entrada' : 'Salida'} de tienda${mov.descripcion ? ': ' + mov.descripcion : ''}`,
+    `${tipo === 'entrada' ? 'Entrada' : 'Salida'} de tienda${mov.descripcion ? ': ' + mov.descripcion : ''}${foto ? ' (con factura)' : ''}`,
     { tipo, monto: montoFinal }
   );
   broadcast({ scope: 'tienda', by: req.user.nombre, excludeClientId: clientIdOf(req) });
