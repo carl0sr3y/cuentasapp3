@@ -24,7 +24,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-cambia-esto';
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
 // Adjunta el usuario autenticado a req.user si el cookie es válido (para /api/auth/status)
