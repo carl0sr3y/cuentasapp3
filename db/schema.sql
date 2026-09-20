@@ -100,3 +100,19 @@ CREATE INDEX IF NOT EXISTS idx_historial_fecha ON historial_general(fecha DESC);
 CREATE INDEX IF NOT EXISTS idx_cuentas_nombre ON cuentas(nombre);
 CREATE INDEX IF NOT EXISTS idx_backups_fecha ON backups(fecha_creacion);
 CREATE INDEX IF NOT EXISTS idx_password_resets_usuario ON password_resets(usuario_id);
+
+-- Fecha del último cambio de contraseña (para forzar rotación cada 6 meses)
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS contrasena_actualizada_en TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- Credenciales de huella/Face ID (WebAuthn) registradas por dispositivo
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+  id SERIAL PRIMARY KEY,
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  credential_id TEXT UNIQUE NOT NULL,
+  public_key TEXT NOT NULL,
+  counter BIGINT NOT NULL DEFAULT 0,
+  transports TEXT,
+  device_name TEXT,
+  fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_webauthn_usuario ON webauthn_credentials(usuario_id);

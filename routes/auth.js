@@ -68,6 +68,11 @@ router.post('/register', async (req, res) => {
   res.json({ user });
 });
 
+const SEIS_MESES_MS = 1000 * 60 * 60 * 24 * 182;
+function passwordVencida(fecha) {
+  return Date.now() - new Date(fecha).getTime() > SEIS_MESES_MS;
+}
+
 router.post('/login', async (req, res) => {
   const { usuario, contrasena } = req.body || {};
   if (!usuario || !contrasena) return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
@@ -76,9 +81,35 @@ router.post('/login', async (req, res) => {
   if (!dbUser) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
   const ok = await bcrypt.compare(contrasena, dbUser.contrasena);
   if (!ok) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+
+  if (passwordVencida(dbUser.contrasena_actualizada_en)) {
+    return res.status(403).json({ error: 'passwordExpired', usuario: dbUser.usuario, message: 'Tu contraseña tiene más de 6 meses. Debes actualizarla para continuar.' });
+  }
+
   const user = { id: dbUser.id, nombre: dbUser.nombre, usuario: dbUser.usuario };
   setAuthCookie(res, user);
   await registrarHistorial(user.id, 'Inicio de sesión', 'Sesión iniciada correctamente');
+  res.json({ user });
+});
+
+// Cuando la contraseña venció (más de 6 meses), esta ruta confirma la contraseña actual
+// y establece una nueva, todo en un solo paso, dejando la sesión iniciada al final.
+router.post('/force-change-password', async (req, res) => {
+  const { usuario, contrasena, nuevaContrasena } = req.body || {};
+  if (!usuario || !contrasena || !nuevaContrasena || nuevaContrasena.length < 4) {
+    return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta' });
+  }
+  const { rows } = await pool.query('SELECT * FROM usuarios WHERE usuario = $1', [usuario]);
+  const dbUser = rows[0];
+  if (!dbUser) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+  const ok = await bcrypt.compare(contrasena, dbUser.contrasena);
+  if (!ok) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+
+  const hash = await bcrypt.hash(nuevaContrasena, 10);
+  await pool.query('UPDATE usuarios SET contrasena = $1, contrasena_actualizada_en = now() WHERE id = $2', [hash, dbUser.id]);
+  const user = { id: dbUser.id, nombre: dbUser.nombre, usuario: dbUser.usuario };
+  setAuthCookie(res, user);
+  await registrarHistorial(user.id, 'Cambiar contraseña', 'Contraseña actualizada (rotación obligatoria de 6 meses)');
   res.json({ user });
 });
 
@@ -130,7 +161,7 @@ router.post('/reset-password', async (req, res) => {
   if (!codeRows[0]) return res.status(400).json({ error: 'Código incorrecto o vencido' });
 
   const hash = await bcrypt.hash(nuevaContrasena, 10);
-  await pool.query('UPDATE usuarios SET contrasena = $1 WHERE id = $2', [hash, user.id]);
+  await pool.query('UPDATE usuarios SET contrasena = $1, contrasena_actualizada_en = now() WHERE id = $2', [hash, user.id]);
   await pool.query('UPDATE password_resets SET usado = true WHERE id = $1', [codeRows[0].id]);
   await registrarHistorial(user.id, 'Restablecer contraseña', 'Contraseña restablecida mediante código enviado por correo');
   res.json({ ok: true });

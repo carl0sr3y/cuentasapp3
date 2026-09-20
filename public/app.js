@@ -30,6 +30,116 @@ const ICONS = {
    ============================================================ */
 const CLIENT_ID = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
 
+/* ============================================================
+   WEBAUTHN (huella/Face ID): helpers de conversión base64url <-> buffers
+   ============================================================ */
+function bufferToBase64url(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let str = '';
+  for (const b of bytes) str += String.fromCharCode(b);
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function base64urlToBuffer(base64url) {
+  const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+  const str = atob(padded);
+  const bytes = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) bytes[i] = str.charCodeAt(i);
+  return bytes.buffer;
+}
+function prepareCreationOptions(options) {
+  const opts = JSON.parse(JSON.stringify(options));
+  opts.challenge = base64urlToBuffer(opts.challenge);
+  opts.user.id = base64urlToBuffer(opts.user.id);
+  if (opts.excludeCredentials) opts.excludeCredentials = opts.excludeCredentials.map(c => ({ ...c, id: base64urlToBuffer(c.id) }));
+  return opts;
+}
+function prepareRequestOptions(options) {
+  const opts = JSON.parse(JSON.stringify(options));
+  opts.challenge = base64urlToBuffer(opts.challenge);
+  if (opts.allowCredentials) opts.allowCredentials = opts.allowCredentials.map(c => ({ ...c, id: base64urlToBuffer(c.id) }));
+  return opts;
+}
+function serializeCredential(cred) {
+  if (cred.toJSON) return cred.toJSON();
+  const base = {
+    id: cred.id,
+    rawId: bufferToBase64url(cred.rawId),
+    type: cred.type,
+    clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
+  };
+  if (cred.response.attestationObject) {
+    base.response = {
+      clientDataJSON: bufferToBase64url(cred.response.clientDataJSON),
+      attestationObject: bufferToBase64url(cred.response.attestationObject),
+      transports: (cred.response.getTransports && cred.response.getTransports()) || [],
+    };
+  } else {
+    base.response = {
+      clientDataJSON: bufferToBase64url(cred.response.clientDataJSON),
+      authenticatorData: bufferToBase64url(cred.response.authenticatorData),
+      signature: bufferToBase64url(cred.response.signature),
+      userHandle: cred.response.userHandle ? bufferToBase64url(cred.response.userHandle) : undefined,
+    };
+  }
+  return base;
+}
+function fingerprintSupported() { return !!window.PublicKeyCredential; }
+async function loginWithFingerprint() {
+  if (!fingerprintSupported()) { toast('Este navegador no soporta huella/Face ID'); return; }
+  try {
+    const { options, requestId } = await api('/webauthn/login-options');
+    const publicKey = prepareRequestOptions(options);
+    const cred = await navigator.credentials.get({ publicKey });
+    const serialized = serializeCredential(cred);
+    const res = await fetch('/api/webauthn/login-verify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Client-Id': CLIENT_ID },
+      credentials: 'include', body: JSON.stringify({ requestId, response: serialized }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (data.error === 'passwordExpired') { renderForcedPasswordChange(data.usuario, null, data.message); return; }
+      toast(data.error || 'No se pudo iniciar sesión con huella');
+      return;
+    }
+    AUTH = data.user;
+    enterApp();
+  } catch (e) {
+    if (e && e.name === 'NotAllowedError') return; // el usuario canceló el prompt
+    toast('No se pudo iniciar sesión con huella');
+  }
+}
+function openRegisterFingerprintModal() {
+  if (!fingerprintSupported()) { toast('Este navegador no soporta huella/Face ID'); return; }
+  showModal(`
+    <h3>Registrar este dispositivo</h3>
+    <p class="desc">Te va a pedir tu huella o Face ID. Solo funcionará para iniciar sesión desde este mismo dispositivo.</p>
+    <div class="field"><label>Nombre para este dispositivo</label><input id="fpDeviceName" type="text" placeholder="Ej. Mi teléfono"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" data-close>Cancelar</button>
+      <button class="btn-confirm" id="confirmFpReg">Continuar</button>
+    </div>
+    <p class="login-error" id="fpRegErr"></p>
+  `);
+  document.getElementById('confirmFpReg').onclick = async () => {
+    const deviceName = document.getElementById('fpDeviceName').value.trim() || 'Este dispositivo';
+    const err = document.getElementById('fpRegErr');
+    try {
+      const options = await api('/webauthn/register-options');
+      const publicKey = prepareCreationOptions(options);
+      const cred = await navigator.credentials.create({ publicKey });
+      const serialized = serializeCredential(cred);
+      await api('/webauthn/register-verify', { method: 'POST', body: { response: serialized, deviceName } });
+      closeModal();
+      toast('Huella registrada en este dispositivo');
+      renderUsersPage();
+    } catch (e) {
+      if (e && e.name === 'NotAllowedError') { err.textContent = 'Se canceló la operación.'; return; }
+      err.textContent = 'No se pudo registrar la huella. Intenta de nuevo.';
+    }
+  };
+}
+
 let pendingRequests = 0;
 let wsConnected = false;
 function updateSyncDot() {
@@ -212,6 +322,7 @@ function renderLogin(needsSetup) {
         <div class="login-mark">${ICONS.check}</div>
         <h1>Cuentas-App</h1>
         <p class="sub">Inicia sesión para continuar.</p>
+        ${fingerprintSupported() ? `<button class="btn-primary" id="fpLoginBtn" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);margin-bottom:14px;">${ICONS.key} Usar huella / Face ID</button><p class="desc" style="text-align:center;margin:-6px 0 16px;">o con tu usuario y contraseña</p>` : ''}
         <div class="field"><label>Usuario</label><input id="loginUsuario" type="text" autocomplete="username"></div>
         <div class="field"><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div>
         <button class="btn-primary" id="loginBtn">Iniciar sesión</button>
@@ -221,13 +332,23 @@ function renderLogin(needsSetup) {
           <button id="goForgot">¿Olvidaste tu contraseña?</button>
         </p>
       </div>`;
+    if (fingerprintSupported()) document.getElementById('fpLoginBtn').onclick = loginWithFingerprint;
     const tryLogin = async () => {
-      const usuario = document.getElementById('loginUsuario').value.trim();
+      const usuarioVal = document.getElementById('loginUsuario').value.trim();
       const contrasena = document.getElementById('loginPass').value;
       const err = document.getElementById('loginErr');
       try {
-        const { user } = await api('/auth/login', { method: 'POST', body: { usuario, contrasena } });
-        AUTH = user;
+        const res = await fetch('/api/auth/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Client-Id': CLIENT_ID },
+          credentials: 'include', body: JSON.stringify({ usuario: usuarioVal, contrasena }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (data.error === 'passwordExpired') { renderForcedPasswordChange(usuarioVal, contrasena, data.message); return; }
+          err.textContent = data.error || 'Usuario o contraseña incorrectos.';
+          return;
+        }
+        AUTH = data.user;
         enterApp();
       } catch (e) { err.textContent = typeof e === 'string' ? e : 'Usuario o contraseña incorrectos.'; }
     };
@@ -236,6 +357,34 @@ function renderLogin(needsSetup) {
     if (regEnabled) document.getElementById('goRegister').onclick = () => renderRegisterView();
     document.getElementById('goForgot').onclick = () => renderForgotView();
   }
+}
+function renderForcedPasswordChange(usuario, contrasenaActual, message) {
+  const root = document.getElementById('loginScreen');
+  root.innerHTML = `
+    <div class="login-card">
+      <div class="login-mark">${ICONS.key}</div>
+      <h1>Actualiza tu contraseña</h1>
+      <p class="sub">${escapeHtml(message || 'Tu contraseña tiene más de 6 meses y debes actualizarla para continuar.')}</p>
+      ${contrasenaActual ? '' : `
+        <div class="field"><label>Usuario</label><input id="fpcUsuario" type="text" value="${escapeHtml(usuario || '')}"></div>
+        <div class="field"><label>Contraseña actual</label><input id="fpcActual" type="password"></div>`}
+      <div class="field"><label>Nueva contraseña</label><input id="fpcNueva" type="password" placeholder="Mínimo 4 caracteres"></div>
+      <button class="btn-primary" id="fpcBtn">Actualizar y continuar</button>
+      <p class="login-error" id="fpcErr"></p>
+    </div>`;
+  document.getElementById('fpcBtn').onclick = async () => {
+    const usuarioVal = contrasenaActual ? usuario : document.getElementById('fpcUsuario').value.trim();
+    const actual = contrasenaActual || document.getElementById('fpcActual').value;
+    const nueva = document.getElementById('fpcNueva').value;
+    const err = document.getElementById('fpcErr');
+    if (!usuarioVal || !actual || !nueva || nueva.length < 4) { err.textContent = 'Completa todos los campos (mínimo 4 caracteres).'; return; }
+    try {
+      const { user } = await api('/auth/force-change-password', { method: 'POST', body: { usuario: usuarioVal, contrasena: actual, nuevaContrasena: nueva } });
+      AUTH = user;
+      toast('Contraseña actualizada');
+      enterApp();
+    } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo actualizar la contraseña.'; }
+  };
 }
 function renderRegisterView() {
   const root = document.getElementById('loginScreen');
@@ -1086,6 +1235,11 @@ function renderUsersPage(usuariosParam) {
             `).join('')
           }
           <button class="pdf-btn" id="btnAddUser" style="margin-top:14px;">${ICONS.userPlus} Crear nuevo administrador</button>
+
+          <div class="section-title" style="margin-top:22px;">Huella / Face ID</div>
+          <p class="desc" style="margin:-6px 0 14px;">Inicia sesión rápido sin escribir tu contraseña, solo en los dispositivos donde la registres aquí.</p>
+          <div id="fpDevicesList"></div>
+          <button class="pdf-btn" id="btnAddFingerprint">${ICONS.key} Registrar este dispositivo</button>
         </div>
       </div>`;
     document.getElementById('usersBack').onclick = () => { history.back(); };
@@ -1093,6 +1247,8 @@ function renderUsersPage(usuariosParam) {
     document.getElementById('btnChangeOwnEmail').onclick = () => openChangeEmailModal(AUTH.id, yo.email);
     document.getElementById('btnDeleteOwnAccount').onclick = () => openDeleteUserModal(AUTH.id, yo.nombre, true);
     document.getElementById('btnAddUser').onclick = openCreateUserModal;
+    document.getElementById('btnAddFingerprint').onclick = openRegisterFingerprintModal;
+    loadFingerprintDevices();
     root.querySelectorAll('[data-changepass]').forEach(b => {
       b.addEventListener('click', () => openChangePasswordModal(b.dataset.changepass, b.dataset.name, false));
     });
@@ -1105,6 +1261,33 @@ function renderUsersPage(usuariosParam) {
   };
   if (usuariosParam) render(usuariosParam);
   else api('/usuarios').then(render).catch(() => toast('No se pudo cargar la lista de usuarios'));
+}
+function loadFingerprintDevices() {
+  const wrap = document.getElementById('fpDevicesList');
+  if (!wrap) return;
+  api('/webauthn/credentials').then(creds => {
+    wrap.innerHTML = creds.length === 0 ? `
+      <div class="empty-state">${ICONS.inbox}<p>No has registrado ningún dispositivo todavía.</p></div>
+    ` : creds.map(c => `
+      <div class="user-card">
+        <div class="acc-circ">${ICONS.key}</div>
+        <div class="info">
+          <div class="name">${escapeHtml(c.device_name || 'Dispositivo')}</div>
+          <div class="handle">Agregado ${fmtDateShort(c.fecha_creacion)}</div>
+        </div>
+        <button class="link-btn" data-delfp="${c.id}" style="color:var(--red);">Eliminar</button>
+      </div>
+    `).join('');
+    wrap.querySelectorAll('[data-delfp]').forEach(b => {
+      b.addEventListener('click', async () => {
+        try {
+          await api(`/webauthn/credentials/${b.dataset.delfp}`, { method: 'DELETE' });
+          toast('Dispositivo eliminado');
+          loadFingerprintDevices();
+        } catch (e) { toast('No se pudo eliminar el dispositivo'); }
+      });
+    });
+  }).catch(() => { wrap.innerHTML = ''; });
 }
 function openChangeEmailModal(userId, currentEmail) {
   showModal(`

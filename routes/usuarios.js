@@ -53,7 +53,7 @@ router.patch('/:id/password', async (req, res) => {
   }
 
   const hash = await bcrypt.hash(nueva, 10);
-  await pool.query('UPDATE usuarios SET contrasena = $1 WHERE id = $2', [hash, targetId]);
+  await pool.query('UPDATE usuarios SET contrasena = $1, contrasena_actualizada_en = now() WHERE id = $2', [hash, targetId]);
   await registrarHistorial(req.user.id, 'Cambiar contraseña', `Contraseña actualizada para "${target.nombre}"`);
   res.json({ ok: true });
 });

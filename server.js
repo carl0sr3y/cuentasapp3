@@ -19,8 +19,10 @@ const historialRoutes = require('./routes/historial');
 const reportesRoutes = require('./routes/reportes');
 const backupsRoutes = require('./routes/backups');
 const pushRoutes = require('./routes/push');
+const webauthnRoutes = require('./routes/webauthn');
 
 const app = express();
+app.set('trust proxy', 1); // detrás del proxy de Railway; necesario para que WebAuthn detecte bien el protocolo/origen
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-cambia-esto';
 
@@ -43,6 +45,7 @@ app.use('/api/historial', historialRoutes);
 app.use('/api/reportes', reportesRoutes);
 app.use('/api/backups', backupsRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/webauthn', webauthnRoutes);
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', (req, res) => {
