@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   contrasena TEXT NOT NULL,
   fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;
 
 CREATE TABLE IF NOT EXISTS cuentas (
   id SERIAL PRIMARY KEY,
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS movimientos_tienda (
   saldo_resultante NUMERIC(12,2) NOT NULL,
   fecha TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE movimientos_tienda ADD COLUMN IF NOT EXISTS foto TEXT;
 
 CREATE TABLE IF NOT EXISTS historial_general (
   id SERIAL PRIMARY KEY,
@@ -51,20 +53,25 @@ CREATE TABLE IF NOT EXISTS historial_general (
   fecha TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Copias de seguridad automaticas: no se exponen rutas de borrado manual,
--- solo un job programado que las elimina 48 horas despues de creadas.
+-- Copias de seguridad generales (semanales): cuentas + movimientos_cuentas + historial_general
 CREATE TABLE IF NOT EXISTS backups (
   id SERIAL PRIMARY KEY,
   data JSONB NOT NULL,
   size_bytes INTEGER NOT NULL,
   fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE backups ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'general';
+ALTER TABLE backups ADD COLUMN IF NOT EXISTS nombre TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_movcuentas_cuenta_fecha ON movimientos_cuentas(cuenta_id, fecha);
-CREATE INDEX IF NOT EXISTS idx_movtienda_fecha ON movimientos_tienda(fecha);
-CREATE INDEX IF NOT EXISTS idx_historial_fecha ON historial_general(fecha DESC);
-CREATE INDEX IF NOT EXISTS idx_cuentas_nombre ON cuentas(nombre);
-CREATE INDEX IF NOT EXISTS idx_backups_fecha ON backups(fecha_creacion);
+-- Copias de seguridad de tienda (mensuales, con fotos y resumen)
+CREATE TABLE IF NOT EXISTS backups_tienda (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  data JSONB NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  descargado BOOLEAN NOT NULL DEFAULT false,
+  fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- Suscripciones a notificaciones push (una fila por dispositivo/navegador que las active)
 CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -77,19 +84,19 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Foto de factura adjunta a un movimiento de tienda (comprimida, en base64)
-ALTER TABLE movimientos_tienda ADD COLUMN IF NOT EXISTS foto TEXT;
-
--- Backups generales ahora tienen tipo y nombre para mostrar (ej. "Semana del 7 - 13/8/2026")
-ALTER TABLE backups ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'general';
-ALTER TABLE backups ADD COLUMN IF NOT EXISTS nombre TEXT;
-
--- Backups mensuales de movimientos de tienda (incluyen fotos y resumen), separados de los generales
-CREATE TABLE IF NOT EXISTS backups_tienda (
+-- Codigos de 4 digitos para restablecer contrasena por correo
+CREATE TABLE IF NOT EXISTS password_resets (
   id SERIAL PRIMARY KEY,
-  nombre TEXT NOT NULL,
-  data JSONB NOT NULL,
-  size_bytes INTEGER NOT NULL,
-  descargado BOOLEAN NOT NULL DEFAULT false,
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  expira_en TIMESTAMPTZ NOT NULL,
+  usado BOOLEAN NOT NULL DEFAULT false,
   fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_movcuentas_cuenta_fecha ON movimientos_cuentas(cuenta_id, fecha);
+CREATE INDEX IF NOT EXISTS idx_movtienda_fecha ON movimientos_tienda(fecha);
+CREATE INDEX IF NOT EXISTS idx_historial_fecha ON historial_general(fecha DESC);
+CREATE INDEX IF NOT EXISTS idx_cuentas_nombre ON cuentas(nombre);
+CREATE INDEX IF NOT EXISTS idx_backups_fecha ON backups(fecha_creacion);
+CREATE INDEX IF NOT EXISTS idx_password_resets_usuario ON password_resets(usuario_id);

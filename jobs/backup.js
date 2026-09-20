@@ -17,7 +17,6 @@ async function limpiarHistorialRodante() {
 // Cubre: cuentas, movimientos_cuentas, historial_general
 // ============================================================
 async function crearBackupGeneral() {
-  // La semana que se acaba de cerrar: de hace 7 días (lunes) a ayer (domingo)
   const hoy = new Date();
   const inicioSemana = new Date(hoy); inicioSemana.setDate(hoy.getDate() - 7);
   const finSemana = new Date(hoy); finSemana.setDate(hoy.getDate() - 1);
@@ -44,7 +43,6 @@ async function crearBackupGeneral() {
   );
   console.log(`Backup general creado: "${nombre}" (${sizeBytes} bytes)`);
 
-  // Conserva solo las 4 más recientes de tipo 'general'
   await pool.query(`
     DELETE FROM backups WHERE tipo = 'general' AND id NOT IN (
       SELECT id FROM backups WHERE tipo = 'general' ORDER BY fecha_creacion DESC LIMIT 4
@@ -55,14 +53,11 @@ async function crearBackupGeneral() {
 
 // ============================================================
 // BACKUP DE TIENDA: mensual, con fotos y resumen, guarda 2 meses.
-// Archiva el MES ANTERIOR completo y luego borra esos movimientos ya
-// respaldados (los movimientos de tienda en vivo solo cubren el mes actual).
 // ============================================================
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 async function crearBackupTienda() {
   const hoy = new Date();
-  // Primer día del mes anterior y primer día del mes actual (límite exclusivo)
   const inicioMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
   const inicioMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
 
@@ -93,14 +88,12 @@ async function crearBackupTienda() {
   );
   console.log(`Backup de tienda creado: "${nombre}" (${movs.length} movimientos, ${sizeBytes} bytes)`);
 
-  // Ya quedó respaldado: se borran esos movimientos en vivo (el mes anterior completo)
   const { rowCount } = await pool.query(
     'DELETE FROM movimientos_tienda WHERE fecha >= $1 AND fecha < $2',
     [inicioMesAnterior, inicioMesActual]
   );
   console.log(`Movimientos de tienda archivados y eliminados de la tabla en vivo: ${rowCount}`);
 
-  // Conserva solo los últimos 2 meses de backup de tienda
   await pool.query(`
     DELETE FROM backups_tienda WHERE id NOT IN (
       SELECT id FROM backups_tienda ORDER BY fecha_creacion DESC LIMIT 2

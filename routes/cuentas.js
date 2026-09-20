@@ -18,7 +18,6 @@ async function registrarHistorial(usuarioId, accion, detalle, extra = {}) {
   );
 }
 
-// Lista todas las cuentas (compartidas entre todos los administradores) con su balance actual
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(`
     SELECT c.id, c.nombre, c.favorito, c.fecha_creacion,
@@ -68,7 +67,6 @@ router.post('/delete', async (req, res) => {
   res.json({ deleted: cuentas.length });
 });
 
-// Detalle de una cuenta con todos sus movimientos (orden cronológico), incluyendo quién registró cada uno
 router.get('/:id', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT id, nombre, favorito, fecha_creacion FROM cuentas WHERE id = $1`,
@@ -86,7 +84,6 @@ router.get('/:id', async (req, res) => {
   res.json({ ...cuenta, balance, movimientos });
 });
 
-// Crear un abono o cargo en una cuenta
 router.post('/:id/movimientos', async (req, res) => {
   const { tipo, descripcion, monto } = req.body || {};
   if (!['abono', 'cargo'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido' });
@@ -126,7 +123,6 @@ router.post('/:id/movimientos', async (req, res) => {
   res.json({ movimiento: mov, balance: saldoResultante });
 });
 
-// Eliminar un movimiento y recalcular los saldos posteriores de esa cuenta
 router.delete('/:cuentaId/movimientos/:movId', async (req, res) => {
   const { cuentaId, movId } = req.params;
   const client = await pool.connect();

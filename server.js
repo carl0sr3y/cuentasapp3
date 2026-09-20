@@ -27,7 +27,6 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-cambia-esto';
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
-// Adjunta el usuario autenticado a req.user si el cookie es válido (para /api/auth/status)
 app.use((req, res, next) => {
   const token = req.cookies[COOKIE_NAME];
   if (token) {

@@ -109,9 +109,6 @@ async function handleRealtimeRefresh({ scope, id, by }) {
     if (by) toast('Actualizado por ' + by);
   } catch (e) { /* si falla el refresco silencioso, se intentará en el próximo evento */ }
 }
-
-// Vuelve a pedir los datos actuales: se usa al reconectar el WebSocket o al
-// volver a encender la pantalla, por si nos perdimos cambios mientras tanto.
 async function refrescarTodo() {
   try {
     CUENTAS = await api('/cuentas');
@@ -131,10 +128,10 @@ document.addEventListener('visibilitychange', () => {
 /* ============================================================
    ESTADO
    ============================================================ */
-let AUTH = null;              // {id, nombre, usuario}
-let CUENTAS = [];              // [{id,nombre,favorito,fecha_creacion,balance}]
-let TIENDA = { balance: 0, movimientos: [] };
-let currentAccountDetail = null; // {id,nombre,favorito,balance,movimientos}
+let AUTH = null;
+let CUENTAS = [];
+let TIENDA = { balance: 0, balanceHoy: 0, movimientos: [] };
+let currentAccountDetail = null;
 
 let currentTab = 'deudas';
 let searchQuery = '';
@@ -170,9 +167,11 @@ function escapeHtml(s) {
 /* ============================================================
    AUTENTICACIÓN
    ============================================================ */
+let regEnabled = false;
 async function initAuth() {
   try {
     const status = await api('/auth/status');
+    regEnabled = !!status.registrationEnabled;
     if (status.user) { AUTH = status.user; return enterApp(); }
     renderLogin(status.needsSetup);
   } catch (e) {
@@ -186,9 +185,10 @@ function renderLogin(needsSetup) {
       <div class="login-card">
         <div class="login-mark">${ICONS.check}</div>
         <h1>Configura tu cuenta</h1>
-        <p class="sub">Serás el primer administrador de Cuentas-App. Después de esto podrás invitar a un segundo administrador desde dentro de la app — no hay registro público.</p>
+        <p class="sub">Serás el primer administrador de Cuentas-App. Después podrás invitar a otros administradores.</p>
         <div class="field"><label>Tu nombre</label><input id="setupNombre" type="text" placeholder="Ej. Carlos"></div>
         <div class="field"><label>Usuario</label><input id="setupUsuario" type="text" placeholder="admin"></div>
+        <div class="field"><label>Correo electrónico</label><input id="setupEmail" type="email" placeholder="tu@correo.com"></div>
         <div class="field"><label>Contraseña</label><input id="setupPass" type="password" placeholder="Mínimo 4 caracteres"></div>
         <button class="btn-primary" id="setupBtn">Crear cuenta de administrador</button>
         <p class="login-error" id="setupErr"></p>
@@ -196,11 +196,12 @@ function renderLogin(needsSetup) {
     document.getElementById('setupBtn').onclick = async () => {
       const nombre = document.getElementById('setupNombre').value.trim();
       const usuario = document.getElementById('setupUsuario').value.trim();
+      const email = document.getElementById('setupEmail').value.trim();
       const contrasena = document.getElementById('setupPass').value;
       const err = document.getElementById('setupErr');
-      if (!nombre || !usuario || !contrasena) { err.textContent = 'Completa todos los campos.'; return; }
+      if (!nombre || !usuario || !email || !contrasena) { err.textContent = 'Completa todos los campos.'; return; }
       try {
-        const { user } = await api('/auth/setup', { method: 'POST', body: { nombre, usuario, contrasena } });
+        const { user } = await api('/auth/setup', { method: 'POST', body: { nombre, usuario, email, contrasena } });
         AUTH = user;
         enterApp();
       } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo crear la cuenta.'; }
@@ -215,6 +216,10 @@ function renderLogin(needsSetup) {
         <div class="field"><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div>
         <button class="btn-primary" id="loginBtn">Iniciar sesión</button>
         <p class="login-error" id="loginErr"></p>
+        <p class="login-toggle">
+          ${regEnabled ? `<button id="goRegister">Regístrate con un código</button> · ` : ''}
+          <button id="goForgot">¿Olvidaste tu contraseña?</button>
+        </p>
       </div>`;
     const tryLogin = async () => {
       const usuario = document.getElementById('loginUsuario').value.trim();
@@ -228,7 +233,90 @@ function renderLogin(needsSetup) {
     };
     document.getElementById('loginBtn').onclick = tryLogin;
     root.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); }));
+    if (regEnabled) document.getElementById('goRegister').onclick = () => renderRegisterView();
+    document.getElementById('goForgot').onclick = () => renderForgotView();
   }
+}
+function renderRegisterView() {
+  const root = document.getElementById('loginScreen');
+  root.innerHTML = `
+    <div class="login-card">
+      <div class="login-mark">${ICONS.userPlus}</div>
+      <h1>Crear cuenta</h1>
+      <p class="sub">Necesitas el código de invitación que te dio el administrador.</p>
+      <div class="field"><label>Tu nombre</label><input id="regNombre" type="text"></div>
+      <div class="field"><label>Usuario</label><input id="regUsuario" type="text"></div>
+      <div class="field"><label>Correo electrónico</label><input id="regEmail" type="email"></div>
+      <div class="field"><label>Contraseña</label><input id="regPass" type="password" placeholder="Mínimo 4 caracteres"></div>
+      <div class="field"><label>Código de invitación</label><input id="regCodigo" type="text"></div>
+      <button class="btn-primary" id="regBtn">Crear cuenta</button>
+      <p class="login-error" id="regErr"></p>
+      <p class="login-toggle"><button id="backToLogin">Ya tengo cuenta, iniciar sesión</button></p>
+    </div>`;
+  document.getElementById('backToLogin').onclick = () => renderLogin(false);
+  document.getElementById('regBtn').onclick = async () => {
+    const nombre = document.getElementById('regNombre').value.trim();
+    const usuario = document.getElementById('regUsuario').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const contrasena = document.getElementById('regPass').value;
+    const codigo = document.getElementById('regCodigo').value.trim();
+    const err = document.getElementById('regErr');
+    if (!nombre || !usuario || !email || !contrasena || !codigo) { err.textContent = 'Completa todos los campos.'; return; }
+    try {
+      const { user } = await api('/auth/register', { method: 'POST', body: { nombre, usuario, email, contrasena, codigo } });
+      AUTH = user;
+      enterApp();
+    } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo crear la cuenta.'; }
+  };
+}
+function renderForgotView() {
+  const root = document.getElementById('loginScreen');
+  root.innerHTML = `
+    <div class="login-card">
+      <div class="login-mark">${ICONS.key}</div>
+      <h1>Recuperar contraseña</h1>
+      <p class="sub">Ingresa tu correo y te enviaremos un código de 4 dígitos.</p>
+      <div class="field"><label>Correo electrónico</label><input id="forgotEmail" type="email"></div>
+      <button class="btn-primary" id="forgotBtn">Enviar código</button>
+      <p class="login-error" id="forgotErr"></p>
+      <p class="login-toggle"><button id="backToLogin2">Volver a iniciar sesión</button></p>
+    </div>`;
+  document.getElementById('backToLogin2').onclick = () => renderLogin(false);
+  document.getElementById('forgotBtn').onclick = async () => {
+    const email = document.getElementById('forgotEmail').value.trim();
+    const err = document.getElementById('forgotErr');
+    if (!email) { err.textContent = 'Ingresa tu correo.'; return; }
+    try {
+      await api('/auth/forgot-password', { method: 'POST', body: { email } });
+      renderResetView(email);
+    } catch (e) { err.textContent = 'No se pudo enviar el código.'; }
+  };
+}
+function renderResetView(email) {
+  const root = document.getElementById('loginScreen');
+  root.innerHTML = `
+    <div class="login-card">
+      <div class="login-mark">${ICONS.key}</div>
+      <h1>Ingresa el código</h1>
+      <p class="sub">Si ${escapeHtml(email)} está registrado, te enviamos un código de 4 dígitos. Vence en 15 minutos.</p>
+      <div class="field"><label>Código</label><input id="resetCode" type="text" maxlength="4" inputmode="numeric"></div>
+      <div class="field"><label>Nueva contraseña</label><input id="resetPass" type="password" placeholder="Mínimo 4 caracteres"></div>
+      <button class="btn-primary" id="resetBtn">Restablecer contraseña</button>
+      <p class="login-error" id="resetErr"></p>
+      <p class="login-toggle"><button id="backToLogin3">Volver a iniciar sesión</button></p>
+    </div>`;
+  document.getElementById('backToLogin3').onclick = () => renderLogin(false);
+  document.getElementById('resetBtn').onclick = async () => {
+    const code = document.getElementById('resetCode').value.trim();
+    const nuevaContrasena = document.getElementById('resetPass').value;
+    const err = document.getElementById('resetErr');
+    if (!code || !nuevaContrasena) { err.textContent = 'Completa todos los campos.'; return; }
+    try {
+      await api('/auth/reset-password', { method: 'POST', body: { email, code, nuevaContrasena } });
+      toast('Contraseña restablecida, ya puedes iniciar sesión');
+      renderLogin(false);
+    } catch (e) { err.textContent = typeof e === 'string' ? e : 'Código incorrecto o vencido.'; }
+  };
 }
 async function enterApp() {
   document.getElementById('loginScreen').classList.add('hidden');
@@ -246,9 +334,6 @@ async function enterApp() {
   connectWS();
   checkPendingTiendaBackup();
 }
-
-// Si hay un backup mensual de tienda que todavía no se ha descargado en ningún
-// dispositivo, lo descarga automáticamente ahora y lo marca como descargado.
 async function checkPendingTiendaBackup() {
   try {
     const pending = await api('/backups/tienda/pending');
@@ -259,9 +344,6 @@ async function checkPendingTiendaBackup() {
   } catch (e) { /* silencioso */ }
 }
 
-/* ============================================================
-   BARRA SUPERIOR
-   ============================================================ */
 /* ============================================================
    NOTIFICACIONES PUSH (reales: llegan aunque el navegador esté cerrado)
    ============================================================ */
@@ -320,6 +402,10 @@ function renderNotifBtn() {
 document.getElementById('notifBtn').addEventListener('click', () => {
   if (notificacionesActivas) disablePush(); else enablePush();
 });
+
+/* ============================================================
+   BARRA SUPERIOR
+   ============================================================ */
 document.getElementById('historialBtn').innerHTML = ICONS.history;
 document.getElementById('historialBtn').addEventListener('click', openHistorialPage);
 document.getElementById('avatarBtn').addEventListener('click', openAccountSettingsPage);
@@ -339,8 +425,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 /* ============================================================
-   NAVEGACIÓN: el botón "atrás" del navegador regresa dentro de la
-   app (a la pestaña o pantalla anterior) en vez de salir de la página.
+   NAVEGACIÓN: el botón "atrás" del navegador regresa dentro de la app
    ============================================================ */
 window.addEventListener('popstate', (e) => {
   if (!AUTH) return;
@@ -393,7 +478,6 @@ function renderDeudas() {
   document.getElementById('btnCrearCuenta').onclick = openCreateAccountModal;
   document.getElementById('btnEliminarCuentas').onclick = toggleSelectMode;
   document.getElementById('btnPdfGeneral').onclick = generarPdfGeneral;
-  // Solo actualiza la lista (no reconstruye el input), para no perder el foco/teclado en móvil
   document.getElementById('searchAccounts').oninput = (e) => { searchQuery = e.target.value; renderAccountsListOnly(); };
   renderAccountsListOnly();
 }
@@ -504,8 +588,6 @@ function renderSelectBar() {
       });
   };
 }
-
-/* ---------- Modal: crear cuenta ---------- */
 function openCreateAccountModal() {
   showModal(`
     <h3>Crear nueva cuenta</h3>
@@ -645,11 +727,11 @@ function openMovModal(tipo, cuentaId) {
   `);
   setTimeout(() => document.getElementById('movDesc').focus(), 50);
   document.getElementById('confirmMov').onclick = async () => {
-    const descripcion = document.getElementById('movDesc').value.trim();
-    const monto = parseFloat(document.getElementById('movMonto').value);
+    const desc = document.getElementById('movDesc').value.trim();
+    let monto = parseFloat(document.getElementById('movMonto').value);
     if (isNaN(monto) || monto <= 0) return;
     try {
-      const { movimiento, balance } = await api(`/cuentas/${cuentaId}/movimientos`, { method: 'POST', body: { tipo, descripcion, monto } });
+      const { movimiento, balance } = await api(`/cuentas/${cuentaId}/movimientos`, { method: 'POST', body: { tipo, descripcion: desc, monto } });
       currentAccountDetail.movimientos.push(movimiento);
       currentAccountDetail.balance = balance;
       const listItem = CUENTAS.find(c => c.id === cuentaId || String(c.id) === String(cuentaId));
@@ -773,8 +855,7 @@ function openTiendaMovModal(tipo) {
     const monto = parseFloat(document.getElementById('tMovMonto').value);
     if (isNaN(monto) || monto <= 0) return;
     try {
-      const { movimiento, balance } = await api('/tienda', { method: 'POST', body: { tipo, descripcion, monto, foto: fotoDataUrl } });
-      TIENDA.movimientos.push(movimiento);
+      await api('/tienda', { method: 'POST', body: { tipo, descripcion, monto, foto: fotoDataUrl } });
       TIENDA = await api('/tienda');
       closeModal(); renderTienda();
       toast(isEntrada ? 'Entrada registrada' : 'Salida registrada');
@@ -790,6 +871,94 @@ function confirmDeleteMovTienda(movId) {
       toast('Movimiento eliminado');
     } catch (e) { toast('No se pudo eliminar el movimiento'); }
   });
+}
+
+/* ============================================================
+   GENERADOR DE FACTURAS (simple, sin base de datos por ahora)
+   ============================================================ */
+let invoiceItems = [];
+function openInvoicePage(opts = {}) {
+  if (invoiceItems.length === 0) invoiceItems = [{ producto: '', precio: '', cantidad: '1' }];
+  renderInvoicePage();
+  if (!opts.fromHistory) history.pushState({ view: 'invoice' }, '', location.href);
+}
+function renderInvoicePage() {
+  const root = document.getElementById('pageRoot');
+  const fecha = new Date().toISOString();
+  root.innerHTML = `
+    <div class="page-slide" id="invoicePage">
+      <div class="page-header">
+        <button class="back-btn" id="invoiceBack">${ICONS.back}</button>
+        <h2>Generar factura</h2>
+      </div>
+      <div class="detail-body">
+        <p class="desc" style="margin:0 0 16px;">${fmtDateShort(fecha)} · ${fmtTime(fecha)}</p>
+        <div class="section-title">Productos</div>
+        <div id="invoiceItemsWrap"></div>
+        <button class="pdf-btn" id="btnAddItem" style="margin-top:4px;">${ICONS.plus} Agregar producto</button>
+        <div class="balance-block">
+          <div class="balance-label">Total</div>
+          <div class="balance-amount pos" id="invoiceTotal">${money(0)}</div>
+        </div>
+        <button class="pdf-btn" id="btnGenInvoicePdf">${ICONS.pdf} Generar PDF de la factura</button>
+      </div>
+    </div>`;
+  document.getElementById('invoiceBack').onclick = () => history.back();
+  document.getElementById('btnAddItem').onclick = () => { invoiceItems.push({ producto: '', precio: '', cantidad: '1' }); renderInvoiceItems(); };
+  document.getElementById('btnGenInvoicePdf').onclick = generarPdfFactura;
+  renderInvoiceItems();
+}
+function renderInvoiceItems() {
+  const wrap = document.getElementById('invoiceItemsWrap');
+  wrap.innerHTML = invoiceItems.map((it, idx) => `
+    <div class="invoice-item-row" data-idx="${idx}">
+      <input type="text" class="invoice-input inv-producto" data-idx="${idx}" placeholder="Producto" value="${escapeHtml(it.producto)}">
+      <input type="number" step="0.01" min="0" class="invoice-input inv-precio" data-idx="${idx}" placeholder="Precio" value="${it.precio}">
+      <input type="number" step="1" min="1" class="invoice-input inv-cantidad" data-idx="${idx}" placeholder="Cant." value="${it.cantidad}">
+      <div class="invoice-subtotal" id="invSubtotal-${idx}">${money((parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0))}</div>
+      <button class="invoice-remove" data-remove="${idx}">${ICONS.trash}</button>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.inv-producto').forEach(inp => inp.oninput = (e) => { invoiceItems[e.target.dataset.idx].producto = e.target.value; });
+  wrap.querySelectorAll('.inv-precio').forEach(inp => inp.oninput = (e) => { invoiceItems[e.target.dataset.idx].precio = e.target.value; updateInvoiceRow(e.target.dataset.idx); });
+  wrap.querySelectorAll('.inv-cantidad').forEach(inp => inp.oninput = (e) => { invoiceItems[e.target.dataset.idx].cantidad = e.target.value; updateInvoiceRow(e.target.dataset.idx); });
+  wrap.querySelectorAll('[data-remove]').forEach(btn => btn.onclick = () => {
+    invoiceItems.splice(Number(btn.dataset.remove), 1);
+    if (invoiceItems.length === 0) invoiceItems.push({ producto: '', precio: '', cantidad: '1' });
+    renderInvoiceItems();
+  });
+  updateInvoiceTotal();
+}
+function updateInvoiceRow(idx) {
+  const it = invoiceItems[idx];
+  const sub = (parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0);
+  const el = document.getElementById('invSubtotal-' + idx);
+  if (el) el.textContent = money(sub);
+  updateInvoiceTotal();
+}
+function updateInvoiceTotal() {
+  const total = invoiceItems.reduce((s, it) => s + (parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0), 0);
+  const el = document.getElementById('invoiceTotal');
+  if (el) el.textContent = money(total);
+}
+function generarPdfFactura() {
+  const validItems = invoiceItems.filter(it => it.producto.trim() && parseFloat(it.precio) > 0 && parseFloat(it.cantidad) > 0);
+  if (validItems.length === 0) { toast('Agrega al menos un producto con precio y cantidad'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  pdfHeader(doc, 'Factura');
+  const fecha = new Date();
+  doc.setFontSize(10); doc.setTextColor(100, 100, 100);
+  doc.text(`Fecha: ${fmtDateShort(fecha.toISOString())}   Hora: ${fmtTime(fecha.toISOString())}`, 14, 36);
+  const rows = validItems.map(it => [it.producto, money(parseFloat(it.precio)), it.cantidad, money(parseFloat(it.precio) * parseFloat(it.cantidad))]);
+  const total = validItems.reduce((s, it) => s + parseFloat(it.precio) * parseFloat(it.cantidad), 0);
+  doc.autoTable({ startY: 43, head: [['Producto', 'Precio', 'Cantidad', 'Subtotal']], body: rows, styles: { fontSize: 9.5 }, headStyles: { fillColor: [40, 40, 40] } });
+  const finalY = doc.lastAutoTable.finalY + 12;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(30, 30, 30);
+  doc.text('Total: ' + money(total), 14, finalY);
+  doc.save('factura-' + fecha.toISOString().slice(0, 10) + '-' + fecha.getTime() + '.pdf');
+  toast('Factura generada');
+  invoiceItems = [{ producto: '', precio: '', cantidad: '1' }];
 }
 
 /* ============================================================
@@ -872,6 +1041,7 @@ async function openAccountSettingsPage(opts = {}) {
 function renderUsersPage(usuariosParam) {
   const root = document.getElementById('pageRoot');
   const render = (usuarios) => {
+    const yo = usuarios.find(u => u.id === AUTH.id) || AUTH;
     const otros = usuarios.filter(u => u.id !== AUTH.id);
     root.innerHTML = `
       <div class="page-slide" id="usersPage">
@@ -881,25 +1051,37 @@ function renderUsersPage(usuariosParam) {
         </div>
         <div class="detail-body">
           <div class="section-title">Tu cuenta</div>
-          <div class="user-card">
-            <div class="acc-circ">${initialOf(AUTH.nombre)}</div>
-            <div class="info">
-              <div class="name">${escapeHtml(AUTH.nombre)}</div>
-              <div class="handle">@${escapeHtml(AUTH.usuario)}</div>
+          <div class="user-card" style="flex-direction:column;align-items:stretch;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div class="acc-circ">${initialOf(yo.nombre)}</div>
+              <div class="info">
+                <div class="name">${escapeHtml(yo.nombre)}</div>
+                <div class="handle">@${escapeHtml(yo.usuario)}${yo.email ? ' · ' + escapeHtml(yo.email) : ''}</div>
+              </div>
             </div>
-            <button class="link-btn" id="btnChangeOwnPass">Cambiar contraseña</button>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
+              <button class="link-btn" id="btnChangeOwnPass">Cambiar contraseña</button>
+              <button class="link-btn" id="btnChangeOwnEmail">${yo.email ? 'Cambiar correo' : 'Agregar correo'}</button>
+              <button class="link-btn" id="btnDeleteOwnAccount" style="color:var(--red);">Eliminar mi cuenta</button>
+            </div>
           </div>
 
           <div class="section-title" style="margin-top:22px;">Otros administradores</div>
           ${otros.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Todavía no hay otro administrador.</p></div>` :
             otros.map(u => `
-              <div class="user-card">
-                <div class="acc-circ">${initialOf(u.nombre)}</div>
-                <div class="info">
-                  <div class="name">${escapeHtml(u.nombre)}</div>
-                  <div class="handle">@${escapeHtml(u.usuario)}</div>
+              <div class="user-card" style="flex-direction:column;align-items:stretch;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div class="acc-circ">${initialOf(u.nombre)}</div>
+                  <div class="info">
+                    <div class="name">${escapeHtml(u.nombre)}</div>
+                    <div class="handle">@${escapeHtml(u.usuario)}${u.email ? ' · ' + escapeHtml(u.email) : ''}</div>
+                  </div>
                 </div>
-                <button class="link-btn" data-changepass="${u.id}" data-name="${escapeHtml(u.nombre)}">Cambiar contraseña</button>
+                <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
+                  <button class="link-btn" data-changepass="${u.id}" data-name="${escapeHtml(u.nombre)}">Cambiar contraseña</button>
+                  <button class="link-btn" data-changeemail="${u.id}" data-email="${u.email ? escapeHtml(u.email) : ''}">${u.email ? 'Cambiar correo' : 'Agregar correo'}</button>
+                  <button class="link-btn" data-deleteuser="${u.id}" data-name="${escapeHtml(u.nombre)}" style="color:var(--red);">Eliminar</button>
+                </div>
               </div>
             `).join('')
           }
@@ -908,13 +1090,72 @@ function renderUsersPage(usuariosParam) {
       </div>`;
     document.getElementById('usersBack').onclick = () => { history.back(); };
     document.getElementById('btnChangeOwnPass').onclick = () => openChangePasswordModal(AUTH.id, AUTH.nombre, true);
+    document.getElementById('btnChangeOwnEmail').onclick = () => openChangeEmailModal(AUTH.id, yo.email);
+    document.getElementById('btnDeleteOwnAccount').onclick = () => openDeleteUserModal(AUTH.id, yo.nombre, true);
     document.getElementById('btnAddUser').onclick = openCreateUserModal;
     root.querySelectorAll('[data-changepass]').forEach(b => {
       b.addEventListener('click', () => openChangePasswordModal(b.dataset.changepass, b.dataset.name, false));
     });
+    root.querySelectorAll('[data-changeemail]').forEach(b => {
+      b.addEventListener('click', () => openChangeEmailModal(b.dataset.changeemail, b.dataset.email));
+    });
+    root.querySelectorAll('[data-deleteuser]').forEach(b => {
+      b.addEventListener('click', () => openDeleteUserModal(b.dataset.deleteuser, b.dataset.name, false));
+    });
   };
   if (usuariosParam) render(usuariosParam);
   else api('/usuarios').then(render).catch(() => toast('No se pudo cargar la lista de usuarios'));
+}
+function openChangeEmailModal(userId, currentEmail) {
+  showModal(`
+    <h3>${currentEmail ? 'Cambiar correo' : 'Agregar correo'}</h3>
+    <p class="desc">Se usa para recuperar la contraseña si se olvida.</p>
+    <div class="field"><label>Correo electrónico</label><input id="emailNuevo" type="email" value="${currentEmail ? escapeHtml(currentEmail) : ''}"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" data-close>Cancelar</button>
+      <button class="btn-confirm" id="confirmEmail">Guardar</button>
+    </div>
+    <p class="login-error" id="emailErr"></p>
+  `);
+  document.getElementById('confirmEmail').onclick = async () => {
+    const email = document.getElementById('emailNuevo').value.trim();
+    const err = document.getElementById('emailErr');
+    if (!email) { err.textContent = 'Ingresa un correo.'; return; }
+    try {
+      await api(`/usuarios/${userId}/email`, { method: 'PATCH', body: { email } });
+      closeModal();
+      toast('Correo actualizado');
+      renderUsersPage();
+    } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo actualizar el correo.'; }
+  };
+}
+function openDeleteUserModal(userId, nombre, isSelf) {
+  showModal(`
+    <h3>${isSelf ? '¿Eliminar tu cuenta?' : '¿Eliminar a ' + escapeHtml(nombre) + '?'}</h3>
+    <p class="desc">${isSelf ? 'Perderás el acceso de inmediato.' : 'Ya no podrá iniciar sesión.'} Esta acción no se puede deshacer.</p>
+    ${isSelf ? `<div class="field"><label>Confirma tu contraseña</label><input id="delActual" type="password"></div>` : ''}
+    <div class="modal-actions">
+      <button class="btn-cancel" data-close>Cancelar</button>
+      <button class="btn-confirm danger" id="confirmDeleteUser">Eliminar</button>
+    </div>
+    <p class="login-error" id="delUserErr"></p>
+  `, { center: true });
+  document.getElementById('confirmDeleteUser').onclick = async () => {
+    const err = document.getElementById('delUserErr');
+    const body = isSelf ? { actual: document.getElementById('delActual').value } : {};
+    if (isSelf && !body.actual) { err.textContent = 'Ingresa tu contraseña actual.'; return; }
+    try {
+      await api(`/usuarios/${userId}`, { method: 'DELETE', body });
+      closeModal();
+      if (isSelf) {
+        toast('Cuenta eliminada');
+        setTimeout(() => location.reload(), 500);
+      } else {
+        toast('Administrador eliminado');
+        renderUsersPage();
+      }
+    } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo eliminar la cuenta.'; }
+  };
 }
 function openChangePasswordModal(userId, nombre, isOwn) {
   showModal(`
@@ -945,6 +1186,7 @@ function openCreateUserModal() {
     <p class="desc">Tendrá acceso completo a las mismas cuentas y movimientos que tú.</p>
     <div class="field"><label>Nombre</label><input id="newUserNombre" type="text"></div>
     <div class="field"><label>Usuario</label><input id="newUserUsuario" type="text"></div>
+    <div class="field"><label>Correo electrónico</label><input id="newUserEmail" type="email"></div>
     <div class="field"><label>Contraseña</label><input id="newUserPass" type="password" placeholder="Mínimo 4 caracteres"></div>
     <div class="modal-actions">
       <button class="btn-cancel" data-close>Cancelar</button>
@@ -955,11 +1197,12 @@ function openCreateUserModal() {
   document.getElementById('confirmNewUser').onclick = async () => {
     const nombre = document.getElementById('newUserNombre').value.trim();
     const usuario = document.getElementById('newUserUsuario').value.trim();
+    const email = document.getElementById('newUserEmail').value.trim();
     const contrasena = document.getElementById('newUserPass').value;
     const err = document.getElementById('newUserErr');
-    if (!nombre || !usuario || !contrasena) { err.textContent = 'Completa todos los campos.'; return; }
+    if (!nombre || !usuario || !email || !contrasena) { err.textContent = 'Completa todos los campos.'; return; }
     try {
-      await api('/usuarios', { method: 'POST', body: { nombre, usuario, contrasena } });
+      await api('/usuarios', { method: 'POST', body: { nombre, usuario, email, contrasena } });
       closeModal();
       renderUsersPage();
       toast('Administrador creado');
@@ -1092,95 +1335,6 @@ function getImageSize(dataUrl) {
     img.src = dataUrl;
   });
 }
-/* ============================================================
-   GENERADOR DE FACTURAS (simple, sin base de datos por ahora)
-   ============================================================ */
-let invoiceItems = [];
-function openInvoicePage(opts = {}) {
-  if (invoiceItems.length === 0) invoiceItems = [{ producto: '', precio: '', cantidad: '1' }];
-  renderInvoicePage();
-  if (!opts.fromHistory) history.pushState({ view: 'invoice' }, '', location.href);
-}
-function renderInvoicePage() {
-  const root = document.getElementById('pageRoot');
-  const fecha = new Date().toISOString();
-  root.innerHTML = `
-    <div class="page-slide" id="invoicePage">
-      <div class="page-header">
-        <button class="back-btn" id="invoiceBack">${ICONS.back}</button>
-        <h2>Generar factura</h2>
-      </div>
-      <div class="detail-body">
-        <p class="desc" style="margin:0 0 16px;">${fmtDateShort(fecha)} · ${fmtTime(fecha)}</p>
-        <div class="section-title">Productos</div>
-        <div id="invoiceItemsWrap"></div>
-        <button class="pdf-btn" id="btnAddItem" style="margin-top:4px;">${ICONS.plus} Agregar producto</button>
-        <div class="balance-block">
-          <div class="balance-label">Total</div>
-          <div class="balance-amount pos" id="invoiceTotal">${money(0)}</div>
-        </div>
-        <button class="pdf-btn" id="btnGenInvoicePdf">${ICONS.pdf} Generar PDF de la factura</button>
-      </div>
-    </div>`;
-  document.getElementById('invoiceBack').onclick = () => history.back();
-  document.getElementById('btnAddItem').onclick = () => { invoiceItems.push({ producto: '', precio: '', cantidad: '1' }); renderInvoiceItems(); };
-  document.getElementById('btnGenInvoicePdf').onclick = generarPdfFactura;
-  renderInvoiceItems();
-}
-function renderInvoiceItems() {
-  const wrap = document.getElementById('invoiceItemsWrap');
-  wrap.innerHTML = invoiceItems.map((it, idx) => `
-    <div class="invoice-item-row" data-idx="${idx}">
-      <input type="text" class="invoice-input inv-producto" data-idx="${idx}" placeholder="Producto" value="${escapeHtml(it.producto)}">
-      <input type="number" step="0.01" min="0" class="invoice-input inv-precio" data-idx="${idx}" placeholder="Precio" value="${it.precio}">
-      <input type="number" step="1" min="1" class="invoice-input inv-cantidad" data-idx="${idx}" placeholder="Cant." value="${it.cantidad}">
-      <div class="invoice-subtotal" id="invSubtotal-${idx}">${money((parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0))}</div>
-      <button class="invoice-remove" data-remove="${idx}">${ICONS.trash}</button>
-    </div>
-  `).join('');
-  wrap.querySelectorAll('.inv-producto').forEach(inp => inp.oninput = (e) => { invoiceItems[e.target.dataset.idx].producto = e.target.value; });
-  wrap.querySelectorAll('.inv-precio').forEach(inp => inp.oninput = (e) => { invoiceItems[e.target.dataset.idx].precio = e.target.value; updateInvoiceRow(e.target.dataset.idx); });
-  wrap.querySelectorAll('.inv-cantidad').forEach(inp => inp.oninput = (e) => { invoiceItems[e.target.dataset.idx].cantidad = e.target.value; updateInvoiceRow(e.target.dataset.idx); });
-  wrap.querySelectorAll('[data-remove]').forEach(btn => btn.onclick = () => {
-    invoiceItems.splice(Number(btn.dataset.remove), 1);
-    if (invoiceItems.length === 0) invoiceItems.push({ producto: '', precio: '', cantidad: '1' });
-    renderInvoiceItems();
-  });
-  updateInvoiceTotal();
-}
-function updateInvoiceRow(idx) {
-  const it = invoiceItems[idx];
-  const sub = (parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0);
-  const el = document.getElementById('invSubtotal-' + idx);
-  if (el) el.textContent = money(sub);
-  updateInvoiceTotal();
-}
-function updateInvoiceTotal() {
-  const total = invoiceItems.reduce((s, it) => s + (parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0), 0);
-  const el = document.getElementById('invoiceTotal');
-  if (el) el.textContent = money(total);
-}
-function generarPdfFactura() {
-  const validItems = invoiceItems.filter(it => it.producto.trim() && parseFloat(it.precio) > 0 && parseFloat(it.cantidad) > 0);
-  if (validItems.length === 0) { toast('Agrega al menos un producto con precio y cantidad'); return; }
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  pdfHeader(doc, 'Factura');
-  const fecha = new Date();
-  doc.setFontSize(10); doc.setTextColor(100, 100, 100);
-  doc.text(`Fecha: ${fmtDateShort(fecha.toISOString())}   Hora: ${fmtTime(fecha.toISOString())}`, 14, 36);
-  const rows = validItems.map(it => [it.producto, money(parseFloat(it.precio)), it.cantidad, money(parseFloat(it.precio) * parseFloat(it.cantidad))]);
-  const total = validItems.reduce((s, it) => s + parseFloat(it.precio) * parseFloat(it.cantidad), 0);
-  doc.autoTable({ startY: 43, head: [['Producto', 'Precio', 'Cantidad', 'Subtotal']], body: rows, styles: { fontSize: 9.5 }, headStyles: { fillColor: [40, 40, 40] } });
-  const finalY = doc.lastAutoTable.finalY + 12;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(30, 30, 30);
-  doc.text('Total: ' + money(total), 14, finalY);
-  doc.save('factura-' + fecha.toISOString().slice(0, 10) + '-' + fecha.getTime() + '.pdf');
-  toast('Factura generada');
-  invoiceItems = [{ producto: '', precio: '', cantidad: '1' }];
-}
-
-
 async function generarPdfTienda(movs, label) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();

@@ -5,7 +5,6 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-// ---------- Backup general (semanal, 4 semanas) ----------
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT id, nombre, size_bytes, fecha_creacion FROM backups WHERE tipo = 'general' ORDER BY fecha_creacion DESC`
@@ -23,7 +22,6 @@ router.get('/:id/download', async (req, res) => {
   res.send(JSON.stringify(backup.data, null, 2));
 });
 
-// ---------- Backup de tienda (mensual, 2 meses, con fotos) ----------
 router.get('/tienda', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT id, nombre, size_bytes, descargado, fecha_creacion FROM backups_tienda ORDER BY fecha_creacion DESC`
@@ -31,7 +29,6 @@ router.get('/tienda', async (req, res) => {
   res.json(rows);
 });
 
-// El más reciente que el navegador todavía no ha descargado (para el auto-descargo al abrir la app)
 router.get('/tienda/pending', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT id, nombre FROM backups_tienda WHERE descargado = false ORDER BY fecha_creacion ASC LIMIT 1`
@@ -53,8 +50,5 @@ router.get('/tienda/:id/download', async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(JSON.stringify(backup.data, null, 2));
 });
-
-// Intencionalmente no hay rutas DELETE: las copias solo se eliminan automáticamente
-// por los trabajos programados (jobs/backup.js), nunca de forma manual desde la app.
 
 module.exports = router;

@@ -5,7 +5,6 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-// Devuelve todas las cuentas junto con todos sus movimientos, para construir el PDF general en el cliente
 router.get('/general', async (req, res) => {
   const { rows: cuentas } = await pool.query(
     `SELECT id, nombre, favorito, fecha_creacion FROM cuentas ORDER BY nombre ASC`
