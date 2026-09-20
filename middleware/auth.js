@@ -13,7 +13,7 @@ function setAuthCookie(res, user) {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 dias
+    // Sin maxAge: es una cookie de sesión, el navegador la borra al cerrar la app/pestaña por completo.
   });
 }
 

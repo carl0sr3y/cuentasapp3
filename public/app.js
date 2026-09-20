@@ -85,6 +85,8 @@ function serializeCredential(cred) {
   return base;
 }
 function fingerprintSupported() { return !!window.PublicKeyCredential; }
+function hasFingerprintFlag() { return localStorage.getItem('cuentasapp_fp') === '1'; }
+function setFingerprintFlag(v) { try { if (v) localStorage.setItem('cuentasapp_fp', '1'); else localStorage.removeItem('cuentasapp_fp'); } catch (e) {} }
 async function loginWithFingerprint() {
   if (!fingerprintSupported()) { toast('Este navegador no soporta huella/Face ID'); return; }
   try {
@@ -100,13 +102,15 @@ async function loginWithFingerprint() {
     if (!res.ok) {
       if (data.error === 'passwordExpired') { renderForcedPasswordChange(data.usuario, null, data.message); return; }
       toast(data.error || 'No se pudo iniciar sesión con huella');
+      if (!document.getElementById('loginUsuario')) renderLogin(false, true);
       return;
     }
     AUTH = data.user;
     enterApp();
   } catch (e) {
-    if (e && e.name === 'NotAllowedError') return; // el usuario canceló el prompt
+    if (e && e.name === 'NotAllowedError') { if (!document.getElementById('loginUsuario')) renderLogin(false, true); return; }
     toast('No se pudo iniciar sesión con huella');
+    if (!document.getElementById('loginUsuario')) renderLogin(false, true);
   }
 }
 function openRegisterFingerprintModal() {
@@ -130,6 +134,7 @@ function openRegisterFingerprintModal() {
       const cred = await navigator.credentials.create({ publicKey });
       const serialized = serializeCredential(cred);
       await api('/webauthn/register-verify', { method: 'POST', body: { response: serialized, deviceName } });
+      setFingerprintFlag(true);
       closeModal();
       toast('Huella registrada en este dispositivo');
       renderUsersPage();
@@ -288,7 +293,7 @@ async function initAuth() {
     renderLogin(true);
   }
 }
-function renderLogin(needsSetup) {
+function renderLogin(needsSetup, forcePasswordForm) {
   const root = document.getElementById('loginScreen');
   if (needsSetup) {
     root.innerHTML = `
@@ -316,6 +321,17 @@ function renderLogin(needsSetup) {
         enterApp();
       } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo crear la cuenta.'; }
     };
+  } else if (fingerprintSupported() && hasFingerprintFlag() && !forcePasswordForm) {
+    root.innerHTML = `
+      <div class="login-card">
+        <div class="login-mark">${ICONS.key}</div>
+        <h1>Cuentas-App</h1>
+        <p class="sub">Este dispositivo ya tiene la huella registrada.</p>
+        <button class="btn-primary" id="fpLoginBtnMain">${ICONS.key} Usar huella / Face ID</button>
+        <p class="login-toggle"><button id="showPasswordForm">Usar mi usuario y contraseña</button></p>
+      </div>`;
+    document.getElementById('fpLoginBtnMain').onclick = loginWithFingerprint;
+    document.getElementById('showPasswordForm').onclick = () => renderLogin(false, true);
   } else {
     root.innerHTML = `
       <div class="login-card">
@@ -1266,6 +1282,7 @@ function loadFingerprintDevices() {
   const wrap = document.getElementById('fpDevicesList');
   if (!wrap) return;
   api('/webauthn/credentials').then(creds => {
+    if (creds.length === 0) setFingerprintFlag(false);
     wrap.innerHTML = creds.length === 0 ? `
       <div class="empty-state">${ICONS.inbox}<p>No has registrado ningún dispositivo todavía.</p></div>
     ` : creds.map(c => `
