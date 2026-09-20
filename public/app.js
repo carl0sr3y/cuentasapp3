@@ -92,6 +92,11 @@ async function loginWithFingerprint() {
   try {
     const { options, requestId } = await api('/webauthn/login-options');
     const publicKey = prepareRequestOptions(options);
+    // Si ya conocemos la credencial de este dispositivo, se la indicamos al navegador
+    // para que pida la huella directo, sin mostrar un selector de llaves guardadas.
+    let storedCredId = null;
+    try { storedCredId = localStorage.getItem('cuentasapp_fp_credid'); } catch (e) {}
+    if (storedCredId) publicKey.allowCredentials = [{ id: base64urlToBuffer(storedCredId), type: 'public-key' }];
     const cred = await navigator.credentials.get({ publicKey });
     const serialized = serializeCredential(cred);
     const res = await fetch('/api/webauthn/login-verify', {
@@ -106,6 +111,7 @@ async function loginWithFingerprint() {
       return;
     }
     AUTH = data.user;
+    try { localStorage.setItem('cuentasapp_fp_credid', cred.id); setFingerprintFlag(true); } catch (e) {}
     enterApp();
   } catch (e) {
     if (e && e.name === 'NotAllowedError') { if (!document.getElementById('loginUsuario')) renderLogin(false, true); return; }
@@ -135,6 +141,7 @@ function openRegisterFingerprintModal() {
       const serialized = serializeCredential(cred);
       await api('/webauthn/register-verify', { method: 'POST', body: { response: serialized, deviceName } });
       setFingerprintFlag(true);
+      try { localStorage.setItem('cuentasapp_fp_credid', cred.id); } catch (e) {}
       closeModal();
       toast('Huella registrada en este dispositivo');
       renderUsersPage();
@@ -1335,7 +1342,7 @@ function loadFingerprintDevices() {
   const wrap = document.getElementById('fpDevicesList');
   if (!wrap) return;
   api('/webauthn/credentials').then(creds => {
-    if (creds.length === 0) setFingerprintFlag(false);
+    if (creds.length === 0) { setFingerprintFlag(false); try { localStorage.removeItem('cuentasapp_fp_credid'); } catch (e) {} }
     wrap.innerHTML = creds.length === 0 ? `
       <div class="empty-state">${ICONS.inbox}<p>No has registrado ningún dispositivo todavía.</p></div>
     ` : creds.map(c => `
