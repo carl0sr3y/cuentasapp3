@@ -498,6 +498,43 @@ async function enterApp() {
   history.replaceState({ view: 'deudas' }, '', location.href);
   connectWS();
   checkPendingTiendaBackup();
+  startIdleWatcher();
+}
+/* ============================================================
+   CIERRE POR INACTIVIDAD (5 minutos)
+   ============================================================ */
+const IDLE_LIMIT_MS = 5 * 60 * 1000;
+let lastActivity = Date.now();
+let idleInterval = null;
+function markActivity() { lastActivity = Date.now(); }
+['click', 'touchstart', 'keydown', 'mousemove', 'scroll'].forEach(evt => {
+  document.addEventListener(evt, markActivity, { passive: true });
+});
+function startIdleWatcher() {
+  lastActivity = Date.now();
+  if (idleInterval) clearInterval(idleInterval);
+  idleInterval = setInterval(() => {
+    if (AUTH && Date.now() - lastActivity > IDLE_LIMIT_MS) lockSession();
+  }, 15000);
+}
+async function lockSession() {
+  clearInterval(idleInterval);
+  try { await api('/auth/logout', { method: 'POST' }); } catch (e) { /* ignorar */ }
+  await doLogoutCleanup();
+  toast('Sesión cerrada por inactividad');
+}
+async function logoutManual() {
+  try { await api('/auth/logout', { method: 'POST' }); } catch (e) { /* ignorar */ }
+  await doLogoutCleanup();
+}
+async function doLogoutCleanup() {
+  AUTH = null;
+  if (ws) { try { ws.close(); } catch (e) {} }
+  document.getElementById('pageRoot').innerHTML = '';
+  document.getElementById('modalRoot').innerHTML = '';
+  document.getElementById('mainScreen').classList.add('hidden');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  renderLogin(false);
 }
 async function checkPendingTiendaBackup() {
   try {
@@ -1227,6 +1264,7 @@ function renderUsersPage(usuariosParam) {
             <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
               <button class="link-btn" id="btnChangeOwnPass">Cambiar contraseña</button>
               <button class="link-btn" id="btnChangeOwnEmail">${yo.email ? 'Cambiar correo' : 'Agregar correo'}</button>
+              <button class="link-btn" id="btnLogout">Cerrar sesión</button>
               <button class="link-btn" id="btnDeleteOwnAccount" style="color:var(--red);">Eliminar mi cuenta</button>
             </div>
           </div>
@@ -1261,6 +1299,7 @@ function renderUsersPage(usuariosParam) {
     document.getElementById('usersBack').onclick = () => { history.back(); };
     document.getElementById('btnChangeOwnPass').onclick = () => openChangePasswordModal(AUTH.id, AUTH.nombre, true);
     document.getElementById('btnChangeOwnEmail').onclick = () => openChangeEmailModal(AUTH.id, yo.email);
+    document.getElementById('btnLogout').onclick = () => openLogoutConfirm();
     document.getElementById('btnDeleteOwnAccount').onclick = () => openDeleteUserModal(AUTH.id, yo.nombre, true);
     document.getElementById('btnAddUser').onclick = openCreateUserModal;
     document.getElementById('btnAddFingerprint').onclick = openRegisterFingerprintModal;
@@ -1277,6 +1316,20 @@ function renderUsersPage(usuariosParam) {
   };
   if (usuariosParam) render(usuariosParam);
   else api('/usuarios').then(render).catch(() => toast('No se pudo cargar la lista de usuarios'));
+}
+function openLogoutConfirm() {
+  showModal(`
+    <h3>¿Cerrar sesión?</h3>
+    <p class="desc">Vas a tener que volver a entrar con tu huella o tu usuario y contraseña.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" data-close>Cancelar</button>
+      <button class="btn-confirm" id="confirmLogout">Cerrar sesión</button>
+    </div>
+  `, { center: true });
+  document.getElementById('confirmLogout').onclick = async () => {
+    closeModal();
+    await logoutManual();
+  };
 }
 function loadFingerprintDevices() {
   const wrap = document.getElementById('fpDevicesList');
