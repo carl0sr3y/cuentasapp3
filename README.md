@@ -10,7 +10,7 @@ Aplicación web para administrar cuentas de clientes (deudores) y los movimiento
 | `JWT_SECRET` | Cadena aleatoria larga para firmar las sesiones |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Notificaciones push (genera con `npx web-push generate-vapid-keys`) |
 | `INVITE_CODE` | Código que le das a alguien de confianza para que pueda registrarse solo. Vacío = registro desactivado |
-| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Cuenta de Gmail para enviar los correos de recuperación de contraseña (usa una "contraseña de aplicación", no la contraseña normal: https://myaccount.google.com/apppasswords — requiere tener la verificación en dos pasos activada en esa cuenta de Gmail) |
+| `BREVO_API_KEY` / `BREVO_SENDER_EMAIL` | Cuenta de Brevo (gratis) para enviar correos de recuperación de contraseña **vía su API HTTP** (no SMTP: Railway bloquea los puertos SMTP en el plan Hobby). La API key sale de Brevo → Claves API y MCP. El correo remitente debe estar verificado en Brevo (un clic en un correo de confirmación) |
 
 ## Cómo desplegar
 
@@ -43,7 +43,7 @@ db/schema.sql               # Esquema completo (idempotente)
 db/pool.js                  # Conexión a Postgres + migración automática
 lib/realtime.js             # WebSocket con heartbeat
 lib/push.js                 # Notificaciones push (web-push)
-lib/mailer.js               # Envío de correos (nodemailer + Gmail)
+lib/mailer.js               # Envío de correos (API HTTP de Brevo, no SMTP)
 jobs/backup.js               # Historial rodante, backup general semanal, backup de tienda mensual
 middleware/auth.js           # JWT en cookie httpOnly (30 días)
 routes/auth.js                # setup, login, registro con código, recuperar/restablecer contraseña
