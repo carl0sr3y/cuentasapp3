@@ -105,18 +105,19 @@ async function loginWithFingerprint() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      if (data.error === 'passwordExpired') { renderForcedPasswordChange(data.usuario, null, data.message); return; }
+      if (data.error === 'passwordExpired') { renderForcedPasswordChange(data.codigoEmpresa, data.usuario, null, data.message); return; }
       toast(data.error || 'No se pudo iniciar sesión con huella');
-      if (!document.getElementById('loginUsuario')) renderLogin(false, true);
+      if (!document.getElementById('loginUsuario')) renderLogin(true);
       return;
     }
     AUTH = data.user;
+    EMPRESA = data.empresa;
     try { localStorage.setItem('cuentasapp_fp_credid', cred.id); setFingerprintFlag(true); } catch (e) {}
     enterApp();
   } catch (e) {
-    if (e && e.name === 'NotAllowedError') { if (!document.getElementById('loginUsuario')) renderLogin(false, true); return; }
+    if (e && e.name === 'NotAllowedError') { if (!document.getElementById('loginUsuario')) renderLogin(true); return; }
     toast('No se pudo iniciar sesión con huella');
-    if (!document.getElementById('loginUsuario')) renderLogin(false, true);
+    if (!document.getElementById('loginUsuario')) renderLogin(true);
   }
 }
 function openRegisterFingerprintModal() {
@@ -289,46 +290,21 @@ function escapeHtml(s) {
 /* ============================================================
    AUTENTICACIÓN
    ============================================================ */
-let regEnabled = false;
+let empresaCreationEnabled = false;
+let EMPRESA = null; // {id, nombre, codigo} de la empresa actual, una vez logueado
 async function initAuth() {
   try {
     const status = await api('/auth/status');
-    regEnabled = !!status.registrationEnabled;
+    empresaCreationEnabled = !!status.empresaCreationEnabled;
     if (status.user) { AUTH = status.user; return enterApp(); }
-    renderLogin(status.needsSetup);
+    renderLogin();
   } catch (e) {
-    renderLogin(true);
+    renderLogin();
   }
 }
-function renderLogin(needsSetup, forcePasswordForm) {
+function renderLogin(forcePasswordForm) {
   const root = document.getElementById('loginScreen');
-  if (needsSetup) {
-    root.innerHTML = `
-      <div class="login-card">
-        <div class="login-mark">${ICONS.check}</div>
-        <h1>Configura tu cuenta</h1>
-        <p class="sub">Serás el primer administrador de Cuentas-App. Después podrás invitar a otros administradores.</p>
-        <div class="field"><label>Tu nombre</label><input id="setupNombre" type="text" placeholder="Ej. Carlos"></div>
-        <div class="field"><label>Usuario</label><input id="setupUsuario" type="text" placeholder="admin"></div>
-        <div class="field"><label>Correo electrónico</label><input id="setupEmail" type="email" placeholder="tu@correo.com"></div>
-        <div class="field"><label>Contraseña</label><input id="setupPass" type="password" placeholder="Mínimo 4 caracteres"></div>
-        <button class="btn-primary" id="setupBtn">Crear cuenta de administrador</button>
-        <p class="login-error" id="setupErr"></p>
-      </div>`;
-    document.getElementById('setupBtn').onclick = async () => {
-      const nombre = document.getElementById('setupNombre').value.trim();
-      const usuario = document.getElementById('setupUsuario').value.trim();
-      const email = document.getElementById('setupEmail').value.trim();
-      const contrasena = document.getElementById('setupPass').value;
-      const err = document.getElementById('setupErr');
-      if (!nombre || !usuario || !email || !contrasena) { err.textContent = 'Completa todos los campos.'; return; }
-      try {
-        const { user } = await api('/auth/setup', { method: 'POST', body: { nombre, usuario, email, contrasena } });
-        AUTH = user;
-        enterApp();
-      } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo crear la cuenta.'; }
-    };
-  } else if (fingerprintSupported() && hasFingerprintFlag() && !forcePasswordForm) {
+  if (fingerprintSupported() && hasFingerprintFlag() && !forcePasswordForm) {
     root.innerHTML = `
       <div class="login-card">
         <div class="login-mark">${ICONS.key}</div>
@@ -338,50 +314,53 @@ function renderLogin(needsSetup, forcePasswordForm) {
         <p class="login-toggle"><button id="showPasswordForm">Usar mi usuario y contraseña</button></p>
       </div>`;
     document.getElementById('fpLoginBtnMain').onclick = loginWithFingerprint;
-    document.getElementById('showPasswordForm').onclick = () => renderLogin(false, true);
-  } else {
-    root.innerHTML = `
-      <div class="login-card">
-        <div class="login-mark">${ICONS.check}</div>
-        <h1>Cuentas-App</h1>
-        <p class="sub">Inicia sesión para continuar.</p>
-        ${fingerprintSupported() ? `<button class="btn-primary" id="fpLoginBtn" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);margin-bottom:14px;">${ICONS.key} Usar huella / Face ID</button><p class="desc" style="text-align:center;margin:-6px 0 16px;">o con tu usuario y contraseña</p>` : ''}
-        <div class="field"><label>Usuario</label><input id="loginUsuario" type="text" autocomplete="username"></div>
-        <div class="field"><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div>
-        <button class="btn-primary" id="loginBtn">Iniciar sesión</button>
-        <p class="login-error" id="loginErr"></p>
-        <p class="login-toggle">
-          ${regEnabled ? `<button id="goRegister">Regístrate con un código</button> · ` : ''}
-          <button id="goForgot">¿Olvidaste tu contraseña?</button>
-        </p>
-      </div>`;
-    if (fingerprintSupported()) document.getElementById('fpLoginBtn').onclick = loginWithFingerprint;
-    const tryLogin = async () => {
-      const usuarioVal = document.getElementById('loginUsuario').value.trim();
-      const contrasena = document.getElementById('loginPass').value;
-      const err = document.getElementById('loginErr');
-      try {
-        const res = await fetch('/api/auth/login', {
-          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Client-Id': CLIENT_ID },
-          credentials: 'include', body: JSON.stringify({ usuario: usuarioVal, contrasena }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          if (data.error === 'passwordExpired') { renderForcedPasswordChange(usuarioVal, contrasena, data.message); return; }
-          err.textContent = data.error || 'Usuario o contraseña incorrectos.';
-          return;
-        }
-        AUTH = data.user;
-        enterApp();
-      } catch (e) { err.textContent = typeof e === 'string' ? e : 'Usuario o contraseña incorrectos.'; }
-    };
-    document.getElementById('loginBtn').onclick = tryLogin;
-    root.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); }));
-    if (regEnabled) document.getElementById('goRegister').onclick = () => renderRegisterView();
-    document.getElementById('goForgot').onclick = () => renderForgotView();
+    document.getElementById('showPasswordForm').onclick = () => renderLogin(true);
+    return;
   }
+  root.innerHTML = `
+    <div class="login-card">
+      <div class="login-mark">${ICONS.check}</div>
+      <h1>Cuentas-App</h1>
+      <p class="sub">Inicia sesión en tu empresa para continuar.</p>
+      ${fingerprintSupported() ? `<button class="btn-primary" id="fpLoginBtn" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);margin-bottom:14px;">${ICONS.key} Usar huella / Face ID</button><p class="desc" style="text-align:center;margin:-6px 0 16px;">o con tu usuario y contraseña</p>` : ''}
+      <div class="field"><label>Código de empresa</label><input id="loginCodigoEmpresa" type="text" autocomplete="off" style="text-transform:uppercase;"></div>
+      <div class="field"><label>Usuario</label><input id="loginUsuario" type="text" autocomplete="username"></div>
+      <div class="field"><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div>
+      <button class="btn-primary" id="loginBtn">Iniciar sesión</button>
+      <p class="login-error" id="loginErr"></p>
+      <p class="login-toggle">
+        ${empresaCreationEnabled ? `<button id="goCreateEmpresa">Crear nueva empresa</button> · ` : ''}
+        <button id="goForgot">¿Olvidaste tu contraseña?</button>
+      </p>
+    </div>`;
+  if (fingerprintSupported()) document.getElementById('fpLoginBtn').onclick = loginWithFingerprint;
+  const tryLogin = async () => {
+    const codigoEmpresa = document.getElementById('loginCodigoEmpresa').value.trim();
+    const usuarioVal = document.getElementById('loginUsuario').value.trim();
+    const contrasena = document.getElementById('loginPass').value;
+    const err = document.getElementById('loginErr');
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Client-Id': CLIENT_ID },
+        credentials: 'include', body: JSON.stringify({ codigoEmpresa, usuario: usuarioVal, contrasena }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.error === 'passwordExpired') { renderForcedPasswordChange(data.codigoEmpresa, usuarioVal, contrasena, data.message); return; }
+        err.textContent = data.error || 'Código de empresa, usuario o contraseña incorrectos.';
+        return;
+      }
+      AUTH = data.user;
+      EMPRESA = data.empresa;
+      enterApp();
+    } catch (e) { err.textContent = 'No se pudo conectar con el servidor.'; }
+  };
+  document.getElementById('loginBtn').onclick = tryLogin;
+  root.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); }));
+  if (empresaCreationEnabled) document.getElementById('goCreateEmpresa').onclick = () => renderCreateEmpresaView();
+  document.getElementById('goForgot').onclick = () => renderForgotView();
 }
-function renderForcedPasswordChange(usuario, contrasenaActual, message) {
+function renderForcedPasswordChange(codigoEmpresa, usuario, contrasenaActual, message) {
   const root = document.getElementById('loginScreen');
   root.innerHTML = `
     <div class="login-card">
@@ -389,6 +368,7 @@ function renderForcedPasswordChange(usuario, contrasenaActual, message) {
       <h1>Actualiza tu contraseña</h1>
       <p class="sub">${escapeHtml(message || 'Tu contraseña tiene más de 6 meses y debes actualizarla para continuar.')}</p>
       ${contrasenaActual ? '' : `
+        <div class="field"><label>Código de empresa</label><input id="fpcCodigo" type="text" value="${escapeHtml(codigoEmpresa || '')}" style="text-transform:uppercase;"></div>
         <div class="field"><label>Usuario</label><input id="fpcUsuario" type="text" value="${escapeHtml(usuario || '')}"></div>
         <div class="field"><label>Contraseña actual</label><input id="fpcActual" type="password"></div>`}
       <div class="field"><label>Nueva contraseña</label><input id="fpcNueva" type="password" placeholder="Mínimo 4 caracteres"></div>
@@ -396,50 +376,68 @@ function renderForcedPasswordChange(usuario, contrasenaActual, message) {
       <p class="login-error" id="fpcErr"></p>
     </div>`;
   document.getElementById('fpcBtn').onclick = async () => {
+    const codigoVal = contrasenaActual ? codigoEmpresa : document.getElementById('fpcCodigo').value.trim();
     const usuarioVal = contrasenaActual ? usuario : document.getElementById('fpcUsuario').value.trim();
     const actual = contrasenaActual || document.getElementById('fpcActual').value;
     const nueva = document.getElementById('fpcNueva').value;
     const err = document.getElementById('fpcErr');
-    if (!usuarioVal || !actual || !nueva || nueva.length < 4) { err.textContent = 'Completa todos los campos (mínimo 4 caracteres).'; return; }
+    if (!codigoVal || !usuarioVal || !actual || !nueva || nueva.length < 4) { err.textContent = 'Completa todos los campos (mínimo 4 caracteres).'; return; }
     try {
-      const { user } = await api('/auth/force-change-password', { method: 'POST', body: { usuario: usuarioVal, contrasena: actual, nuevaContrasena: nueva } });
-      AUTH = user;
+      const { user, empresa } = await api('/auth/force-change-password', { method: 'POST', body: { codigoEmpresa: codigoVal, usuario: usuarioVal, contrasena: actual, nuevaContrasena: nueva } });
+      AUTH = user; EMPRESA = empresa;
       toast('Contraseña actualizada');
       enterApp();
     } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo actualizar la contraseña.'; }
   };
 }
-function renderRegisterView() {
+function renderCreateEmpresaView() {
   const root = document.getElementById('loginScreen');
   root.innerHTML = `
     <div class="login-card">
       <div class="login-mark">${ICONS.userPlus}</div>
-      <h1>Crear cuenta</h1>
-      <p class="sub">Necesitas el código de invitación que te dio el administrador.</p>
-      <div class="field"><label>Tu nombre</label><input id="regNombre" type="text"></div>
-      <div class="field"><label>Usuario</label><input id="regUsuario" type="text"></div>
-      <div class="field"><label>Correo electrónico</label><input id="regEmail" type="email"></div>
-      <div class="field"><label>Contraseña</label><input id="regPass" type="password" placeholder="Mínimo 4 caracteres"></div>
-      <div class="field"><label>Código de invitación</label><input id="regCodigo" type="text"></div>
-      <button class="btn-primary" id="regBtn">Crear cuenta</button>
-      <p class="login-error" id="regErr"></p>
-      <p class="login-toggle"><button id="backToLogin">Ya tengo cuenta, iniciar sesión</button></p>
+      <h1>Crear nueva empresa</h1>
+      <p class="sub">Vas a ser el único administrador de esta empresa. Necesitas el código de invitación que te dieron.</p>
+      <div class="field"><label>Nombre de la empresa</label><input id="ceNombreEmpresa" type="text" placeholder="Ej. Tienda Santa Elena"></div>
+      <div class="field"><label>Tu nombre</label><input id="ceNombre" type="text"></div>
+      <div class="field"><label>Usuario</label><input id="ceUsuario" type="text"></div>
+      <div class="field"><label>Correo electrónico</label><input id="ceEmail" type="email"></div>
+      <div class="field"><label>Contraseña</label><input id="cePass" type="password" placeholder="Mínimo 4 caracteres"></div>
+      <div class="field"><label>Código de invitación</label><input id="ceCodigo" type="text"></div>
+      <button class="btn-primary" id="ceBtn">Crear empresa</button>
+      <p class="login-error" id="ceErr"></p>
+      <p class="login-toggle"><button id="backToLoginCE">Ya tengo una empresa, iniciar sesión</button></p>
     </div>`;
-  document.getElementById('backToLogin').onclick = () => renderLogin(false);
-  document.getElementById('regBtn').onclick = async () => {
-    const nombre = document.getElementById('regNombre').value.trim();
-    const usuario = document.getElementById('regUsuario').value.trim();
-    const email = document.getElementById('regEmail').value.trim();
-    const contrasena = document.getElementById('regPass').value;
-    const codigo = document.getElementById('regCodigo').value.trim();
-    const err = document.getElementById('regErr');
-    if (!nombre || !usuario || !email || !contrasena || !codigo) { err.textContent = 'Completa todos los campos.'; return; }
+  document.getElementById('backToLoginCE').onclick = () => renderLogin();
+  document.getElementById('ceBtn').onclick = async () => {
+    const nombreEmpresa = document.getElementById('ceNombreEmpresa').value.trim();
+    const nombre = document.getElementById('ceNombre').value.trim();
+    const usuario = document.getElementById('ceUsuario').value.trim();
+    const email = document.getElementById('ceEmail').value.trim();
+    const contrasena = document.getElementById('cePass').value;
+    const codigo = document.getElementById('ceCodigo').value.trim();
+    const err = document.getElementById('ceErr');
+    if (!nombreEmpresa || !nombre || !usuario || !email || !contrasena || !codigo) { err.textContent = 'Completa todos los campos.'; return; }
     try {
-      const { user } = await api('/auth/register', { method: 'POST', body: { nombre, usuario, email, contrasena, codigo } });
-      AUTH = user;
-      enterApp();
-    } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo crear la cuenta.'; }
+      const { user, empresa } = await api('/empresas', { method: 'POST', body: { nombreEmpresa, nombre, usuario, email, contrasena, codigo } });
+      AUTH = user; EMPRESA = empresa;
+      renderEmpresaCreatedScreen(empresa);
+    } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo crear la empresa.'; }
   };
+}
+function renderEmpresaCreatedScreen(empresa) {
+  const root = document.getElementById('loginScreen');
+  root.innerHTML = `
+    <div class="login-card">
+      <div class="login-mark">${ICONS.check}</div>
+      <h1>¡Empresa creada!</h1>
+      <p class="sub">Guarda este código — lo vas a necesitar junto con tu usuario y contraseña para volver a entrar, y es lo que le compartes a las personas de tu equipo cuando les crees su usuario.</p>
+      <div class="field">
+        <label>Código de tu empresa</label>
+        <input type="text" value="${escapeHtml(empresa.codigo)}" readonly style="font-family:var(--mono);font-size:18px;text-align:center;font-weight:700;letter-spacing:2px;">
+      </div>
+      <button class="btn-primary" id="ceContinueBtn">Entrar a mi empresa</button>
+    </div>`;
+  document.getElementById('ceContinueBtn').onclick = () => enterApp();
 }
 function renderForgotView() {
   const root = document.getElementById('loginScreen');
@@ -447,46 +445,48 @@ function renderForgotView() {
     <div class="login-card">
       <div class="login-mark">${ICONS.key}</div>
       <h1>Recuperar contraseña</h1>
-      <p class="sub">Ingresa tu correo y te enviaremos un código de 4 dígitos.</p>
+      <p class="sub">Ingresa el código de tu empresa y tu correo. Te enviaremos un código de 4 dígitos.</p>
+      <div class="field"><label>Código de empresa</label><input id="forgotCodigo" type="text" style="text-transform:uppercase;"></div>
       <div class="field"><label>Correo electrónico</label><input id="forgotEmail" type="email"></div>
       <button class="btn-primary" id="forgotBtn">Enviar código</button>
       <p class="login-error" id="forgotErr"></p>
       <p class="login-toggle"><button id="backToLogin2">Volver a iniciar sesión</button></p>
     </div>`;
-  document.getElementById('backToLogin2').onclick = () => renderLogin(false);
+  document.getElementById('backToLogin2').onclick = () => renderLogin();
   document.getElementById('forgotBtn').onclick = async () => {
+    const codigoEmpresa = document.getElementById('forgotCodigo').value.trim();
     const email = document.getElementById('forgotEmail').value.trim();
     const err = document.getElementById('forgotErr');
-    if (!email) { err.textContent = 'Ingresa tu correo.'; return; }
+    if (!codigoEmpresa || !email) { err.textContent = 'Completa el código de empresa y el correo.'; return; }
     try {
-      await api('/auth/forgot-password', { method: 'POST', body: { email } });
-      renderResetView(email);
+      await api('/auth/forgot-password', { method: 'POST', body: { codigoEmpresa, email } });
+      renderResetView(codigoEmpresa, email);
     } catch (e) { err.textContent = 'No se pudo enviar el código.'; }
   };
 }
-function renderResetView(email) {
+function renderResetView(codigoEmpresa, email) {
   const root = document.getElementById('loginScreen');
   root.innerHTML = `
     <div class="login-card">
       <div class="login-mark">${ICONS.key}</div>
       <h1>Ingresa el código</h1>
-      <p class="sub">Si ${escapeHtml(email)} está registrado, te enviamos un código de 4 dígitos. Vence en 15 minutos.</p>
+      <p class="sub">Si ${escapeHtml(email)} está registrado en esa empresa, te enviamos un código de 4 dígitos. Vence en 15 minutos.</p>
       <div class="field"><label>Código</label><input id="resetCode" type="text" maxlength="4" inputmode="numeric"></div>
       <div class="field"><label>Nueva contraseña</label><input id="resetPass" type="password" placeholder="Mínimo 4 caracteres"></div>
       <button class="btn-primary" id="resetBtn">Restablecer contraseña</button>
       <p class="login-error" id="resetErr"></p>
       <p class="login-toggle"><button id="backToLogin3">Volver a iniciar sesión</button></p>
     </div>`;
-  document.getElementById('backToLogin3').onclick = () => renderLogin(false);
+  document.getElementById('backToLogin3').onclick = () => renderLogin();
   document.getElementById('resetBtn').onclick = async () => {
     const code = document.getElementById('resetCode').value.trim();
     const nuevaContrasena = document.getElementById('resetPass').value;
     const err = document.getElementById('resetErr');
     if (!code || !nuevaContrasena) { err.textContent = 'Completa todos los campos.'; return; }
     try {
-      await api('/auth/reset-password', { method: 'POST', body: { email, code, nuevaContrasena } });
+      await api('/auth/reset-password', { method: 'POST', body: { codigoEmpresa, email, code, nuevaContrasena } });
       toast('Contraseña restablecida, ya puedes iniciar sesión');
-      renderLogin(false);
+      renderLogin();
     } catch (e) { err.textContent = typeof e === 'string' ? e : 'Código incorrecto o vencido.'; }
   };
 }
@@ -536,12 +536,13 @@ async function logoutManual() {
 }
 async function doLogoutCleanup() {
   AUTH = null;
+  EMPRESA = null;
   if (ws) { try { ws.close(); } catch (e) {} }
   document.getElementById('pageRoot').innerHTML = '';
   document.getElementById('modalRoot').innerHTML = '';
   document.getElementById('mainScreen').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
-  renderLogin(false);
+  renderLogin();
 }
 async function checkPendingTiendaBackup() {
   try {
@@ -1242,16 +1243,23 @@ function backupRowHtml(b, scope) {
    CUENTA Y USUARIOS (avatar)
    ============================================================ */
 async function openAccountSettingsPage(opts = {}) {
-  let usuarios = [];
-  try { usuarios = await api('/usuarios'); } catch (e) { toast('No se pudo cargar la lista de usuarios'); }
-  renderUsersPage(usuarios);
+  let me = null, usuarios = null;
+  try {
+    const meResp = await api('/usuarios/me');
+    me = meResp.usuario;
+    if (meResp.empresa) EMPRESA = meResp.empresa;
+  } catch (e) { toast('No se pudo cargar tu información'); }
+  if (me && me.rol === 'admin') {
+    try { usuarios = await api('/usuarios'); } catch (e) { usuarios = []; }
+  }
+  renderUsersPage(me, usuarios);
   if (!opts.fromHistory) history.pushState({ view: 'users' }, '', location.href);
 }
-function renderUsersPage(usuariosParam) {
+function renderUsersPage(meParam, usuariosParam) {
   const root = document.getElementById('pageRoot');
-  const render = (usuarios) => {
-    const yo = usuarios.find(u => u.id === AUTH.id) || AUTH;
-    const otros = usuarios.filter(u => u.id !== AUTH.id);
+  const render = (me, usuarios) => {
+    const esAdmin = me.rol === 'admin';
+    const otros = (usuarios || []).filter(u => u.id !== me.id);
     root.innerHTML = `
       <div class="page-slide" id="usersPage">
         <div class="page-header">
@@ -1259,43 +1267,49 @@ function renderUsersPage(usuariosParam) {
           <h2>Cuenta y usuarios</h2>
         </div>
         <div class="detail-body">
+          ${EMPRESA ? `<p class="desc" style="margin:0 0 16px;">${escapeHtml(EMPRESA.nombre)} · código de empresa: <b style="color:var(--text);font-family:var(--mono);">${escapeHtml(EMPRESA.codigo)}</b></p>` : ''}
           <div class="section-title">Tu cuenta</div>
           <div class="user-card" style="flex-direction:column;align-items:stretch;">
             <div style="display:flex;align-items:center;gap:12px;">
-              <div class="acc-circ">${initialOf(yo.nombre)}</div>
+              <div class="acc-circ">${initialOf(me.nombre)}</div>
               <div class="info">
-                <div class="name">${escapeHtml(yo.nombre)}</div>
-                <div class="handle">@${escapeHtml(yo.usuario)}${yo.email ? ' · ' + escapeHtml(yo.email) : ''}</div>
+                <div class="name">${escapeHtml(me.nombre)} ${esAdmin ? '· <span style="color:var(--accent);">admin</span>' : ''}</div>
+                <div class="handle">@${escapeHtml(me.usuario)}${me.email ? ' · ' + escapeHtml(me.email) : ''}</div>
               </div>
             </div>
             <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
-              <button class="link-btn" id="btnChangeOwnPass">Cambiar contraseña</button>
-              <button class="link-btn" id="btnChangeOwnEmail">${yo.email ? 'Cambiar correo' : 'Agregar correo'}</button>
+              ${esAdmin ? `
+                <button class="link-btn" id="btnChangeOwnPass">Cambiar contraseña</button>
+                <button class="link-btn" id="btnChangeOwnEmail">${me.email ? 'Cambiar correo' : 'Agregar correo'}</button>
+              ` : ''}
               <button class="link-btn" id="btnLogout">Cerrar sesión</button>
-              <button class="link-btn" id="btnDeleteOwnAccount" style="color:var(--red);">Eliminar mi cuenta</button>
             </div>
           </div>
 
-          <div class="section-title" style="margin-top:22px;">Otros administradores</div>
-          ${otros.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Todavía no hay otro administrador.</p></div>` :
-            otros.map(u => `
-              <div class="user-card" style="flex-direction:column;align-items:stretch;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                  <div class="acc-circ">${initialOf(u.nombre)}</div>
-                  <div class="info">
-                    <div class="name">${escapeHtml(u.nombre)}</div>
-                    <div class="handle">@${escapeHtml(u.usuario)}${u.email ? ' · ' + escapeHtml(u.email) : ''}</div>
+          ${esAdmin ? `
+            <div class="section-title" style="margin-top:22px;">Usuarios de tu empresa</div>
+            ${otros.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Todavía no has creado ningún usuario.</p></div>` :
+              otros.map(u => `
+                <div class="user-card" style="flex-direction:column;align-items:stretch;">
+                  <div style="display:flex;align-items:center;gap:12px;">
+                    <div class="acc-circ">${initialOf(u.nombre)}</div>
+                    <div class="info">
+                      <div class="name">${escapeHtml(u.nombre)}</div>
+                      <div class="handle">@${escapeHtml(u.usuario)}${u.email ? ' · ' + escapeHtml(u.email) : ''}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
+                    <button class="link-btn" data-changepass="${u.id}" data-name="${escapeHtml(u.nombre)}">Cambiar contraseña</button>
+                    <button class="link-btn" data-changeemail="${u.id}" data-email="${u.email ? escapeHtml(u.email) : ''}">${u.email ? 'Cambiar correo' : 'Agregar correo'}</button>
+                    <button class="link-btn" data-deleteuser="${u.id}" data-name="${escapeHtml(u.nombre)}" style="color:var(--red);">Eliminar</button>
                   </div>
                 </div>
-                <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
-                  <button class="link-btn" data-changepass="${u.id}" data-name="${escapeHtml(u.nombre)}">Cambiar contraseña</button>
-                  <button class="link-btn" data-changeemail="${u.id}" data-email="${u.email ? escapeHtml(u.email) : ''}">${u.email ? 'Cambiar correo' : 'Agregar correo'}</button>
-                  <button class="link-btn" data-deleteuser="${u.id}" data-name="${escapeHtml(u.nombre)}" style="color:var(--red);">Eliminar</button>
-                </div>
-              </div>
-            `).join('')
-          }
-          <button class="pdf-btn" id="btnAddUser" style="margin-top:14px;">${ICONS.userPlus} Crear nuevo administrador</button>
+              `).join('')
+            }
+            <button class="pdf-btn" id="btnAddUser" style="margin-top:14px;">${ICONS.userPlus} Crear nuevo usuario</button>
+          ` : `
+            <p class="desc" style="margin-top:6px;">Solo el administrador de tu empresa puede crear usuarios, cambiar contraseñas o correos, y eliminar cuentas.</p>
+          `}
 
           <div class="section-title" style="margin-top:22px;">Huella / Face ID</div>
           <p class="desc" style="margin:-6px 0 14px;">Inicia sesión rápido sin escribir tu contraseña, solo en los dispositivos donde la registres aquí.</p>
@@ -1304,25 +1318,26 @@ function renderUsersPage(usuariosParam) {
         </div>
       </div>`;
     document.getElementById('usersBack').onclick = () => { history.back(); };
-    document.getElementById('btnChangeOwnPass').onclick = () => openChangePasswordModal(AUTH.id, AUTH.nombre, true);
-    document.getElementById('btnChangeOwnEmail').onclick = () => openChangeEmailModal(AUTH.id, yo.email);
     document.getElementById('btnLogout').onclick = () => openLogoutConfirm();
-    document.getElementById('btnDeleteOwnAccount').onclick = () => openDeleteUserModal(AUTH.id, yo.nombre, true);
-    document.getElementById('btnAddUser').onclick = openCreateUserModal;
+    if (esAdmin) {
+      document.getElementById('btnChangeOwnPass').onclick = () => openChangePasswordModal(me.id, me.nombre, true);
+      document.getElementById('btnChangeOwnEmail').onclick = () => openChangeEmailModal(me.id, me.email);
+      document.getElementById('btnAddUser').onclick = openCreateUserModal;
+      root.querySelectorAll('[data-changepass]').forEach(b => {
+        b.addEventListener('click', () => openChangePasswordModal(b.dataset.changepass, b.dataset.name, false));
+      });
+      root.querySelectorAll('[data-changeemail]').forEach(b => {
+        b.addEventListener('click', () => openChangeEmailModal(b.dataset.changeemail, b.dataset.email));
+      });
+      root.querySelectorAll('[data-deleteuser]').forEach(b => {
+        b.addEventListener('click', () => openDeleteUserModal(b.dataset.deleteuser, b.dataset.name));
+      });
+    }
     document.getElementById('btnAddFingerprint').onclick = openRegisterFingerprintModal;
     loadFingerprintDevices();
-    root.querySelectorAll('[data-changepass]').forEach(b => {
-      b.addEventListener('click', () => openChangePasswordModal(b.dataset.changepass, b.dataset.name, false));
-    });
-    root.querySelectorAll('[data-changeemail]').forEach(b => {
-      b.addEventListener('click', () => openChangeEmailModal(b.dataset.changeemail, b.dataset.email));
-    });
-    root.querySelectorAll('[data-deleteuser]').forEach(b => {
-      b.addEventListener('click', () => openDeleteUserModal(b.dataset.deleteuser, b.dataset.name, false));
-    });
   };
-  if (usuariosParam) render(usuariosParam);
-  else api('/usuarios').then(render).catch(() => toast('No se pudo cargar la lista de usuarios'));
+  if (meParam) render(meParam, usuariosParam);
+  else api('/usuarios/me').then(r => render(r.usuario, null)).catch(() => toast('No se pudo cargar tu información'));
 }
 function openLogoutConfirm() {
   showModal(`
@@ -1389,11 +1404,10 @@ function openChangeEmailModal(userId, currentEmail) {
     } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo actualizar el correo.'; }
   };
 }
-function openDeleteUserModal(userId, nombre, isSelf) {
+function openDeleteUserModal(userId, nombre) {
   showModal(`
-    <h3>${isSelf ? '¿Eliminar tu cuenta?' : '¿Eliminar a ' + escapeHtml(nombre) + '?'}</h3>
-    <p class="desc">${isSelf ? 'Perderás el acceso de inmediato.' : 'Ya no podrá iniciar sesión.'} Esta acción no se puede deshacer.</p>
-    ${isSelf ? `<div class="field"><label>Confirma tu contraseña</label><input id="delActual" type="password"></div>` : ''}
+    <h3>¿Eliminar a ${escapeHtml(nombre)}?</h3>
+    <p class="desc">Ya no podrá iniciar sesión. Esta acción no se puede deshacer.</p>
     <div class="modal-actions">
       <button class="btn-cancel" data-close>Cancelar</button>
       <button class="btn-confirm danger" id="confirmDeleteUser">Eliminar</button>
@@ -1402,18 +1416,11 @@ function openDeleteUserModal(userId, nombre, isSelf) {
   `, { center: true });
   document.getElementById('confirmDeleteUser').onclick = async () => {
     const err = document.getElementById('delUserErr');
-    const body = isSelf ? { actual: document.getElementById('delActual').value } : {};
-    if (isSelf && !body.actual) { err.textContent = 'Ingresa tu contraseña actual.'; return; }
     try {
-      await api(`/usuarios/${userId}`, { method: 'DELETE', body });
+      await api(`/usuarios/${userId}`, { method: 'DELETE' });
       closeModal();
-      if (isSelf) {
-        toast('Cuenta eliminada');
-        setTimeout(() => location.reload(), 500);
-      } else {
-        toast('Administrador eliminado');
-        renderUsersPage();
-      }
+      toast('Usuario eliminado');
+      renderUsersPage();
     } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo eliminar la cuenta.'; }
   };
 }
@@ -1442,8 +1449,8 @@ function openChangePasswordModal(userId, nombre, isOwn) {
 }
 function openCreateUserModal() {
   showModal(`
-    <h3>Crear nuevo administrador</h3>
-    <p class="desc">Tendrá acceso completo a las mismas cuentas y movimientos que tú.</p>
+    <h3>Crear nuevo usuario</h3>
+    <p class="desc">Podrá ver y registrar cuentas y movimientos, pero no podrá crear ni eliminar otros usuarios.</p>
     <div class="field"><label>Nombre</label><input id="newUserNombre" type="text"></div>
     <div class="field"><label>Usuario</label><input id="newUserUsuario" type="text"></div>
     <div class="field"><label>Correo electrónico</label><input id="newUserEmail" type="email"></div>
@@ -1465,7 +1472,7 @@ function openCreateUserModal() {
       await api('/usuarios', { method: 'POST', body: { nombre, usuario, email, contrasena } });
       closeModal();
       renderUsersPage();
-      toast('Administrador creado');
+      toast('Usuario creado');
     } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo crear el usuario.'; }
   };
 }

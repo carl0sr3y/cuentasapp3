@@ -11,9 +11,10 @@ router.get('/', async (req, res) => {
     `SELECT h.id, h.accion, h.tipo, h.detalle, h.monto, h.referencia_id, h.fecha, u.nombre AS usuario
      FROM historial_general h
      LEFT JOIN usuarios u ON u.id = h.usuario_id
+     WHERE h.empresa_id = $1
      ORDER BY h.fecha DESC, h.id DESC
-     LIMIT $1`,
-    [limit]
+     LIMIT $2`,
+    [req.user.empresa_id, limit]
   );
   res.json(rows);
 });

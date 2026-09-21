@@ -12,6 +12,7 @@ const realtime = require('./lib/realtime');
 const { limpiarHistorialRodante, crearBackupGeneral, crearBackupTienda } = require('./jobs/backup');
 
 const authRoutes = require('./routes/auth');
+const empresasRoutes = require('./routes/empresas');
 const usuariosRoutes = require('./routes/usuarios');
 const cuentasRoutes = require('./routes/cuentas');
 const tiendaRoutes = require('./routes/tienda');
@@ -38,6 +39,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/empresas', empresasRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/cuentas', cuentasRoutes);
 app.use('/api/tienda', tiendaRoutes);

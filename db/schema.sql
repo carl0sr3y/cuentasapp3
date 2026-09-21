@@ -116,3 +116,81 @@ CREATE TABLE IF NOT EXISTS webauthn_credentials (
   fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_webauthn_usuario ON webauthn_credentials(usuario_id);
+
+-- ============================================================
+-- MULTIEMPRESA: cada negocio es una "empresa" con sus propios
+-- usuarios y datos, completamente separados de las demás.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS empresas (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  codigo TEXT UNIQUE NOT NULL,
+  fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- usuarios: ahora pertenece a una empresa y tiene un rol ('admin' o 'usuario')
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id) ON DELETE CASCADE;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rol TEXT NOT NULL DEFAULT 'usuario';
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'usuarios_rol_check') THEN
+    ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check CHECK (rol IN ('admin','usuario'));
+  END IF;
+END $$;
+
+-- Migración de datos existentes (de antes de multiempresa): se crea una empresa
+-- "de arranque" y se le asignan todos los datos que no tengan empresa todavía.
+INSERT INTO empresas (nombre, codigo)
+SELECT 'Mi Negocio', 'EMPRESA1'
+WHERE NOT EXISTS (SELECT 1 FROM empresas) AND EXISTS (SELECT 1 FROM usuarios);
+
+UPDATE usuarios SET empresa_id = (SELECT id FROM empresas ORDER BY id LIMIT 1) WHERE empresa_id IS NULL;
+
+-- Si una empresa se quedó sin ningún admin, se asciende a su usuario más antiguo.
+UPDATE usuarios SET rol = 'admin'
+WHERE id IN (
+  SELECT DISTINCT ON (empresa_id) id FROM usuarios WHERE empresa_id IS NOT NULL ORDER BY empresa_id, fecha_creacion ASC
+)
+AND empresa_id NOT IN (SELECT empresa_id FROM usuarios WHERE rol = 'admin');
+
+ALTER TABLE usuarios ALTER COLUMN empresa_id SET NOT NULL;
+
+-- Los usuarios/correos ya no son únicos en toda la plataforma, solo dentro de su empresa.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'usuarios_usuario_key') THEN
+    ALTER TABLE usuarios DROP CONSTRAINT usuarios_usuario_key;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'usuarios_email_key') THEN
+    ALTER TABLE usuarios DROP CONSTRAINT usuarios_email_key;
+  END IF;
+END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_usuarios_empresa_usuario ON usuarios(empresa_id, usuario);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_usuarios_empresa_email ON usuarios(empresa_id, email) WHERE email IS NOT NULL;
+
+-- El resto de los datos también quedan separados por empresa.
+ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id) ON DELETE CASCADE;
+ALTER TABLE movimientos_tienda ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id) ON DELETE CASCADE;
+ALTER TABLE historial_general ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id) ON DELETE CASCADE;
+ALTER TABLE backups ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id) ON DELETE CASCADE;
+ALTER TABLE backups_tienda ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id) ON DELETE CASCADE;
+ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id) ON DELETE CASCADE;
+
+UPDATE cuentas SET empresa_id = (SELECT id FROM empresas ORDER BY id LIMIT 1) WHERE empresa_id IS NULL;
+UPDATE movimientos_tienda SET empresa_id = (SELECT id FROM empresas ORDER BY id LIMIT 1) WHERE empresa_id IS NULL;
+UPDATE historial_general SET empresa_id = (SELECT id FROM empresas ORDER BY id LIMIT 1) WHERE empresa_id IS NULL;
+UPDATE backups SET empresa_id = (SELECT id FROM empresas ORDER BY id LIMIT 1) WHERE empresa_id IS NULL;
+UPDATE backups_tienda SET empresa_id = (SELECT id FROM empresas ORDER BY id LIMIT 1) WHERE empresa_id IS NULL;
+UPDATE push_subscriptions ps SET empresa_id = (SELECT u.empresa_id FROM usuarios u WHERE u.id = ps.usuario_id) WHERE empresa_id IS NULL;
+
+ALTER TABLE cuentas ALTER COLUMN empresa_id SET NOT NULL;
+ALTER TABLE movimientos_tienda ALTER COLUMN empresa_id SET NOT NULL;
+ALTER TABLE historial_general ALTER COLUMN empresa_id SET NOT NULL;
+ALTER TABLE backups ALTER COLUMN empresa_id SET NOT NULL;
+ALTER TABLE backups_tienda ALTER COLUMN empresa_id SET NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_cuentas_empresa ON cuentas(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_movtienda_empresa ON movimientos_tienda(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_historial_empresa ON historial_general(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_usuarios_empresa ON usuarios(empresa_id);

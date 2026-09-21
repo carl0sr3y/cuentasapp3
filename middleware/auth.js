@@ -4,7 +4,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-cambia-esto';
 const COOKIE_NAME = 'cuentas_app_token';
 
 function signToken(user) {
-  return jwt.sign({ id: user.id, usuario: user.usuario, nombre: user.nombre }, JWT_SECRET, { expiresIn: '30d' });
+  return jwt.sign(
+    { id: user.id, usuario: user.usuario, nombre: user.nombre, empresa_id: user.empresa_id, rol: user.rol },
+    JWT_SECRET,
+    { expiresIn: '30d' }
+  );
 }
 
 function setAuthCookie(res, user) {
@@ -47,4 +51,9 @@ function verifyTokenFromCookieHeader(cookieHeader) {
   }
 }
 
-module.exports = { requireAuth, setAuthCookie, clearAuthCookie, verifyTokenFromCookieHeader, COOKIE_NAME };
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo el administrador de tu empresa puede hacer esto' });
+  next();
+}
+
+module.exports = { requireAuth, requireAdmin, setAuthCookie, clearAuthCookie, verifyTokenFromCookieHeader, COOKIE_NAME };

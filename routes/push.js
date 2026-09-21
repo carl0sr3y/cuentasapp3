@@ -18,10 +18,10 @@ router.post('/subscribe', async (req, res) => {
     return res.status(400).json({ error: 'Suscripción inválida' });
   }
   await pool.query(
-    `INSERT INTO push_subscriptions (usuario_id, client_id, endpoint, p256dh, auth)
-     VALUES ($1,$2,$3,$4,$5)
-     ON CONFLICT (endpoint) DO UPDATE SET usuario_id = $1, client_id = $2, p256dh = $4, auth = $5`,
-    [req.user.id, clientId || null, endpoint, keys.p256dh, keys.auth]
+    `INSERT INTO push_subscriptions (usuario_id, empresa_id, client_id, endpoint, p256dh, auth)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (endpoint) DO UPDATE SET usuario_id = $1, empresa_id = $2, client_id = $3, p256dh = $5, auth = $6`,
+    [req.user.id, req.user.empresa_id, clientId || null, endpoint, keys.p256dh, keys.auth]
   );
   res.json({ ok: true });
 });

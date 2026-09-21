@@ -9,7 +9,8 @@ Aplicación web para administrar cuentas de clientes (deudores) y los movimiento
 | `DATABASE_URL` | La crea Railway solo al agregar el plugin de PostgreSQL |
 | `JWT_SECRET` | Cadena aleatoria larga para firmar las sesiones |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Notificaciones push (genera con `npx web-push generate-vapid-keys`) |
-| `INVITE_CODE` | Código que le das a alguien de confianza para que pueda registrarse solo. Vacío = registro desactivado |
+| `INVITE_CODE` | Código que le das a un negocio de confianza para que pueda crear su propia empresa nueva en la app. Vacío = creación de empresas desactivada |
+| `MAX_EMPRESAS` | Cuántas empresas pueden existir en total en la plataforma. Vacío = sin límite. Súbelo cuando quieras aceptar más negocios |
 | `BREVO_API_KEY` / `BREVO_SENDER_EMAIL` | Cuenta de Brevo (gratis) para enviar correos de recuperación de contraseña **vía su API HTTP** (no SMTP: Railway bloquea los puertos SMTP en el plan Hobby). La API key sale de Brevo → Claves API y MCP. El correo remitente debe estar verificado en Brevo (un clic en un correo de confirmación) |
 
 ## Cómo desplegar
@@ -21,7 +22,8 @@ Aplicación web para administrar cuentas de clientes (deudores) y los movimiento
 
 ## Funciones principales
 
-- **Multiusuario**: cualquier administrador puede crear a otro desde el ícono de avatar, o las personas pueden registrarse solas si tienen el código de invitación (`INVITE_CODE`).
+- **Multiempresa**: cada negocio es una "empresa" independiente, con sus propios usuarios y datos completamente separados de las demás. Se entra con código de empresa + usuario + contraseña. El administrador de cada empresa (uno solo) es el único que puede crear, eliminar y gestionar contraseñas/correos de los usuarios de su empresa — los usuarios normales no pueden cambiar ni su propia contraseña ni su correo, solo el admin puede hacerlo por ellos. Empresas nuevas se crean con el código de invitación (`INVITE_CODE`) y respetando el límite (`MAX_EMPRESAS`).
+- **Importante sobre la migración**: la primera vez que este código corre sobre tu base de datos ya existente, se crea automáticamente una empresa llamada "Mi Negocio" con código `EMPRESA1`, y tu usuario más antiguo (el que tenga la fecha de creación más vieja) queda como el único administrador — cualquier otro usuario que ya tuvieras pasa a ser "usuario" normal (pierde la posibilidad de crear/eliminar otros usuarios). Si quieres que sea otra persona la administradora, cambia el campo `rol` de esa fila directamente en la base de datos después del primer despliegue.
 - **Recuperar contraseña**: desde la pantalla de login, "¿Olvidaste tu contraseña?" pide el correo, envía un código de 4 dígitos (vence en 15 minutos), y permite definir una nueva contraseña.
 - **Sincronización en tiempo real** entre dispositivos vía WebSocket, con indicador de estado (verde/amarillo/rojo) junto al nombre de la app.
 - **Notificaciones push** reales (funcionan con la app cerrada), activables con el ícono de campana.

@@ -5,15 +5,20 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
+// Devuelve todas las cuentas de MI empresa junto con todos sus movimientos, para el PDF general
 router.get('/general', async (req, res) => {
   const { rows: cuentas } = await pool.query(
-    `SELECT id, nombre, favorito, fecha_creacion FROM cuentas ORDER BY nombre ASC`
+    `SELECT id, nombre, favorito, fecha_creacion FROM cuentas WHERE empresa_id = $1 ORDER BY nombre ASC`,
+    [req.user.empresa_id]
   );
   const { rows: movimientos } = await pool.query(
     `SELECT m.id, m.cuenta_id, m.tipo, m.descripcion, m.monto, m.saldo_resultante, m.fecha, u.nombre AS usuario
      FROM movimientos_cuentas m
+     JOIN cuentas c ON c.id = m.cuenta_id
      LEFT JOIN usuarios u ON u.id = m.usuario_id
-     ORDER BY m.cuenta_id ASC, m.fecha ASC, m.id ASC`
+     WHERE c.empresa_id = $1
+     ORDER BY m.cuenta_id ASC, m.fecha ASC, m.id ASC`,
+    [req.user.empresa_id]
   );
   const porCuenta = {};
   for (const m of movimientos) {

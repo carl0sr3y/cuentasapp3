@@ -16,10 +16,10 @@ const SEIS_MESES_MS = 1000 * 60 * 60 * 24 * 182;
 function passwordVencida(fecha) {
   return Date.now() - new Date(fecha).getTime() > SEIS_MESES_MS;
 }
-async function registrarHistorial(usuarioId, accion, detalle) {
+async function registrarHistorial(empresaId, usuarioId, accion, detalle) {
   await pool.query(
-    `INSERT INTO historial_general (usuario_id, accion, detalle) VALUES ($1,$2,$3)`,
-    [usuarioId, accion, detalle]
+    `INSERT INTO historial_general (empresa_id, usuario_id, accion, detalle) VALUES ($1,$2,$3,$4)`,
+    [empresaId, usuarioId, accion, detalle]
   );
 }
 
@@ -69,7 +69,7 @@ router.post('/register-verify', requireAuth, async (req, res) => {
      VALUES ($1,$2,$3,$4,$5,$6)`,
     [req.user.id, credentialID, Buffer.from(credentialPublicKey).toString('base64'), counter, transports.join(','), (deviceName || 'Este dispositivo').slice(0, 60)]
   );
-  await registrarHistorial(req.user.id, 'Huella registrada', `Huella/Face ID agregada para "${deviceName || 'este dispositivo'}"`);
+  await registrarHistorial(req.user.empresa_id, req.user.id, 'Huella registrada', `Huella/Face ID agregada para "${deviceName || 'este dispositivo'}"`);
   res.json({ ok: true });
 });
 
@@ -107,9 +107,16 @@ router.post('/login-verify', async (req, res) => {
   const { rows: userRows } = await pool.query('SELECT * FROM usuarios WHERE id = $1', [cred.usuario_id]);
   const dbUser = userRows[0];
   if (!dbUser) return res.status(400).json({ error: 'Usuario no encontrado' });
+  const { rows: empRows } = await pool.query('SELECT id, nombre, codigo FROM empresas WHERE id = $1', [dbUser.empresa_id]);
+  const empresa = empRows[0];
 
   if (passwordVencida(dbUser.contrasena_actualizada_en)) {
-    return res.status(403).json({ error: 'passwordExpired', usuario: dbUser.usuario, message: 'Tu contraseña tiene más de 6 meses. Inicia sesión con tu contraseña para renovarla antes de volver a usar la huella.' });
+    return res.status(403).json({
+      error: 'passwordExpired',
+      codigoEmpresa: empresa ? empresa.codigo : null,
+      usuario: dbUser.usuario,
+      message: 'Tu contraseña tiene más de 6 meses. Inicia sesión con tu contraseña para renovarla antes de volver a usar la huella.',
+    });
   }
 
   const { rpID, origin } = getRpAndOrigin(req);
@@ -128,10 +135,10 @@ router.post('/login-verify', async (req, res) => {
   if (!verification.verified) return res.status(401).json({ error: 'No se pudo verificar la huella' });
 
   await pool.query('UPDATE webauthn_credentials SET counter = $1 WHERE id = $2', [verification.authenticationInfo.newCounter, cred.id]);
-  const user = { id: dbUser.id, nombre: dbUser.nombre, usuario: dbUser.usuario };
+  const user = { id: dbUser.id, nombre: dbUser.nombre, usuario: dbUser.usuario, empresa_id: dbUser.empresa_id, rol: dbUser.rol };
   setAuthCookie(res, user);
-  await registrarHistorial(user.id, 'Inicio de sesión', 'Sesión iniciada con huella/Face ID');
-  res.json({ user });
+  await registrarHistorial(dbUser.empresa_id, user.id, 'Inicio de sesión', 'Sesión iniciada con huella/Face ID');
+  res.json({ user, empresa });
 });
 
 module.exports = router;
