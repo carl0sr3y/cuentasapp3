@@ -21,6 +21,7 @@ const ICONS = {
   download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
   userPlus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/></svg>`,
   key: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3"/></svg>`,
+  fingerprint: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 3 1 5 2 6.5"/><path d="M12 2a8 8 0 0 1 8 8c0 1.5-.1 2.8-.4 4"/><path d="M8 20c-.6-1-1-2.5-1-4a5 5 0 0 1 10 0c0 .8-.1 1.5-.2 2"/><path d="M12 9a3 3 0 0 0-3 3c0 3 1 5.5 2.5 7.5"/><path d="M12 9a3 3 0 0 1 3 3c0 1.5-.2 2.8-.6 4"/><path d="M15.5 20c.6-1.5.9-3 .9-5"/></svg>`,
   camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
   receipt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h16v20l-3-2-3 2-3-2-3 2-3-2-1 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>`,
 };
@@ -244,8 +245,22 @@ async function refrescarTodo() {
     }
   } catch (e) { /* si falla, se reintentará en el próximo evento */ }
 }
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && AUTH) refrescarTodo();
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || !AUTH) return;
+  // La app puede "despertar" sin recargar de verdad (el celular la congeló en segundo plano
+  // en vez de cerrarla). Antes de refrescar datos, confirmamos que la sesión siga siendo válida
+  // en el servidor — si ya no lo es (se cerró sola, venció, etc.), regresamos a la pantalla de login
+  // en vez de quedarnos mostrando la app vacía.
+  try {
+    const status = await api('/auth/status');
+    if (!status.user) { await doLogoutCleanup(); return; }
+    AUTH = status.user;
+    refrescarTodo();
+  } catch (e) { /* sin conexión: ya se muestra el aviso correspondiente */ }
+});
+window.addEventListener('online', () => {
+  document.getElementById('offlineBanner').classList.add('hidden');
+  if (AUTH) refrescarTodo();
 });
 
 /* ============================================================
@@ -307,10 +322,10 @@ function renderLogin(forcePasswordForm) {
   if (fingerprintSupported() && hasFingerprintFlag() && !forcePasswordForm) {
     root.innerHTML = `
       <div class="login-card">
-        <div class="login-mark">${ICONS.key}</div>
+        <div class="login-mark">${ICONS.fingerprint}</div>
         <h1>Cuentas-App</h1>
         <p class="sub">Este dispositivo ya tiene la huella registrada.</p>
-        <button class="btn-primary" id="fpLoginBtnMain">${ICONS.key} Usar huella / Face ID</button>
+        <button class="btn-primary" id="fpLoginBtnMain">${ICONS.fingerprint} Usar huella / Face ID</button>
         <p class="login-toggle"><button id="showPasswordForm">Usar mi usuario y contraseña</button></p>
       </div>`;
     document.getElementById('fpLoginBtnMain').onclick = loginWithFingerprint;
@@ -322,7 +337,7 @@ function renderLogin(forcePasswordForm) {
       <div class="login-mark">${ICONS.check}</div>
       <h1>Cuentas-App</h1>
       <p class="sub">Inicia sesión en tu empresa para continuar.</p>
-      ${fingerprintSupported() ? `<button class="btn-primary" id="fpLoginBtn" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);margin-bottom:14px;">${ICONS.key} Usar huella / Face ID</button><p class="desc" style="text-align:center;margin:-6px 0 16px;">o con tu usuario y contraseña</p>` : ''}
+      ${fingerprintSupported() ? `<button class="btn-primary" id="fpLoginBtn" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);margin-bottom:14px;">${ICONS.fingerprint} Usar huella / Face ID</button><p class="desc" style="text-align:center;margin:-6px 0 16px;">o con tu usuario y contraseña</p>` : ''}
       <div class="field"><label>Código de empresa</label><input id="loginCodigoEmpresa" type="text" autocomplete="off" style="text-transform:uppercase;"></div>
       <div class="field"><label>Usuario</label><input id="loginUsuario" type="text" autocomplete="username"></div>
       <div class="field"><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div>
@@ -1314,7 +1329,7 @@ function renderUsersPage(meParam, usuariosParam) {
           <div class="section-title" style="margin-top:22px;">Huella / Face ID</div>
           <p class="desc" style="margin:-6px 0 14px;">Inicia sesión rápido sin escribir tu contraseña, solo en los dispositivos donde la registres aquí.</p>
           <div id="fpDevicesList"></div>
-          <button class="pdf-btn" id="btnAddFingerprint">${ICONS.key} Registrar este dispositivo</button>
+          <button class="pdf-btn" id="btnAddFingerprint">${ICONS.fingerprint} Registrar este dispositivo</button>
         </div>
       </div>`;
     document.getElementById('usersBack').onclick = () => { history.back(); };
@@ -1362,7 +1377,7 @@ function loadFingerprintDevices() {
       <div class="empty-state">${ICONS.inbox}<p>No has registrado ningún dispositivo todavía.</p></div>
     ` : creds.map(c => `
       <div class="user-card">
-        <div class="acc-circ">${ICONS.key}</div>
+        <div class="acc-circ">${ICONS.fingerprint}</div>
         <div class="info">
           <div class="name">${escapeHtml(c.device_name || 'Dispositivo')}</div>
           <div class="handle">Agregado ${fmtDateShort(c.fecha_creacion)}</div>
