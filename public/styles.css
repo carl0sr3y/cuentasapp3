@@ -569,6 +569,34 @@ header.topbar{gap:10px;}
 .switch[disabled]{opacity:.45;}
 
 /* ============================================================
+   DEUDAS: botones junto a "Tus cuentas" y menú de tres puntitos
+   ============================================================ */
+.balance-block{position:relative;}
+.kebab-btn{position:absolute;top:8px;right:8px;width:36px;height:36px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;color:var(--accent);transition:background .2s,transform .14s var(--ease-out);}
+.kebab-btn svg{width:20px;height:20px;}
+.kebab-btn:active,.kebab-btn[aria-expanded="true"]{background:var(--surface);transform:scale(.94);}
+.cuentas-head{align-items:center;gap:10px;}
+.mini-acciones{display:flex;gap:8px;flex:none;}
+.mini-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:12px;
+  background:var(--surface);box-shadow:var(--shadow);color:var(--text);font-size:14.5px;font-weight:700;
+  transition:transform .14s var(--ease-out),background .2s;}
+.mini-btn svg{width:16px;height:16px;color:var(--accent);}
+.mini-btn.danger svg{color:var(--red);}
+.mini-btn:active{transform:scale(.95);background:var(--surface-alt);}
+.menu-pop{position:fixed;z-index:70;min-width:220px;padding:6px;border-radius:16px;
+  background:var(--surface);box-shadow:var(--shadow-lg);border:1px solid var(--border-soft);
+  transform-origin:top right;animation:menuIn .18s var(--ease-out) both;}
+.menu-pop.cerrando{animation:menuOut .13s ease both;}
+.menu-pop button{width:100%;display:flex;align-items:center;gap:12px;padding:12px;border-radius:11px;
+  font-size:16px;font-weight:600;color:var(--text);text-align:left;}
+.menu-pop button svg{width:19px;height:19px;color:var(--accent);flex:none;}
+.menu-pop button:hover,.menu-pop button:focus-visible{background:var(--surface-2);outline:none;}
+.menu-pop button:active{background:var(--surface-2);}
+@keyframes menuIn{from{opacity:0;transform:scale(.9) translateY(-4px)}to{opacity:1;transform:none}}
+@keyframes menuOut{from{opacity:1;transform:none}to{opacity:0;transform:scale(.94)}}
+
+/* ============================================================
    ANIMACIONES
    Se pueden desactivar en el perfil (o se desactivan solas en equipos modestos y con
    "reducir movimiento"): tema.js pone data-animaciones="no" en <html>.
