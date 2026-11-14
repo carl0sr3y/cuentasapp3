@@ -724,3 +724,10 @@ header.topbar{gap:10px;}
 .animar-entrada .lista-actividad .account-card:nth-child(4){animation-delay:.22s}
 .animar-entrada .lista-actividad .account-card:nth-child(5){animation-delay:.26s}
 .animar-entrada .lista-actividad .account-card:nth-child(n+6){animation-delay:.3s}
+/* Ojito para ver la contraseña (public/ojo.js) */
+.pass-wrap{position:relative;}
+.pass-wrap input{width:100%;padding-right:48px !important;}
+.pass-ojo{position:absolute;top:50%;right:4px;transform:translateY(-50%);width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--text-faint);background:none;}
+.pass-ojo svg{width:20px;height:20px;}
+.pass-ojo[aria-pressed="true"]{color:var(--accent);}
+.pass-ojo:active{background:var(--surface-2);}
