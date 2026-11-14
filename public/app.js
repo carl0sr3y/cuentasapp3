@@ -438,6 +438,17 @@ async function initAuth() {
     renderLogin();
   }
 }
+// Usuario para entrar: "usuario@codigodeempresa" (p. ej. carlos@tiendasantae). Así no hace falta
+// un campo aparte para el código de empresa. Se separa en la ÚLTIMA arroba; el código no distingue
+// mayúsculas (el servidor lo pasa a mayúsculas), el usuario sí, igual que antes.
+function idAcceso(usuario, codigo) { return `${usuario}@${String(codigo || '').toLowerCase()}`; }
+function leerAcceso(texto) {
+  const t = String(texto || '').trim();
+  const i = t.lastIndexOf('@');
+  if (i <= 0 || i === t.length - 1) return null;
+  return { usuario: t.slice(0, i).trim(), codigoEmpresa: t.slice(i + 1).trim().toUpperCase() };
+}
+const AYUDA_ACCESO = 'Escribe tu usuario, una @ y el código de tu empresa. Ejemplo: carlos@tiendasantae';
 // Pantalla de inicio de sesión.
 // - Si este dispositivo ya tiene la huella registrada: pantalla de huella (y, al abrir la app,
 //   se pide la huella automáticamente donde el navegador lo permite).
@@ -469,11 +480,10 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
       <h1>Kaab</h1>
       <p class="sub">Inicia sesión en tu empresa.</p>
       <div class="field">
-        <label for="loginCodigoEmpresa">Código de empresa</label>
-        <input id="loginCodigoEmpresa" type="text" autocomplete="organization" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase;">
-        <p class="field-hint">Te lo da el administrador de tu empresa.</p>
+        <label for="loginUsuario">Usuario</label>
+        <input id="loginUsuario" type="text" inputmode="email" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="usuario@empresa">
+        <p class="field-hint">Tu usuario, una @ y el código de tu empresa. Te lo da el administrador.</p>
       </div>
-      <div class="field"><label for="loginUsuario">Usuario</label><input id="loginUsuario" type="text" autocomplete="username" autocapitalize="off" spellcheck="false"></div>
       <div class="field"><label for="loginPass">Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div>
       <button class="btn-primary" id="loginBtn">Iniciar sesión</button>
       <p class="login-error" id="loginErr"></p>
@@ -485,11 +495,13 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
     document.getElementById('fpLoginBtn').onclick = () => (conHuella ? renderLogin(false) : loginWithFingerprint());
   }
   const tryLogin = async () => {
-    const codigoEmpresa = document.getElementById('loginCodigoEmpresa').value.trim();
-    const usuarioVal = document.getElementById('loginUsuario').value.trim();
+    const accesoTxt = document.getElementById('loginUsuario').value;
     const contrasena = document.getElementById('loginPass').value;
     const err = document.getElementById('loginErr');
-    if (!codigoEmpresa || !usuarioVal || !contrasena) { err.textContent = 'Completa el código de empresa, el usuario y la contraseña.'; return; }
+    if (!accesoTxt.trim() || !contrasena) { err.textContent = 'Escribe tu usuario y tu contraseña.'; return; }
+    const acceso = leerAcceso(accesoTxt);
+    if (!acceso) { err.textContent = AYUDA_ACCESO; return; }
+    const { codigoEmpresa, usuario: usuarioVal } = acceso;
     const btn = document.getElementById('loginBtn');
     btn.disabled = true; err.textContent = '';
     try {
@@ -500,7 +512,7 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.error === 'passwordExpired') { renderForcedPasswordChange(data.codigoEmpresa, usuarioVal, contrasena, data.message); return; }
-        err.textContent = data.error || 'Código de empresa, usuario o contraseña incorrectos.';
+        err.textContent = res.status === 401 ? 'Usuario o contraseña incorrectos. Revisa que después de la @ vaya el código de tu empresa.' : (data.error || 'No se pudo iniciar sesión.');
         return;
       }
       AUTH = data.user;
@@ -521,19 +533,19 @@ function renderForcedPasswordChange(codigoEmpresa, usuario, contrasenaActual, me
       <h1>Actualiza tu contraseña</h1>
       <p class="sub">${escapeHtml(message || 'Tu contraseña tiene más de 6 meses y debes actualizarla para continuar.')}</p>
       ${contrasenaActual ? '' : `
-        <div class="field"><label>Código de empresa</label><input id="fpcCodigo" type="text" value="${escapeHtml(codigoEmpresa || '')}" style="text-transform:uppercase;"></div>
-        <div class="field"><label>Usuario</label><input id="fpcUsuario" type="text" value="${escapeHtml(usuario || '')}"></div>
+        <div class="field"><label>Usuario</label><input id="fpcUsuario" type="text" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="usuario@empresa" value="${escapeHtml(usuario && codigoEmpresa ? idAcceso(usuario, codigoEmpresa) : '')}"></div>
         <div class="field"><label>Contraseña actual</label><input id="fpcActual" type="password"></div>`}
       <div class="field"><label>Nueva contraseña</label><input id="fpcNueva" type="password" placeholder="Mínimo 8 caracteres"></div>
       <button class="btn-primary" id="fpcBtn">Actualizar y continuar</button>
       <p class="login-error" id="fpcErr"></p>
     </div>`;
   document.getElementById('fpcBtn').onclick = async () => {
-    const codigoVal = contrasenaActual ? codigoEmpresa : document.getElementById('fpcCodigo').value.trim();
-    const usuarioVal = contrasenaActual ? usuario : document.getElementById('fpcUsuario').value.trim();
+    const err = document.getElementById('fpcErr');
+    const acceso = contrasenaActual ? { codigoEmpresa, usuario } : leerAcceso(document.getElementById('fpcUsuario').value);
+    if (!acceso) { err.textContent = AYUDA_ACCESO; return; }
+    const codigoVal = acceso.codigoEmpresa, usuarioVal = acceso.usuario;
     const actual = contrasenaActual || document.getElementById('fpcActual').value;
     const nueva = document.getElementById('fpcNueva').value;
-    const err = document.getElementById('fpcErr');
     if (!codigoVal || !usuarioVal || !actual || !nueva || nueva.length < 8) { err.textContent = 'Completa todos los campos (mínimo 8 caracteres).'; return; }
     try {
       const { user, empresa } = await api('/auth/force-change-password', { method: 'POST', body: { codigoEmpresa: codigoVal, usuario: usuarioVal, contrasena: actual, nuevaContrasena: nueva } });
@@ -583,10 +595,14 @@ function renderEmpresaCreatedScreen(empresa) {
     <div class="login-card">
       <div class="login-mark">${ICONS.check}</div>
       <h1>¡Empresa creada!</h1>
-      <p class="sub">Guarda este código — lo vas a necesitar junto con tu usuario y contraseña para volver a entrar, y es lo que le compartes a las personas de tu equipo cuando les crees su usuario.</p>
+      <p class="sub">Guarda tu usuario para entrar: lo vas a necesitar junto con tu contraseña. Las personas de tu equipo entrarán igual, con su usuario y el mismo código de empresa después de la @.</p>
+      <div class="field">
+        <label>Tu usuario para entrar</label>
+        <input type="text" value="${escapeHtml(idAcceso(AUTH.usuario, empresa.codigo))}" readonly style="font-size:18px;text-align:center;font-weight:700;">
+      </div>
       <div class="field">
         <label>Código de tu empresa</label>
-        <input type="text" value="${escapeHtml(empresa.codigo)}" readonly style="font-family:var(--mono);font-size:18px;text-align:center;font-weight:700;letter-spacing:2px;">
+        <input type="text" value="${escapeHtml(empresa.codigo)}" readonly style="font-family:var(--mono);font-size:16px;text-align:center;font-weight:700;letter-spacing:2px;">
       </div>
       <button class="btn-primary" id="ceContinueBtn">Entrar a mi empresa</button>
     </div>`;
@@ -1451,7 +1467,7 @@ function renderUsersPage(meParam, usuariosParam) {
               <div class="acc-circ">${initialOf(me.nombre)}</div>
               <div class="info">
                 <div class="name">${escapeHtml(me.nombre)} ${esAdmin ? '· <span style="color:var(--accent);">admin</span>' : ''}</div>
-                <div class="handle">@${escapeHtml(me.usuario)}${me.email ? ' · ' + escapeHtml(me.email) : ''}</div>
+                <div class="handle">${escapeHtml(EMPRESA ? idAcceso(me.usuario, EMPRESA.codigo) : me.usuario)}${me.email ? ' · ' + escapeHtml(me.email) : ''}</div>
               </div>
             </div>
             <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
@@ -1484,7 +1500,7 @@ function renderUsersPage(meParam, usuariosParam) {
                     <div class="acc-circ">${initialOf(u.nombre)}</div>
                     <div class="info">
                       <div class="name">${escapeHtml(u.nombre)}</div>
-                      <div class="handle">@${escapeHtml(u.usuario)}${u.email ? ' · ' + escapeHtml(u.email) : ''}</div>
+                      <div class="handle">${escapeHtml(EMPRESA ? idAcceso(u.usuario, EMPRESA.codigo) : u.usuario)}${u.email ? ' · ' + escapeHtml(u.email) : ''}</div>
                     </div>
                   </div>
                   <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
@@ -1702,7 +1718,7 @@ function openCreateUserModal() {
       await api('/usuarios', { method: 'POST', body: { nombre, usuario, email, contrasena } });
       closeModal();
       renderUsersPage();
-      toast('Usuario creado');
+      toast(EMPRESA ? `Usuario creado. Entra con ${idAcceso(usuario, EMPRESA.codigo)}` : 'Usuario creado');
     } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo crear el usuario.'; }
   };
 }

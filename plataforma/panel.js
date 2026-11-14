@@ -188,7 +188,7 @@
       lista.appendChild(h('div', { class: 'pl-usuario' },
         h('div', { class: 'pl-quien' },
           h('div', null, u.nombre),
-          h('div', { class: 'pl-meta' }, u.usuario + (u.email ? ' · ' + u.email : ''))),
+          h('div', { class: 'pl-meta' }, `${u.usuario}@${String(data.empresa.codigo).toLowerCase()}` + (u.email ? ' · ' + u.email : ''))),
         h('span', { class: 'pl-badge ' + (u.rol === 'admin' ? 'azul' : 'verde') }, u.rol === 'admin' ? 'Admin' : 'Usuario'),
         u.debe_cambiar_contrasena ? h('span', { class: 'pl-badge amarillo' }, 'Pendiente de cambiar') : null,
         h('button', { class: 'pl-btn peligro', onclick: () => restablecer(u, data.empresa) }, 'Restablecer contraseña')));
@@ -207,7 +207,7 @@
       const r = await api(`/usuarios/${u.id}/restablecer`, { method: 'POST' });
       modalSecreto('Contraseña restablecida',
         'Entrégale estos datos a la persona por un medio privado. La contraseña temporal no se vuelve a mostrar.',
-        [['Empresa', r.codigoEmpresa], ['Usuario', r.usuario]], r.contrasenaTemporal); // al cerrar se refresca la lista
+        [['Usuario para entrar', `${r.usuario}@${String(r.codigoEmpresa).toLowerCase()}`], ['Código de empresa', r.codigoEmpresa]], r.contrasenaTemporal); // al cerrar se refresca la lista
     } catch (e) { manejar(e); }
   }
 
@@ -231,7 +231,7 @@
         limpiar(hueco);
         modalSecreto('Empresa creada',
           'Entrégale estos datos al administrador de la empresa por un medio privado. Al entrar deberá elegir su propia contraseña. La contraseña temporal no se vuelve a mostrar.',
-          [['Empresa', r.empresa.nombre], ['Código de empresa', r.empresa.codigo], ['Usuario', r.admin.usuario]],
+          [['Empresa', r.empresa.nombre], ['Usuario para entrar', `${r.admin.usuario}@${String(r.empresa.codigo).toLowerCase()}`], ['Código de empresa', r.empresa.codigo]],
           r.contrasenaTemporal, () => cargarEmpresas(cont));
       } catch (e) { err.textContent = e.message; } finally { crear.disabled = false; }
     });
