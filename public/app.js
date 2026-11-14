@@ -719,6 +719,7 @@ const buscadorLimpiar = document.getElementById('buscadorLimpiar');
 function aplicarBusqueda() {
   searchQuery = buscador.value;
   buscadorLimpiar.classList.toggle('hidden', !searchQuery);
+  document.body.classList.toggle('busqueda-activa', !!searchQuery.trim()); // oculta las pestañas
   if (currentTab === 'tienda') renderTiendaListOnly(); else renderAccountsListOnly();
 }
 buscador.addEventListener('input', aplicarBusqueda);
@@ -728,6 +729,7 @@ function reiniciarBusqueda() {
   const habia = !!searchQuery;
   buscador.value = ''; searchQuery = '';
   buscadorLimpiar.classList.add('hidden');
+  document.body.classList.remove('busqueda-activa');
   buscador.placeholder = currentTab === 'tienda' ? 'Buscar movimiento…' : 'Buscar cuenta…';
   if (habia) { renderAccountsListOnly(); renderTiendaListOnly(); }
 }
@@ -818,16 +820,28 @@ function renderDeudas() {
   animarSaldos(document.getElementById('deudasView'));
 }
 
+// Búsqueda sin importar acentos ni mayúsculas ("lopez" encuentra "López").
+function sinAcentos(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+// Qué tan bien coincide un nombre con lo escrito (menor = mejor; -1 = no coincide):
+// 0 = el nombre empieza así · 1 = alguna palabra empieza así · 2 = lo contiene en otra parte.
+function rangoCoincidencia(nombre, q) {
+  const n = sinAcentos(nombre);
+  if (n.startsWith(q)) return 0;
+  if (n.split(/\s+/).some(p => p.startsWith(q))) return 1;
+  return n.includes(q) ? 2 : -1;
+}
 function renderAccountsListOnly() {
   const favoritos = CUENTAS.filter(c => c.favorito);
-  const q = currentTab === 'deudas' ? searchQuery.trim().toLowerCase() : '';
-  const filtered = CUENTAS.filter(c => c.nombre.toLowerCase().includes(q));
+  const q = currentTab === 'deudas' ? sinAcentos(searchQuery.trim()) : '';
+  const filtered = q ? CUENTAS.filter(c => rangoCoincidencia(c.nombre, q) >= 0) : CUENTAS;
   // Mientras se busca una cuenta se ocultan saldo, favoritos y encabezado: los resultados suben arriba.
   const vista = document.getElementById('deudasView');
   const yaBuscaba = vista.classList.contains('buscando');
   vista.classList.toggle('buscando', !!q);
   if (q && !yaBuscaba) window.scrollTo({ top: 0 });
-  const sorted = [...filtered].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  // Buscando: primero lo que mejor coincide; sin buscar: orden alfabético.
+  const sorted = [...filtered].sort((a, b) =>
+    (q ? rangoCoincidencia(a.nombre, q) - rangoCoincidencia(b.nombre, q) : 0) || a.nombre.localeCompare(b.nombre, 'es'));
   const groups = {};
   sorted.forEach(c => { const L = initialOf(c.nombre); (groups[L] = groups[L] || []).push(c); });
   const letters = Object.keys(groups).sort();
@@ -845,6 +859,8 @@ function renderAccountsListOnly() {
   const wrap = document.getElementById('accountListWrap');
   wrap.innerHTML = sorted.length === 0 ? `
     <div class="empty-state">${ICONS.inbox}<p>${CUENTAS.length === 0 ? 'Aún no tienes cuentas. Crea la primera con el botón de arriba.' : 'No se encontraron cuentas con ese nombre.'}</p></div>
+  ` : q ? `
+    <div class="letter-group">${sorted.map(c => accountCardHtml(c)).join('')}</div>
   ` : letters.map(L => `
     <div class="letter-group">
       <div class="letter-head">${L}</div>
@@ -1157,12 +1173,12 @@ function renderTienda() {
 function renderTiendaListOnly() {
   const listEl = document.getElementById('tiendaMovList');
   if (!listEl) return;
-  const q = currentTab === 'tienda' ? searchQuery.trim().toLowerCase() : '';
+  const q = currentTab === 'tienda' ? sinAcentos(searchQuery.trim()) : '';
   const todos = TIENDA.movimientos.slice().reverse();
   const movs = !q ? todos : todos.filter(m =>
-    (m.descripcion || '').toLowerCase().includes(q) ||
-    (m.usuario || '').toLowerCase().includes(q) ||
-    (m.tipo || '').toLowerCase().includes(q) ||
+    sinAcentos(m.descripcion).includes(q) ||
+    sinAcentos(m.usuario).includes(q) ||
+    sinAcentos(m.tipo).includes(q) ||
     String(Math.abs(Number(m.monto)).toFixed(2)).includes(q.replace(/[q,\s]/g, '')));
   const groups = {};
   movs.forEach(m => { const key = fmtDateShort(m.fecha); (groups[key] = groups[key] || []).push(m); });

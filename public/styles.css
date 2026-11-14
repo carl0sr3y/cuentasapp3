@@ -601,6 +601,8 @@ header.topbar{gap:10px;}
 #deudasView.buscando #favSection,
 #deudasView.buscando .cuentas-head,
 #deudasView.buscando .letter-head{display:none;}
+/* Mientras hay texto en el buscador también se ocultan las pestañas */
+.busqueda-activa .tabbar{display:none;}
 #deudasView.buscando{padding-top:14px;}
 #deudasView.buscando .letter-group{margin-bottom:0;}
 
