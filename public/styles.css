@@ -683,3 +683,10 @@ header.topbar{gap:10px;}
 .neto-linea span{display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;}
 .neto-linea b{font-size:14.5px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;}
 #deudasView.buscando .neto-linea{display:none;}
+
+/* Logo (flechas de entrada y salida + punto de la tienda) */
+.brand-logo{width:28px;height:28px;border-radius:8px;display:block;flex-shrink:0;}
+.login-logo{width:56px;height:56px;border-radius:15px;display:block;margin:0 0 16px;box-shadow:0 6px 16px rgba(27,33,50,.18);}
+.login-card-fp .login-logo{margin:0 auto 16px;}
+/* Borde sutil para que el logo oscuro no se pierda en el modo oscuro */
+.brand-logo,.login-logo{outline:1px solid rgba(255,255,255,.09);outline-offset:-1px;}

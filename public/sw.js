@@ -8,8 +8,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || 'Cuentas-App', {
       body: data.body || '',
-      icon: '/favicon.svg',
-      badge: '/favicon.svg',
+      icon: '/icon-192.png',
+      badge: '/badge-96.png',
     })
   );
 });

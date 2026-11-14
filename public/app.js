@@ -424,6 +424,7 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
   if (conHuella && !forcePasswordForm) {
     root.innerHTML = `
       <div class="login-card login-card-fp">
+        <img class="login-logo" src="/favicon.svg" alt="" width="56" height="56">
         <h1>Cuentas-App</h1>
         <p class="sub">Hola de nuevo. Entra con tu huella o Face ID.</p>
         <button class="fp-circle" id="fpCircle" aria-label="Entrar con huella o Face ID">${ICONS.fingerprint}</button>
@@ -439,6 +440,7 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
 
   root.innerHTML = `
     <div class="login-card">
+      <img class="login-logo" src="/favicon.svg" alt="" width="56" height="56">
       <h1>Cuentas-App</h1>
       <p class="sub">Inicia sesión en tu empresa.</p>
       <div class="field">
