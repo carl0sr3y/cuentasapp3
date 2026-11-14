@@ -343,10 +343,8 @@ function renderLogin(forcePasswordForm) {
       <div class="field"><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div>
       <button class="btn-primary" id="loginBtn">Iniciar sesión</button>
       <p class="login-error" id="loginErr"></p>
-      <p class="login-toggle">
-        ${empresaCreationEnabled ? `<button id="goCreateEmpresa">Crear nueva empresa</button> · ` : ''}
-        <button id="goForgot">¿Olvidaste tu contraseña?</button>
-      </p>
+      ${empresaCreationEnabled ? `<p class="login-toggle"><button id="goCreateEmpresa">Crear nueva empresa</button></p>` : ''}
+      <p style="text-align:center;margin:16px 0 0;color:var(--text-dim);font-size:15px;line-height:1.5;">¿Olvidaste tu contraseña? Pídele al administrador de tu empresa que te la restablezca.</p>
     </div>`;
   if (fingerprintSupported()) document.getElementById('fpLoginBtn').onclick = loginWithFingerprint;
   const tryLogin = async () => {
@@ -373,7 +371,6 @@ function renderLogin(forcePasswordForm) {
   document.getElementById('loginBtn').onclick = tryLogin;
   root.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); }));
   if (empresaCreationEnabled) document.getElementById('goCreateEmpresa').onclick = () => renderCreateEmpresaView();
-  document.getElementById('goForgot').onclick = () => renderForgotView();
 }
 function renderForcedPasswordChange(codigoEmpresa, usuario, contrasenaActual, message) {
   const root = document.getElementById('loginScreen');
@@ -453,57 +450,6 @@ function renderEmpresaCreatedScreen(empresa) {
       <button class="btn-primary" id="ceContinueBtn">Entrar a mi empresa</button>
     </div>`;
   document.getElementById('ceContinueBtn').onclick = () => enterApp();
-}
-function renderForgotView() {
-  const root = document.getElementById('loginScreen');
-  root.innerHTML = `
-    <div class="login-card">
-      <div class="login-mark">${ICONS.key}</div>
-      <h1>Recuperar contraseña</h1>
-      <p class="sub">Ingresa el código de tu empresa y tu correo. Te enviaremos un código de 6 dígitos.</p>
-      <div class="field"><label>Código de empresa</label><input id="forgotCodigo" type="text" style="text-transform:uppercase;"></div>
-      <div class="field"><label>Correo electrónico</label><input id="forgotEmail" type="email"></div>
-      <button class="btn-primary" id="forgotBtn">Enviar código</button>
-      <p class="login-error" id="forgotErr"></p>
-      <p class="login-toggle"><button id="backToLogin2">Volver a iniciar sesión</button></p>
-    </div>`;
-  document.getElementById('backToLogin2').onclick = () => renderLogin();
-  document.getElementById('forgotBtn').onclick = async () => {
-    const codigoEmpresa = document.getElementById('forgotCodigo').value.trim();
-    const email = document.getElementById('forgotEmail').value.trim();
-    const err = document.getElementById('forgotErr');
-    if (!codigoEmpresa || !email) { err.textContent = 'Completa el código de empresa y el correo.'; return; }
-    try {
-      await api('/auth/forgot-password', { method: 'POST', body: { codigoEmpresa, email } });
-      renderResetView(codigoEmpresa, email);
-    } catch (e) { err.textContent = 'No se pudo enviar el código.'; }
-  };
-}
-function renderResetView(codigoEmpresa, email) {
-  const root = document.getElementById('loginScreen');
-  root.innerHTML = `
-    <div class="login-card">
-      <div class="login-mark">${ICONS.key}</div>
-      <h1>Ingresa el código</h1>
-      <p class="sub">Si ${escapeHtml(email)} está registrado en esa empresa, te enviamos un código de 6 dígitos. Vence en 15 minutos.</p>
-      <div class="field"><label>Código</label><input id="resetCode" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code"></div>
-      <div class="field"><label>Nueva contraseña</label><input id="resetPass" type="password" placeholder="Mínimo 4 caracteres"></div>
-      <button class="btn-primary" id="resetBtn">Restablecer contraseña</button>
-      <p class="login-error" id="resetErr"></p>
-      <p class="login-toggle"><button id="backToLogin3">Volver a iniciar sesión</button></p>
-    </div>`;
-  document.getElementById('backToLogin3').onclick = () => renderLogin();
-  document.getElementById('resetBtn').onclick = async () => {
-    const code = document.getElementById('resetCode').value.trim();
-    const nuevaContrasena = document.getElementById('resetPass').value;
-    const err = document.getElementById('resetErr');
-    if (!code || !nuevaContrasena) { err.textContent = 'Completa todos los campos.'; return; }
-    try {
-      await api('/auth/reset-password', { method: 'POST', body: { codigoEmpresa, email, code, nuevaContrasena } });
-      toast('Contraseña restablecida, ya puedes iniciar sesión');
-      renderLogin();
-    } catch (e) { err.textContent = typeof e === 'string' ? e : 'Código incorrecto o vencido.'; }
-  };
 }
 async function enterApp() {
   document.getElementById('loginScreen').classList.add('hidden');
@@ -1442,7 +1388,7 @@ function openDeleteUserModal(userId, nombre) {
 function openChangePasswordModal(userId, nombre, isOwn) {
   showModal(`
     <h3>Cambiar contraseña${isOwn ? '' : ' de ' + escapeHtml(nombre)}</h3>
-    <p class="desc">${isOwn ? 'Confirma tu contraseña actual y elige una nueva.' : 'Puedes definir una nueva contraseña para esta cuenta.'}</p>
+    <p class="desc">${isOwn ? 'Confirma tu contraseña actual y elige una nueva. Se cerrará tu sesión en tus otros dispositivos.' : 'Define una contraseña temporal y entrégasela a la persona. Se cerrarán sus sesiones, se quitará su huella y, al entrar, deberá elegir una contraseña propia.'}</p>
     ${isOwn ? `<div class="field"><label>Contraseña actual</label><input id="passActual" type="password"></div>` : ''}
     <div class="field"><label>Nueva contraseña</label><input id="passNueva" type="password" placeholder="Mínimo 4 caracteres"></div>
     <div class="modal-actions">

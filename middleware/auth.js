@@ -1,9 +1,11 @@
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET, IS_PROD } = require('../lib/config');
+const { pool } = require('../db/pool');
 
 const COOKIE_NAME = 'cuentas_app_token';
 
-// Devuelve el payload del token o null si es inválido/expirado.
+// Devuelve el payload del token o null si es inválido/expirado. (Solo revisa la firma;
+// para saber si la sesión sigue vigente hay que usar sesionVigente.)
 function verifyToken(token) {
   if (!token || typeof token !== 'string') return null;
   try {
@@ -13,9 +15,11 @@ function verifyToken(token) {
   }
 }
 
+// `user.sesion_version` viaja en el token (sv). Si en la base cambia (contraseña restablecida,
+// etc.), todos los tokens anteriores dejan de valer aunque no hayan vencido.
 function signToken(user) {
   return jwt.sign(
-    { id: user.id, usuario: user.usuario, nombre: user.nombre, empresa_id: user.empresa_id, rol: user.rol },
+    { id: user.id, usuario: user.usuario, nombre: user.nombre, empresa_id: user.empresa_id, rol: user.rol, sv: user.sesion_version || 0 },
     JWT_SECRET,
     { expiresIn: '30d' }
   );
@@ -35,12 +39,35 @@ function clearAuthCookie(res) {
   res.clearCookie(COOKIE_NAME);
 }
 
-function requireAuth(req, res, next) {
+// Comprueba en la base que la sesión del token siga vigente: el usuario existe, su empresa no está
+// suspendida y su versión de sesión no cambió. Devuelve el usuario actualizado (rol/nombre desde la
+// base) o un motivo de rechazo.
+async function sesionVigente(payload) {
+  if (!payload || !Number.isInteger(payload.id) || !Number.isInteger(payload.empresa_id)) return { motivo: 'invalida' };
+  const { rows } = await pool.query(
+    `SELECT u.id, u.usuario, u.nombre, u.rol, u.empresa_id, u.sesion_version, e.activa
+     FROM usuarios u JOIN empresas e ON e.id = u.empresa_id
+     WHERE u.id = $1 AND u.empresa_id = $2`,
+    [payload.id, payload.empresa_id]
+  );
+  const u = rows[0];
+  if (!u) return { motivo: 'invalida' };
+  if ((payload.sv || 0) !== u.sesion_version) return { motivo: 'invalida' };
+  if (!u.activa) return { motivo: 'suspendida' };
+  return { user: { id: u.id, usuario: u.usuario, nombre: u.nombre, empresa_id: u.empresa_id, rol: u.rol, sv: u.sesion_version } };
+}
+
+const MSG_SUSPENDIDA = 'Tu empresa está suspendida. Comunícate con el administrador de la plataforma.';
+
+async function requireAuth(req, res, next) {
   const token = req.cookies[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: 'No autenticado' });
-  const payload = verifyToken(token);
-  if (!payload) return res.status(401).json({ error: 'Sesión inválida o expirada' });
-  req.user = payload;
+  const { user, motivo } = await sesionVigente(verifyToken(token));
+  if (!user) {
+    clearAuthCookie(res);
+    return res.status(401).json({ error: motivo === 'suspendida' ? MSG_SUSPENDIDA : 'Sesión inválida o expirada' });
+  }
+  req.user = user;
   next();
 }
 
@@ -60,4 +87,7 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireAdmin, setAuthCookie, clearAuthCookie, verifyToken, verifyTokenFromCookieHeader, COOKIE_NAME };
+module.exports = {
+  requireAuth, requireAdmin, setAuthCookie, clearAuthCookie, verifyToken, verifyTokenFromCookieHeader,
+  sesionVigente, COOKIE_NAME, MSG_SUSPENDIDA,
+};

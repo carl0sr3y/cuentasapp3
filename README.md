@@ -1,17 +1,16 @@
 # Cuentas-App
 
-Aplicación web para administrar cuentas de clientes (deudores) y los movimientos internos de una tienda. Node.js/Express + PostgreSQL, con sincronización en tiempo real, notificaciones push, backups automáticos en varios niveles, fotos de facturas, generador de facturas simple, y ahora registro con código de invitación + recuperación de contraseña por correo.
+Aplicación web para administrar cuentas de clientes (deudores) y los movimientos internos de una tienda. Node.js/Express + PostgreSQL, con sincronización en tiempo real, notificaciones push, backups automáticos en varios niveles, fotos de facturas, generador de facturas simple, y un panel de plataforma (superadmin) para gestionar empresas y restablecer contraseñas.
 
 ## Variables de entorno necesarias en Railway
 
 | Variable | Para qué |
 |---|---|
 | `DATABASE_URL` | La crea Railway solo al agregar el plugin de PostgreSQL |
-| `JWT_SECRET` | Cadena aleatoria larga para firmar las sesiones |
+| `JWT_SECRET` | **Obligatoria.** Cadena aleatoria de 64+ caracteres para firmar las sesiones. Sin ella la app no arranca en producción |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Notificaciones push (genera con `npx web-push generate-vapid-keys`) |
-| `INVITE_CODE` | Código que le das a un negocio de confianza para que pueda crear su propia empresa nueva en la app. Vacío = creación de empresas desactivada |
+| `INVITE_CODE` | Opcional. Permite que un negocio cree su empresa desde la pantalla de login. Vacío = desactivado (recomendado: crea las empresas desde el panel de plataforma) |
 | `MAX_EMPRESAS` | Cuántas empresas pueden existir en total en la plataforma. Vacío = sin límite. Súbelo cuando quieras aceptar más negocios |
-| `BREVO_API_KEY` / `BREVO_SENDER_EMAIL` | Cuenta de Brevo (gratis) para enviar correos de recuperación de contraseña **vía su API HTTP** (no SMTP: Railway bloquea los puertos SMTP en el plan Hobby). La API key sale de Brevo → Claves API y MCP. El correo remitente debe estar verificado en Brevo (un clic en un correo de confirmación) |
 
 ## Cómo desplegar
 
@@ -24,7 +23,11 @@ Aplicación web para administrar cuentas de clientes (deudores) y los movimiento
 
 - **Multiempresa**: cada negocio es una "empresa" independiente, con sus propios usuarios y datos completamente separados de las demás. Se entra con código de empresa + usuario + contraseña. El administrador de cada empresa (uno solo) es el único que puede crear, eliminar y gestionar contraseñas/correos de los usuarios de su empresa — los usuarios normales no pueden cambiar ni su propia contraseña ni su correo, solo el admin puede hacerlo por ellos. Empresas nuevas se crean con el código de invitación (`INVITE_CODE`) y respetando el límite (`MAX_EMPRESAS`).
 - **Importante sobre la migración**: la primera vez que este código corre sobre tu base de datos ya existente, se crea automáticamente una empresa llamada "Mi Negocio" con código `EMPRESA1`, y tu usuario más antiguo (el que tenga la fecha de creación más vieja) queda como el único administrador — cualquier otro usuario que ya tuvieras pasa a ser "usuario" normal (pierde la posibilidad de crear/eliminar otros usuarios). Si quieres que sea otra persona la administradora, cambia el campo `rol` de esa fila directamente en la base de datos después del primer despliegue.
-- **Recuperar contraseña**: desde la pantalla de login, "¿Olvidaste tu contraseña?" pide el correo, envía un código de 4 dígitos (vence en 15 minutos), y permite definir una nueva contraseña.
+- **Contraseñas olvidadas**: no hay recuperación por correo. El admin de cada empresa restablece las de sus usuarios; el superadmin de la plataforma restablece cualquiera (incluidas las de los admins). Tras un restablecimiento, la persona debe elegir una contraseña propia al entrar, y se cierran todas sus sesiones abiertas.
+- **Panel de plataforma** (`/plataforma`): para el administrador de toda la web. Lista empresas y usuarios, crea empresas (con contraseña temporal para su admin), suspende/reactiva empresas y restablece contraseñas. No tiene acceso a cuentas ni saldos de las empresas. Exige contraseña + código de app autenticadora, sesión de 15 min de inactividad / 8 h máximo, y registra todo en una bitácora.
+  - **Crear o restablecer el superadmin** (no hay registro web): desde tu computadora, con la URL pública de la base (Railway → Postgres → Variables → `DATABASE_PUBLIC_URL`):
+    `DATABASE_URL="postgresql://..." node scripts/superadmin.js <usuario>`
+    Muestra un QR para la app autenticadora, una contraseña generada y 10 códigos de respaldo de un solo uso.
 - **Sincronización en tiempo real** entre dispositivos vía WebSocket, con indicador de estado (verde/amarillo/rojo) junto al nombre de la app.
 - **Notificaciones push** reales (funcionan con la app cerrada), activables con el ícono de campana.
 - **Fotos de facturas**: se pueden adjuntar al registrar una entrada o salida de tienda (cámara directa en móvil), se comprimen automáticamente, y se incluyen como hojas grandes en el PDF de movimientos.
@@ -45,10 +48,14 @@ db/schema.sql               # Esquema completo (idempotente)
 db/pool.js                  # Conexión a Postgres + migración automática
 lib/realtime.js             # WebSocket con heartbeat
 lib/push.js                 # Notificaciones push (web-push)
-lib/mailer.js               # Envío de correos (API HTTP de Brevo, no SMTP)
+lib/totp.js                 # Códigos de app autenticadora (RFC 6238)
+lib/rateLimits.js           # Límites de intentos
 jobs/backup.js               # Historial rodante, backup general semanal, backup de tienda mensual
-middleware/auth.js           # JWT en cookie httpOnly (30 días)
-routes/auth.js                # setup, login, registro con código, recuperar/restablecer contraseña
+middleware/auth.js           # JWT en cookie httpOnly + revocación de sesiones en la base
+middleware/plataforma.js     # Sesión separada del panel de plataforma
+routes/auth.js                # login, cambio obligatorio de contraseña
+routes/plataforma.js          # API del panel de plataforma
+scripts/superadmin.js         # Crear/restablecer el superadmin
 routes/usuarios.js             # crear administradores, cambiar contraseñas
 routes/cuentas.js               # CRUD de cuentas + movimientos
 routes/tienda.js                 # movimientos de tienda + balance del día
@@ -57,4 +64,5 @@ routes/reportes.js                 # datos para el PDF general
 routes/backups.js                   # listar/descargar backups (general y tienda)
 routes/push.js                       # suscripción a notificaciones push
 public/                                # frontend (HTML/CSS/JS vanilla + jsPDF)
+plataforma/                            # frontend del panel de plataforma
 ```

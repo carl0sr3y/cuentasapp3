@@ -3,27 +3,10 @@ const bcrypt = require('bcryptjs');
 const { pool } = require('../db/pool');
 const { setAuthCookie } = require('../middleware/auth');
 const limites = require('../lib/rateLimits');
+const { generarCodigoUnico } = require('../lib/empresas');
 
 const router = express.Router();
 
-function slugify(nombre) {
-  return (nombre || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita acentos
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '')
-    .slice(0, 12) || 'EMPRESA';
-}
-async function generarCodigoUnico(nombre) {
-  const base = slugify(nombre);
-  let intento = base;
-  let sufijo = 0;
-  while (true) {
-    const { rows } = await pool.query('SELECT id FROM empresas WHERE codigo = $1', [intento]);
-    if (!rows[0]) return intento;
-    sufijo++;
-    intento = `${base}${sufijo}`;
-  }
-}
 async function registrarHistorial(empresaId, usuarioId, accion, detalle) {
   await pool.query(
     `INSERT INTO historial_general (empresa_id, usuario_id, accion, detalle) VALUES ($1,$2,$3,$4)`,

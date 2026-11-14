@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../db/pool');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireAdmin, setAuthCookie } = require('../middleware/auth');
 const { broadcast } = require('../lib/realtime');
 
 const { texto, paramId } = require('../lib/validate');
@@ -98,7 +98,21 @@ router.patch('/:id/password', async (req, res) => {
   }
 
   const hash = await bcrypt.hash(nueva, 10);
-  await pool.query('UPDATE usuarios SET contrasena = $1, contrasena_actualizada_en = now() WHERE id = $2', [hash, targetId]);
+  const esPropia = targetId === req.user.id;
+  // Siempre sube la versión de sesión: se cierran las sesiones abiertas con la contraseña anterior.
+  // Si el admin cambia la de OTRA persona: además se quitan sus huellas registradas y deberá elegir
+  // una contraseña propia al entrar (el admin no debe conocer la contraseña definitiva de nadie).
+  const { rows: upd } = await pool.query(
+    `UPDATE usuarios SET contrasena = $1, contrasena_actualizada_en = now(),
+       debe_cambiar_contrasena = $3, sesion_version = sesion_version + 1
+     WHERE id = $2 RETURNING sesion_version`,
+    [hash, targetId, !esPropia]
+  );
+  if (esPropia) {
+    setAuthCookie(res, { ...req.user, sesion_version: upd[0].sesion_version }); // esta sesión sigue abierta
+  } else {
+    await pool.query('DELETE FROM webauthn_credentials WHERE usuario_id = $1', [targetId]);
+  }
   await registrarHistorial(req.user.empresa_id, req.user.id, 'Cambiar contraseña', `Contraseña actualizada para "${target.nombre}"`);
   res.json({ ok: true });
 });

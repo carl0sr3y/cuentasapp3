@@ -22,6 +22,7 @@ const reportesRoutes = require('./routes/reportes');
 const backupsRoutes = require('./routes/backups');
 const pushRoutes = require('./routes/push');
 const webauthnRoutes = require('./routes/webauthn');
+const plataformaRoutes = require('./routes/plataforma');
 
 const app = express();
 app.disable('x-powered-by');
@@ -48,6 +49,23 @@ app.use('/api/reportes', reportesRoutes);
 app.use('/api/backups', backupsRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/webauthn', webauthnRoutes);
+
+// ---------- Panel de plataforma (superadmin) ----------
+// Cabeceras estrictas: no se guarda en caché, no se puede incrustar en otro sitio, no se indexa,
+// y la página solo puede cargar scripts y estilos propios (CSP).
+function cabecerasPlataforma(req, res, next) {
+  res.set({
+    'Cache-Control': 'no-store',
+    'X-Frame-Options': 'DENY',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    'X-Robots-Tag': 'noindex, nofollow',
+    'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'",
+  });
+  next();
+}
+app.use('/api/plataforma', cabecerasPlataforma, plataformaRoutes);
+app.use('/plataforma', cabecerasPlataforma, express.static(path.join(__dirname, 'plataforma'), { index: 'index.html', redirect: true }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', (req, res) => {

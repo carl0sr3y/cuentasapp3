@@ -197,3 +197,46 @@ CREATE INDEX IF NOT EXISTS idx_usuarios_empresa ON usuarios(empresa_id);
 
 -- Intentos fallidos por código de recuperación (se invalida al llegar a 5)
 ALTER TABLE password_resets ADD COLUMN IF NOT EXISTS intentos INTEGER NOT NULL DEFAULT 0;
+
+-- ============================================================
+-- Revocación de sesiones y panel de plataforma (superadmin)
+-- ============================================================
+
+-- Al cambiar este número, todas las sesiones abiertas de ese usuario dejan de valer.
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sesion_version INTEGER NOT NULL DEFAULT 0;
+-- true tras un restablecimiento hecho por el admin o la plataforma: debe elegir una contraseña nueva al entrar.
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS debe_cambiar_contrasena BOOLEAN NOT NULL DEFAULT false;
+-- Empresas suspendidas: nadie de esa empresa puede entrar (sus datos se conservan).
+ALTER TABLE empresas ADD COLUMN IF NOT EXISTS activa BOOLEAN NOT NULL DEFAULT true;
+
+-- Administradores de toda la plataforma. Se crean SOLO con scripts/superadmin.js (no hay registro web).
+CREATE TABLE IF NOT EXISTS superadmins (
+  id SERIAL PRIMARY KEY,
+  usuario TEXT UNIQUE NOT NULL,
+  contrasena TEXT NOT NULL,             -- hash bcrypt
+  totp_secreto TEXT NOT NULL,           -- base32, para la app autenticadora
+  ultimo_paso_totp BIGINT,              -- evita reutilizar el mismo código de 6 dígitos
+  sesion_version INTEGER NOT NULL DEFAULT 0,
+  fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Códigos de respaldo de un solo uso (por si se pierde el teléfono). Se guarda solo su hash.
+CREATE TABLE IF NOT EXISTS superadmin_codigos_respaldo (
+  id SERIAL PRIMARY KEY,
+  superadmin_id INTEGER NOT NULL REFERENCES superadmins(id) ON DELETE CASCADE,
+  hash TEXT NOT NULL,
+  usado BOOLEAN NOT NULL DEFAULT false,
+  usado_en TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_sa_respaldo ON superadmin_codigos_respaldo(superadmin_id);
+
+-- Bitácora de todo lo que pasa en el panel de plataforma (no se borra automáticamente).
+CREATE TABLE IF NOT EXISTS plataforma_bitacora (
+  id SERIAL PRIMARY KEY,
+  superadmin_id INTEGER REFERENCES superadmins(id) ON DELETE SET NULL,
+  accion TEXT NOT NULL,
+  detalle TEXT,
+  ip TEXT,
+  fecha TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_plataforma_bitacora_fecha ON plataforma_bitacora(fecha DESC);
