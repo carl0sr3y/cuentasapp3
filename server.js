@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('./lib/asyncErrors'); // debe ir antes de cargar las rutas: errores de handlers async -> next(err)
 const path = require('path');
 const http = require('http');
 const express = require('express');
@@ -22,6 +23,7 @@ const pushRoutes = require('./routes/push');
 const webauthnRoutes = require('./routes/webauthn');
 
 const app = express();
+app.disable('x-powered-by');
 app.set('trust proxy', 1); // detrás del proxy de Railway; necesario para que WebAuthn detecte bien el protocolo/origen
 const PORT = process.env.PORT || 3000;
 
@@ -48,6 +50,34 @@ app.use('/api/webauthn', webauthnRoutes);
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Manejador global de errores: cualquier error en una ruta termina aquí en vez de tumbar el proceso.
+// Nunca se envían detalles internos al cliente.
+const ERRORES_PG_DE_ENTRADA = {
+  '22P02': 400, // texto que no es número / formato inválido
+  '22003': 400, // número fuera de rango (p. ej. saldo demasiado grande)
+  '22001': 400, // texto demasiado largo para la columna
+  '23503': 409, // referencia a algo que ya no existe (p. ej. usuario eliminado)
+  '23505': 409, // duplicado
+};
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  let status = 500;
+  if (err && Number.isInteger(err.status || err.statusCode) && (err.status || err.statusCode) >= 400 && (err.status || err.statusCode) < 500) {
+    status = err.status || err.statusCode; // p. ej. JSON mal formado (400) o cuerpo demasiado grande (413)
+  } else if (err && ERRORES_PG_DE_ENTRADA[err.code]) {
+    status = ERRORES_PG_DE_ENTRADA[err.code];
+  }
+  if (status >= 500) console.error(`Error en ${req.method} ${req.originalUrl}:`, err);
+  if (res.headersSent) return; // la respuesta ya salió; solo se registra
+  const mensajes = { 400: 'Datos inválidos', 409: 'La operación no se pudo completar por un conflicto con los datos', 413: 'La petición es demasiado grande' };
+  res.status(status).json({ error: mensajes[status] || (status < 500 ? 'Petición inválida' : 'Error interno del servidor') });
+});
+
+// Últimas redes de seguridad: registrar sin dejar caer la app por una promesa olvidada.
+process.on('unhandledRejection', (reason) => {
+  console.error('Promesa rechazada sin manejar:', reason);
 });
 
 const server = http.createServer(app);

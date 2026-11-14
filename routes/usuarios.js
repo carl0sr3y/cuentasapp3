@@ -4,8 +4,11 @@ const { pool } = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { broadcast } = require('../lib/realtime');
 
+const { texto, paramId } = require('../lib/validate');
+
 const router = express.Router();
 router.use(requireAuth);
+router.param('id', paramId);
 
 async function registrarHistorial(empresaId, usuarioId, accion, detalle) {
   await pool.query(
@@ -34,7 +37,11 @@ router.get('/', async (req, res) => {
 
 // Crea un usuario nuevo para MI empresa (siempre rol "usuario", nunca admin).
 router.post('/', async (req, res) => {
-  const { nombre, usuario, email, contrasena } = req.body || {};
+  const body = req.body || {};
+  const nombre = texto(body.nombre, 100);
+  const usuario = texto(body.usuario, 60);
+  const email = texto(body.email, 254);
+  const contrasena = typeof body.contrasena === 'string' && body.contrasena.length <= 200 ? body.contrasena : null;
   if (!nombre || !usuario || !email || !contrasena || contrasena.length < 4) {
     return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta' });
   }
@@ -56,8 +63,8 @@ router.post('/', async (req, res) => {
 
 // Cambia el correo de cualquier usuario de mi empresa (o el mío propio).
 router.patch('/:id/email', async (req, res) => {
-  const { email } = req.body || {};
-  if (!email || !email.trim()) return res.status(400).json({ error: 'Correo requerido' });
+  const email = texto((req.body || {}).email, 254);
+  if (!email) return res.status(400).json({ error: 'Correo requerido' });
   const targetId = Number(req.params.id);
   const { rows: existente } = await pool.query(
     'SELECT id FROM usuarios WHERE empresa_id = $1 AND email = $2 AND id != $3',
@@ -77,7 +84,8 @@ router.patch('/:id/email', async (req, res) => {
 // Cambia la contraseña de cualquier usuario de mi empresa (o la mía propia).
 router.patch('/:id/password', async (req, res) => {
   const { actual, nueva } = req.body || {};
-  if (!nueva || nueva.length < 4) return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 4 caracteres' });
+  if (actual !== undefined && typeof actual !== 'string') return res.status(400).json({ error: 'Datos inválidos' });
+  if (typeof nueva !== 'string' || nueva.length < 4 || nueva.length > 200) return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 4 caracteres' });
   const targetId = Number(req.params.id);
   const { rows } = await pool.query('SELECT * FROM usuarios WHERE id = $1 AND empresa_id = $2', [targetId, req.user.empresa_id]);
   const target = rows[0];

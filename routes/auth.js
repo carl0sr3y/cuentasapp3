@@ -4,6 +4,15 @@ const { pool } = require('../db/pool');
 const { requireAuth, setAuthCookie, clearAuthCookie } = require('../middleware/auth');
 const { sendMail } = require('../lib/mailer');
 
+// Todos los campos de estos formularios deben ser texto de largo razonable.
+// (Antes, un número en vez de texto hacía fallar .trim() y tumbaba el servidor.)
+function camposTexto(body, campos, max = 200) {
+  for (const c of campos) {
+    if (typeof body[c] !== 'string' || !body[c] || body[c].length > max) return false;
+  }
+  return true;
+}
+
 const router = express.Router();
 
 async function registrarHistorial(empresaId, usuarioId, accion, detalle) {
@@ -31,8 +40,9 @@ router.get('/status', async (req, res) => {
 });
 
 router.post('/login', async (req, res) => {
-  const { codigoEmpresa, usuario, contrasena } = req.body || {};
-  if (!codigoEmpresa || !usuario || !contrasena) return res.status(400).json({ error: 'Completa código de empresa, usuario y contraseña' });
+  const body = req.body || {};
+  if (!camposTexto(body, ['codigoEmpresa', 'usuario', 'contrasena'])) return res.status(400).json({ error: 'Completa código de empresa, usuario y contraseña' });
+  const { codigoEmpresa, usuario, contrasena } = body;
 
   const { rows: empRows } = await pool.query('SELECT * FROM empresas WHERE codigo = $1', [codigoEmpresa.trim().toUpperCase()]);
   const empresa = empRows[0];
@@ -60,10 +70,11 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/force-change-password', async (req, res) => {
-  const { codigoEmpresa, usuario, contrasena, nuevaContrasena } = req.body || {};
-  if (!codigoEmpresa || !usuario || !contrasena || !nuevaContrasena || nuevaContrasena.length < 4) {
+  const body = req.body || {};
+  if (!camposTexto(body, ['codigoEmpresa', 'usuario', 'contrasena', 'nuevaContrasena']) || body.nuevaContrasena.length < 4) {
     return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta' });
   }
+  const { codigoEmpresa, usuario, contrasena, nuevaContrasena } = body;
   const { rows: empRows } = await pool.query('SELECT * FROM empresas WHERE codigo = $1', [codigoEmpresa.trim().toUpperCase()]);
   const empresa = empRows[0];
   if (!empresa) return res.status(401).json({ error: 'Código de empresa, usuario o contraseña incorrectos' });
@@ -89,8 +100,9 @@ router.post('/logout', requireAuth, async (req, res) => {
 
 // El correo tampoco es único en toda la plataforma, así que hace falta el código de empresa.
 router.post('/forgot-password', async (req, res) => {
-  const { codigoEmpresa, email } = req.body || {};
-  if (!codigoEmpresa || !email) return res.status(400).json({ error: 'Completa el código de empresa y el correo' });
+  const body = req.body || {};
+  if (!camposTexto(body, ['codigoEmpresa', 'email'], 254)) return res.status(400).json({ error: 'Completa el código de empresa y el correo' });
+  const { codigoEmpresa, email } = body;
   const { rows: empRows } = await pool.query('SELECT id FROM empresas WHERE codigo = $1', [codigoEmpresa.trim().toUpperCase()]);
   const empresa = empRows[0];
   if (empresa) {
@@ -116,10 +128,11 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 router.post('/reset-password', async (req, res) => {
-  const { codigoEmpresa, email, code, nuevaContrasena } = req.body || {};
-  if (!codigoEmpresa || !email || !code || !nuevaContrasena || nuevaContrasena.length < 4) {
+  const body = req.body || {};
+  if (!camposTexto(body, ['codigoEmpresa', 'email', 'code', 'nuevaContrasena'], 254) || body.nuevaContrasena.length < 4) {
     return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta' });
   }
+  const { codigoEmpresa, email, code, nuevaContrasena } = body;
   const { rows: empRows } = await pool.query('SELECT id FROM empresas WHERE codigo = $1', [codigoEmpresa.trim().toUpperCase()]);
   const empresa = empRows[0];
   if (!empresa) return res.status(400).json({ error: 'Código incorrecto o vencido' });

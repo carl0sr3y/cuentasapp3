@@ -10,7 +10,10 @@ const { pool } = require('../db/pool');
 const { requireAuth, setAuthCookie } = require('../middleware/auth');
 const { setChallenge, takeChallenge, getRpAndOrigin } = require('../lib/webauthn');
 
+const { paramId } = require('../lib/validate');
+
 const router = express.Router();
+router.param('id', paramId);
 
 const SEIS_MESES_MS = 1000 * 60 * 60 * 24 * 182;
 function passwordVencida(fecha) {
@@ -48,7 +51,9 @@ router.get('/register-options', requireAuth, async (req, res) => {
 });
 
 router.post('/register-verify', requireAuth, async (req, res) => {
-  const { response, deviceName } = req.body || {};
+  const { response } = req.body || {};
+  const deviceName = typeof (req.body || {}).deviceName === 'string' ? req.body.deviceName.slice(0, 60) : '';
+  if (!response || typeof response !== 'object') return res.status(400).json({ error: 'No se pudo verificar la huella' });
   const { rpID, origin } = getRpAndOrigin(req);
   const expectedChallenge = takeChallenge('reg:' + req.user.id);
   if (!expectedChallenge) return res.status(400).json({ error: 'La solicitud venció, intenta de nuevo' });
@@ -97,10 +102,13 @@ router.get('/login-options', async (req, res) => {
 
 router.post('/login-verify', async (req, res) => {
   const { requestId, response } = req.body || {};
-  const expectedChallenge = requestId ? takeChallenge('login:' + requestId) : null;
+  const expectedChallenge = typeof requestId === 'string' ? takeChallenge('login:' + requestId) : null;
   if (!expectedChallenge) return res.status(400).json({ error: 'La solicitud venció, intenta de nuevo' });
+  if (!response || typeof response !== 'object' || typeof response.id !== 'string' || response.id.length > 1024) {
+    return res.status(400).json({ error: 'No se pudo verificar la huella' });
+  }
 
-  const { rows: credRows } = await pool.query('SELECT * FROM webauthn_credentials WHERE credential_id = $1', [response && response.id]);
+  const { rows: credRows } = await pool.query('SELECT * FROM webauthn_credentials WHERE credential_id = $1', [response.id]);
   const cred = credRows[0];
   if (!cred) return res.status(400).json({ error: 'Esta huella no está registrada en ningún dispositivo de la app' });
 

@@ -2,8 +2,11 @@ const express = require('express');
 const { pool } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 
+const { paramId } = require('../lib/validate');
+
 const router = express.Router();
 router.use(requireAuth);
+router.param('id', paramId);
 
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(

@@ -13,6 +13,12 @@ const pool = new Pool({
   ssl: useSSL ? { rejectUnauthorized: false } : false,
 });
 
+// Si Postgres corta una conexión inactiva (reinicio, mantenimiento), `pg` emite 'error' en el pool.
+// Sin este listener Node lo trata como error no manejado y el proceso termina.
+pool.on('error', (err) => {
+  console.error('Conexión inactiva de Postgres perdida (el pool abrirá otra):', err.message);
+});
+
 async function migrate() {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await pool.query(schema);

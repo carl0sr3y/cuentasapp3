@@ -44,7 +44,13 @@ router.get('/status', async (req, res) => {
 
 // Crea una empresa nueva junto con su único administrador.
 router.post('/', async (req, res) => {
-  const { nombreEmpresa, nombre, usuario, email, contrasena, codigo } = req.body || {};
+  const body = req.body || {};
+  for (const c of ['nombreEmpresa', 'nombre', 'usuario', 'email', 'contrasena', 'codigo']) {
+    if (body[c] !== undefined && (typeof body[c] !== 'string' || body[c].length > 254)) {
+      return res.status(400).json({ error: 'Datos inválidos' });
+    }
+  }
+  const { nombreEmpresa, nombre, usuario, email, contrasena, codigo } = body;
 
   if (!process.env.INVITE_CODE) {
     return res.status(503).json({ error: 'La creación de empresas nuevas no está habilitada' });

@@ -3,9 +3,13 @@ const { pool } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { broadcast } = require('../lib/realtime');
 const { sendPushToOthers } = require('../lib/push');
+const { texto, textoOpcional, idValido, montoValido, paramId } = require('../lib/validate');
 
 const router = express.Router();
 router.use(requireAuth);
+router.param('id', paramId);
+router.param('cuentaId', paramId);
+router.param('movId', paramId);
 
 function clientIdOf(req) { return req.headers['x-client-id'] || null; }
 function money(n) { return 'Q ' + Number(n).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -33,11 +37,11 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { nombre } = req.body || {};
-  if (!nombre || !nombre.trim()) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  const nombre = texto((req.body || {}).nombre, 120);
+  if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio (máximo 120 caracteres)' });
   const { rows } = await pool.query(
     `INSERT INTO cuentas (empresa_id, usuario_id, nombre) VALUES ($1,$2,$3) RETURNING id, nombre, favorito, fecha_creacion`,
-    [req.user.empresa_id, req.user.id, nombre.trim()]
+    [req.user.empresa_id, req.user.id, nombre]
   );
   const cuenta = { ...rows[0], balance: 0 };
   await registrarHistorial(req.user.empresa_id, req.user.id, 'Crear cuenta', `Cuenta "${cuenta.nombre}" creada`, { referencia_id: cuenta.id });
@@ -57,8 +61,10 @@ router.patch('/:id', async (req, res) => {
 });
 
 router.post('/delete', async (req, res) => {
-  const { ids } = req.body || {};
-  if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids requerido' });
+  const idsCrudos = (req.body || {}).ids;
+  if (!Array.isArray(idsCrudos) || idsCrudos.length === 0 || idsCrudos.length > 1000) return res.status(400).json({ error: 'ids requerido' });
+  const ids = idsCrudos.map(idValido);
+  if (ids.some(id => id === null)) return res.status(400).json({ error: 'Identificador inválido' });
   const { rows: cuentas } = await pool.query(
     `SELECT id, nombre FROM cuentas WHERE id = ANY($1::int[]) AND empresa_id = $2`,
     [ids, req.user.empresa_id]
@@ -89,10 +95,12 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/:id/movimientos', async (req, res) => {
-  const { tipo, descripcion, monto } = req.body || {};
+  const { tipo, monto } = req.body || {};
   if (!['abono', 'cargo'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido' });
-  const montoNum = Math.abs(Number(monto));
-  if (!montoNum || montoNum <= 0) return res.status(400).json({ error: 'Monto inválido' });
+  const montoNum = montoValido(monto);
+  if (montoNum === null) return res.status(400).json({ error: 'Monto inválido' });
+  const descripcion = textoOpcional((req.body || {}).descripcion, 300);
+  if (descripcion === null) return res.status(400).json({ error: 'Descripción inválida (máximo 300 caracteres)' });
   const montoFinal = tipo === 'abono' ? montoNum : -montoNum;
 
   const { rows: cuentaRows } = await pool.query(`SELECT nombre FROM cuentas WHERE id = $1 AND empresa_id = $2`, [req.params.id, req.user.empresa_id]);
@@ -108,7 +116,7 @@ router.post('/:id/movimientos', async (req, res) => {
   const { rows } = await pool.query(
     `INSERT INTO movimientos_cuentas (cuenta_id, usuario_id, tipo, descripcion, monto, saldo_resultante)
      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha`,
-    [req.params.id, req.user.id, tipo, (descripcion || '').trim(), montoFinal, saldoResultante]
+    [req.params.id, req.user.id, tipo, descripcion, montoFinal, saldoResultante]
   );
   const mov = { ...rows[0], usuario: req.user.nombre };
   const nombreCuenta = cuentaRows[0].nombre;

@@ -3,9 +3,11 @@ const { pool } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { broadcast } = require('../lib/realtime');
 const { sendPushToOthers } = require('../lib/push');
+const { textoOpcional, montoValido, paramId } = require('../lib/validate');
 
 const router = express.Router();
 router.use(requireAuth);
+router.param('movId', paramId);
 
 function clientIdOf(req) { return req.headers['x-client-id'] || null; }
 function money(n) { return 'Q ' + Number(n).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -37,12 +39,17 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { tipo, descripcion, monto, foto } = req.body || {};
+  const { tipo, monto, foto } = req.body || {};
   if (!['entrada', 'salida'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido' });
-  const montoNum = Math.abs(Number(monto));
-  if (!montoNum || montoNum <= 0) return res.status(400).json({ error: 'Monto inválido' });
+  const montoNum = montoValido(monto);
+  if (montoNum === null) return res.status(400).json({ error: 'Monto inválido' });
+  const descripcion = textoOpcional((req.body || {}).descripcion, 300);
+  if (descripcion === null) return res.status(400).json({ error: 'Descripción inválida (máximo 300 caracteres)' });
   const montoFinal = tipo === 'entrada' ? montoNum : -montoNum;
 
+  if (foto !== undefined && foto !== null && typeof foto !== 'string') {
+    return res.status(400).json({ error: 'Foto inválida' });
+  }
   if (foto && Buffer.byteLength(foto, 'utf8') > 4 * 1024 * 1024) {
     return res.status(400).json({ error: 'La foto es demasiado grande' });
   }
@@ -57,7 +64,7 @@ router.post('/', async (req, res) => {
   const { rows } = await pool.query(
     `INSERT INTO movimientos_tienda (empresa_id, usuario_id, tipo, descripcion, monto, saldo_resultante, foto)
      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha, foto`,
-    [req.user.empresa_id, req.user.id, tipo, (descripcion || '').trim(), montoFinal, saldoResultante, foto || null]
+    [req.user.empresa_id, req.user.id, tipo, descripcion, montoFinal, saldoResultante, foto || null]
   );
   const mov = { ...rows[0], usuario: req.user.nombre };
   await registrarHistorial(
