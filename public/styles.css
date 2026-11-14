@@ -74,6 +74,36 @@ input{font-family:inherit;}
 }
 .login-toggle button{color:var(--accent);font-weight:600;}
 
+/* --- Inicio de sesión: ayuda, botón secundario y pantalla de huella --- */
+.login-card .field-hint{margin:6px 0 0;font-size:14px;color:var(--text-faint);}
+.login-help{text-align:center;margin:18px 0 0;font-size:14.5px;line-height:1.5;color:var(--text-dim);}
+.btn-primary[disabled]{opacity:.6;cursor:default;}
+.btn-secondary{
+  width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+  margin-top:4px;padding:11px;border-radius:var(--radius-sm);
+  background:transparent;border:1px solid var(--border);color:var(--text);font-size:16px;font-weight:600;
+}
+.btn-secondary:active{opacity:.7;}
+.btn-secondary svg{width:20px;height:20px;flex:none;color:var(--accent);}
+
+.login-card-fp{text-align:center;}
+.login-card-fp .sub{margin-bottom:28px;}
+.fp-circle{
+  width:88px;height:88px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;
+  background:var(--accent-bg);border:1px solid rgba(124,147,232,.35);color:var(--accent);
+  transition:transform .12s, background .2s;
+}
+.fp-circle:active{transform:scale(.94);}
+.fp-circle svg{width:44px;height:44px;}
+.fp-circle.scanning{animation:fpPulso 1.4s ease-in-out infinite;}
+@keyframes fpPulso{
+  0%,100%{box-shadow:0 0 0 0 rgba(124,147,232,.45);}
+  50%{box-shadow:0 0 0 14px rgba(124,147,232,0);}
+}
+@media (prefers-reduced-motion:reduce){.fp-circle.scanning{animation:none;}}
+.fp-hint{margin:12px 0 0;font-size:15px;color:var(--text-dim);}
+.login-card-fp .login-error{min-height:0;}
+
 #mainScreen{min-height:100vh;padding-bottom:40px;}
 header.topbar{
   position:sticky;top:0;z-index:40;background:rgba(23,24,26,0.88);backdrop-filter:blur(10px);

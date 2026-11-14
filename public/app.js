@@ -88,8 +88,14 @@ function serializeCredential(cred) {
 function fingerprintSupported() { return !!window.PublicKeyCredential; }
 function hasFingerprintFlag() { return localStorage.getItem('cuentasapp_fp') === '1'; }
 function setFingerprintFlag(v) { try { if (v) localStorage.setItem('cuentasapp_fp', '1'); else localStorage.removeItem('cuentasapp_fp'); } catch (e) {} }
-async function loginWithFingerprint() {
+// auto = true: lo lanzó la app sola al abrirse. Si el navegador no lo permite sin un toque
+// (Safari en iPhone) o la persona lo cancela, se queda en silencio en la pantalla de huella.
+async function loginWithFingerprint({ auto = false } = {}) {
   if (!fingerprintSupported()) { toast('Este navegador no soporta huella/Face ID'); return; }
+  const aviso = document.getElementById('fpMsg');
+  const btn = document.getElementById('fpCircle');
+  if (aviso) aviso.textContent = '';
+  if (btn) btn.classList.add('scanning');
   try {
     const { options, requestId } = await api('/webauthn/login-options');
     const publicKey = prepareRequestOptions(options);
@@ -107,8 +113,10 @@ async function loginWithFingerprint() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (data.error === 'passwordExpired') { renderForcedPasswordChange(data.codigoEmpresa, data.usuario, null, data.message); return; }
-      toast(data.error || 'No se pudo iniciar sesión con huella');
-      if (!document.getElementById('loginUsuario')) renderLogin(true);
+      // La huella ya no es válida en el servidor (p. ej. se restableció la contraseña): se pasa a la contraseña.
+      renderLogin(true);
+      const err = document.getElementById('loginErr');
+      if (err) err.textContent = data.error || 'No se pudo entrar con la huella. Usa tu usuario y contraseña.';
       return;
     }
     AUTH = data.user;
@@ -116,9 +124,14 @@ async function loginWithFingerprint() {
     try { localStorage.setItem('cuentasapp_fp_credid', cred.id); setFingerprintFlag(true); } catch (e) {}
     enterApp();
   } catch (e) {
-    if (e && e.name === 'NotAllowedError') { if (!document.getElementById('loginUsuario')) renderLogin(true); return; }
-    toast('No se pudo iniciar sesión con huella');
-    if (!document.getElementById('loginUsuario')) renderLogin(true);
+    if (auto) return; // intento automático: sin mensajes, la persona puede tocar el botón
+    const cancelado = e && e.name === 'NotAllowedError';
+    const msg = document.getElementById('fpMsg');
+    if (msg) msg.textContent = cancelado ? 'Se canceló. Toca la huella para intentarlo de nuevo.' : 'No se pudo leer la huella. Inténtalo de nuevo o entra con tu contraseña.';
+    else toast(cancelado ? 'Se canceló el inicio con huella' : 'No se pudo iniciar sesión con huella');
+  } finally {
+    const b = document.getElementById('fpCircle');
+    if (b) b.classList.remove('scanning');
   }
 }
 function openRegisterFingerprintModal() {
@@ -312,46 +325,63 @@ async function initAuth() {
     const status = await api('/auth/status');
     empresaCreationEnabled = !!status.empresaCreationEnabled;
     if (status.user) { AUTH = status.user; return enterApp(); }
-    renderLogin();
+    renderLogin(false, { autoHuella: true }); // solo al abrir la app, no al cerrar sesión
   } catch (e) {
     renderLogin();
   }
 }
-function renderLogin(forcePasswordForm) {
+// Pantalla de inicio de sesión.
+// - Si este dispositivo ya tiene la huella registrada: pantalla de huella (y, al abrir la app,
+//   se pide la huella automáticamente donde el navegador lo permite).
+// - Si no, o si la persona elige "usuario y contraseña": formulario normal.
+function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
   const root = document.getElementById('loginScreen');
-  if (fingerprintSupported() && hasFingerprintFlag() && !forcePasswordForm) {
+  const conHuella = fingerprintSupported() && hasFingerprintFlag();
+
+  if (conHuella && !forcePasswordForm) {
     root.innerHTML = `
-      <div class="login-card">
-        <div class="login-mark">${ICONS.fingerprint}</div>
+      <div class="login-card login-card-fp">
         <h1>Cuentas-App</h1>
-        <p class="sub">Este dispositivo ya tiene la huella registrada.</p>
-        <button class="btn-primary" id="fpLoginBtnMain">${ICONS.fingerprint} Usar huella / Face ID</button>
-        <p class="login-toggle"><button id="showPasswordForm">Usar mi usuario y contraseña</button></p>
+        <p class="sub">Hola de nuevo. Entra con tu huella o Face ID.</p>
+        <button class="fp-circle" id="fpCircle" aria-label="Entrar con huella o Face ID">${ICONS.fingerprint}</button>
+        <p class="fp-hint">Toca para usar la huella</p>
+        <p class="login-error" id="fpMsg"></p>
+        <p class="login-toggle"><button id="showPasswordForm">Entrar con usuario y contraseña</button></p>
       </div>`;
-    document.getElementById('fpLoginBtnMain').onclick = loginWithFingerprint;
+    document.getElementById('fpCircle').onclick = () => loginWithFingerprint();
     document.getElementById('showPasswordForm').onclick = () => renderLogin(true);
+    if (autoHuella) loginWithFingerprint({ auto: true });
     return;
   }
+
   root.innerHTML = `
     <div class="login-card">
-      <div class="login-mark">${ICONS.check}</div>
       <h1>Cuentas-App</h1>
-      <p class="sub">Inicia sesión en tu empresa para continuar.</p>
-      ${fingerprintSupported() ? `<button class="btn-primary" id="fpLoginBtn" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);margin-bottom:14px;">${ICONS.fingerprint} Usar huella / Face ID</button><p class="desc" style="text-align:center;margin:-6px 0 16px;">o con tu usuario y contraseña</p>` : ''}
-      <div class="field"><label>Código de empresa</label><input id="loginCodigoEmpresa" type="text" autocomplete="off" style="text-transform:uppercase;"></div>
-      <div class="field"><label>Usuario</label><input id="loginUsuario" type="text" autocomplete="username"></div>
-      <div class="field"><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div>
+      <p class="sub">Inicia sesión en tu empresa.</p>
+      <div class="field">
+        <label for="loginCodigoEmpresa">Código de empresa</label>
+        <input id="loginCodigoEmpresa" type="text" autocomplete="organization" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase;">
+        <p class="field-hint">Te lo da el administrador de tu empresa.</p>
+      </div>
+      <div class="field"><label for="loginUsuario">Usuario</label><input id="loginUsuario" type="text" autocomplete="username" autocapitalize="off" spellcheck="false"></div>
+      <div class="field"><label for="loginPass">Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div>
       <button class="btn-primary" id="loginBtn">Iniciar sesión</button>
       <p class="login-error" id="loginErr"></p>
+      ${fingerprintSupported() ? `<button class="btn-secondary" id="fpLoginBtn">${ICONS.fingerprint}<span>${conHuella ? 'Volver a entrar con huella' : 'Entrar con huella / Face ID'}</span></button>` : ''}
       ${empresaCreationEnabled ? `<p class="login-toggle"><button id="goCreateEmpresa">Crear nueva empresa</button></p>` : ''}
-      <p style="text-align:center;margin:16px 0 0;color:var(--text-dim);font-size:15px;line-height:1.5;">¿Olvidaste tu contraseña? Pídele al administrador de tu empresa que te la restablezca.</p>
+      <p class="login-help">¿Olvidaste tu contraseña? Pídele al administrador de tu empresa que te la restablezca.</p>
     </div>`;
-  if (fingerprintSupported()) document.getElementById('fpLoginBtn').onclick = loginWithFingerprint;
+  if (fingerprintSupported()) {
+    document.getElementById('fpLoginBtn').onclick = () => (conHuella ? renderLogin(false) : loginWithFingerprint());
+  }
   const tryLogin = async () => {
     const codigoEmpresa = document.getElementById('loginCodigoEmpresa').value.trim();
     const usuarioVal = document.getElementById('loginUsuario').value.trim();
     const contrasena = document.getElementById('loginPass').value;
     const err = document.getElementById('loginErr');
+    if (!codigoEmpresa || !usuarioVal || !contrasena) { err.textContent = 'Completa el código de empresa, el usuario y la contraseña.'; return; }
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true; err.textContent = '';
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Client-Id': CLIENT_ID },
@@ -367,6 +397,7 @@ function renderLogin(forcePasswordForm) {
       EMPRESA = data.empresa;
       enterApp();
     } catch (e) { err.textContent = 'No se pudo conectar con el servidor.'; }
+    finally { btn.disabled = false; }
   };
   document.getElementById('loginBtn').onclick = tryLogin;
   root.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); }));
