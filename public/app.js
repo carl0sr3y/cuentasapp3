@@ -448,6 +448,10 @@ function leerAcceso(texto) {
   if (i <= 0 || i === t.length - 1) return null;
   return { usuario: t.slice(0, i).trim(), codigoEmpresa: t.slice(i + 1).trim().toUpperCase() };
 }
+// Usuario a partir del nombre: minúsculas, sin acentos, sin espacios ni símbolos ("María López" → "marialopez").
+function usuarioDesdeNombre(nombre) {
+  return String(nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 60);
+}
 const AYUDA_ACCESO = 'Escribe tu usuario, una @ y el código de tu empresa. Ejemplo: carlos@tiendasantae';
 // Pantalla de inicio de sesión.
 // - Si este dispositivo ya tiene la huella registrada: pantalla de huella (y, al abrir la app,
@@ -1563,7 +1567,14 @@ function renderUsersPage(meParam, usuariosParam) {
     renderNotifBtn();
   };
   if (meParam) render(meParam, usuariosParam);
-  else api('/usuarios/me').then(r => render(r.usuario, null)).catch(() => toast('No se pudo cargar tu información'));
+  else {
+    // Al refrescar (crear, editar o eliminar usuarios) se recarga también la lista del equipo.
+    (async () => {
+      const r = await api('/usuarios/me');
+      const lista = r.usuario && r.usuario.rol === 'admin' ? await api('/usuarios').catch(() => []) : null;
+      if (document.getElementById('usersPage')) render(r.usuario, lista);
+    })().catch(() => toast('No se pudo cargar tu información'));
+  }
 }
 // Selector de tema y animaciones (se guarda en este dispositivo; ver public/tema.js).
 function bindApariencia() {
@@ -1697,8 +1708,8 @@ function openCreateUserModal() {
   showModal(`
     <h3>Crear nuevo usuario</h3>
     <p class="desc">Podrá ver y registrar cuentas y movimientos, pero no podrá crear ni eliminar otros usuarios.</p>
-    <div class="field"><label>Nombre</label><input id="newUserNombre" type="text"></div>
-    <div class="field"><label>Usuario</label><input id="newUserUsuario" type="text"></div>
+    <div class="field"><label>Nombre</label><input id="newUserNombre" type="text" maxlength="100">
+      <p class="field-hint" id="newUserVista">El usuario para entrar se forma con el nombre, en minúsculas y sin espacios.</p></div>
     <div class="field"><label>Correo electrónico</label><input id="newUserEmail" type="email"></div>
     <div class="field"><label>Contraseña</label><input id="newUserPass" type="password" placeholder="Mínimo 8 caracteres"></div>
     <div class="modal-actions">
@@ -1707,19 +1718,40 @@ function openCreateUserModal() {
     </div>
     <p class="login-error" id="newUserErr"></p>
   `);
+  // El usuario sale del nombre; se muestra mientras se escribe.
+  const nombreInput = document.getElementById('newUserNombre');
+  const vista = document.getElementById('newUserVista');
+  nombreInput.addEventListener('input', () => {
+    const u = usuarioDesdeNombre(nombreInput.value);
+    vista.innerHTML = u && EMPRESA ? `Entrará con: <b>${escapeHtml(idAcceso(u, EMPRESA.codigo))}</b>` : 'El usuario para entrar se forma con el nombre, en minúsculas y sin espacios.';
+  });
+  setTimeout(() => nombreInput.focus(), 50);
   document.getElementById('confirmNewUser').onclick = async () => {
-    const nombre = document.getElementById('newUserNombre').value.trim();
-    const usuario = document.getElementById('newUserUsuario').value.trim();
+    const nombre = nombreInput.value.trim();
+    const usuario = usuarioDesdeNombre(nombre);
     const email = document.getElementById('newUserEmail').value.trim();
     const contrasena = document.getElementById('newUserPass').value;
     const err = document.getElementById('newUserErr');
-    if (!nombre || !usuario || !email || !contrasena) { err.textContent = 'Completa todos los campos.'; return; }
+    if (!nombre || !email || !contrasena) { err.textContent = 'Completa todos los campos.'; return; }
+    if (!usuario) { err.textContent = 'El nombre debe tener letras o números.'; return; }
+    if (contrasena.length < 8) { err.textContent = 'La contraseña debe tener al menos 8 caracteres.'; return; }
     try {
       await api('/usuarios', { method: 'POST', body: { nombre, usuario, email, contrasena } });
-      closeModal();
       renderUsersPage();
-      toast(EMPRESA ? `Usuario creado. Entra con ${idAcceso(usuario, EMPRESA.codigo)}` : 'Usuario creado');
-    } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo crear el usuario.'; }
+      // Ventana (no un aviso pasajero) para que dé tiempo de anotar con qué va a entrar.
+      showModal(`
+        <h3>Usuario creado</h3>
+        <p class="desc">${escapeHtml(nombre)} entrará con:</p>
+        <div class="field"><input type="text" readonly value="${escapeHtml(EMPRESA ? idAcceso(usuario, EMPRESA.codigo) : usuario)}" style="text-align:center;font-weight:700;font-size:18px;"></div>
+        <p class="desc">y la contraseña que acabas de escribir.</p>
+        <div class="modal-actions"><button class="btn-confirm" data-close>Listo</button></div>
+      `);
+    } catch (e) {
+      const msg = typeof e === 'string' ? e : '';
+      err.textContent = /ya existe/i.test(msg)
+        ? `Ya hay alguien con el usuario "${usuario}" o con ese correo. Agrega el apellido u otra palabra al nombre para distinguirlo.`
+        : (msg || 'No se pudo crear el usuario.');
+    }
   };
 }
 
