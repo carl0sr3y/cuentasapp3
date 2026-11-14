@@ -64,8 +64,8 @@ router.post('/', limites.crearEmpresa, async (req, res) => {
     const empresa = empRows[0];
     const hash = await bcrypt.hash(contrasena, 10);
     const { rows: userRows } = await client.query(
-      `INSERT INTO usuarios (empresa_id, nombre, usuario, email, contrasena, rol)
-       VALUES ($1,$2,$3,$4,$5,'admin') RETURNING id, nombre, usuario, email, empresa_id, rol`,
+      `INSERT INTO usuarios (empresa_id, nombre, usuario, email, contrasena, rol, es_principal)
+       VALUES ($1,$2,$3,$4,$5,'admin',true) RETURNING id, nombre, usuario, email, empresa_id, rol`,
       [empresa.id, nombre.trim(), usuario.trim(), email.trim(), hash]
     );
     await client.query('COMMIT');

@@ -125,8 +125,8 @@ router.post('/empresas', async (req, res) => {
       [nombreEmpresa, codigoEmpresa]
     ));
     await client.query(
-      `INSERT INTO usuarios (empresa_id, nombre, usuario, email, contrasena, rol, debe_cambiar_contrasena)
-       VALUES ($1,$2,$3,$4,$5,'admin',true)`,
+      `INSERT INTO usuarios (empresa_id, nombre, usuario, email, contrasena, rol, debe_cambiar_contrasena, es_principal)
+       VALUES ($1,$2,$3,$4,$5,'admin',true,true)`,
       [empresa.id, nombre, usuario, email || null, hash]
     );
     await client.query('COMMIT');
@@ -156,8 +156,8 @@ router.get('/empresas/:id/usuarios', async (req, res) => {
   const { rows: emp } = await pool.query('SELECT id, nombre, codigo, activa FROM empresas WHERE id = $1', [req.params.id]);
   if (!emp[0]) return res.status(404).json({ error: 'Empresa no encontrada' });
   const { rows } = await pool.query(
-    `SELECT id, nombre, usuario, email, rol, fecha_creacion, debe_cambiar_contrasena
-     FROM usuarios WHERE empresa_id = $1 ORDER BY (rol = 'admin') DESC, nombre ASC`,
+    `SELECT id, nombre, usuario, email, rol, es_principal, fecha_creacion, debe_cambiar_contrasena
+     FROM usuarios WHERE empresa_id = $1 ORDER BY es_principal DESC, (rol = 'admin') DESC, nombre ASC`,
     [req.params.id]
   );
   res.json({ empresa: emp[0], usuarios: rows });

@@ -253,3 +253,22 @@ BEGIN
   END IF;
 END $$;
 CREATE INDEX IF NOT EXISTS idx_cuentas_empresa_tipo ON cuentas(empresa_id, tipo);
+
+-- ============================================================
+-- Varios administradores por empresa. El "administrador principal" (quien creó la empresa)
+-- no puede ser eliminado por los otros admins, ni ellos pueden cambiarle la contraseña o el correo.
+-- En empresas existentes, el principal es su admin más antiguo. Solo puede haber uno por empresa.
+-- ============================================================
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS es_principal BOOLEAN NOT NULL DEFAULT false;
+UPDATE usuarios SET es_principal = true
+WHERE id IN (
+  SELECT DISTINCT ON (empresa_id) id FROM usuarios WHERE rol = 'admin' ORDER BY empresa_id, fecha_creacion ASC, id ASC
+)
+AND empresa_id NOT IN (SELECT empresa_id FROM usuarios WHERE es_principal);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_principal ON usuarios(empresa_id) WHERE es_principal;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'usuarios_principal_admin_check') THEN
+    ALTER TABLE usuarios ADD CONSTRAINT usuarios_principal_admin_check CHECK (NOT es_principal OR rol = 'admin');
+  END IF;
+END $$;

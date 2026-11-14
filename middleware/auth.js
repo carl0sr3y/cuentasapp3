@@ -83,7 +83,7 @@ function verifyTokenFromCookieHeader(cookieHeader) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.user || req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo el administrador de tu empresa puede hacer esto' });
+  if (!req.user || req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo un administrador de tu empresa puede hacer esto' });
   next();
 }
 

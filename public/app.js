@@ -1457,6 +1457,7 @@ function renderUsersPage(meParam, usuariosParam) {
   const render = (me, usuarios) => {
     const esAdmin = me.rol === 'admin';
     const otros = (usuarios || []).filter(u => u.id !== me.id);
+    const etiquetaRol = u => u.es_principal ? 'admin principal' : (u.rol === 'admin' ? 'admin' : '');
     root.innerHTML = `
       <div class="page-slide" id="usersPage">
         <div class="page-header">
@@ -1470,7 +1471,7 @@ function renderUsersPage(meParam, usuariosParam) {
             <div style="display:flex;align-items:center;gap:12px;">
               <div class="acc-circ">${initialOf(me.nombre)}</div>
               <div class="info">
-                <div class="name">${escapeHtml(me.nombre)} ${esAdmin ? '· <span style="color:var(--accent);">admin</span>' : ''}</div>
+                <div class="name">${escapeHtml(me.nombre)} ${esAdmin ? `· <span style="color:var(--accent);">${etiquetaRol(me)}</span>` : ''}</div>
                 <div class="handle">${escapeHtml(EMPRESA ? idAcceso(me.usuario, EMPRESA.codigo) : me.usuario)}${me.email ? ' · ' + escapeHtml(me.email) : ''}</div>
               </div>
             </div>
@@ -1503,21 +1504,23 @@ function renderUsersPage(meParam, usuariosParam) {
                   <div style="display:flex;align-items:center;gap:12px;">
                     <div class="acc-circ">${initialOf(u.nombre)}</div>
                     <div class="info">
-                      <div class="name">${escapeHtml(u.nombre)}</div>
+                      <div class="name">${escapeHtml(u.nombre)}${etiquetaRol(u) ? ` <span class="rol-chip ${u.es_principal ? 'principal' : ''}">${etiquetaRol(u)}</span>` : ''}</div>
                       <div class="handle">${escapeHtml(EMPRESA ? idAcceso(u.usuario, EMPRESA.codigo) : u.usuario)}${u.email ? ' · ' + escapeHtml(u.email) : ''}</div>
                     </div>
                   </div>
+                  ${u.es_principal ? `
+                  <p class="handle" style="margin:10px 0 0;">Es quien creó la empresa: no se puede eliminar, y solo él puede cambiar su contraseña y su correo.</p>` : `
                   <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
                     <button class="link-btn" data-changepass="${u.id}" data-name="${escapeHtml(u.nombre)}">Cambiar contraseña</button>
                     <button class="link-btn" data-changeemail="${u.id}" data-email="${u.email ? escapeHtml(u.email) : ''}">${u.email ? 'Cambiar correo' : 'Agregar correo'}</button>
                     <button class="link-btn" data-deleteuser="${u.id}" data-name="${escapeHtml(u.nombre)}" style="color:var(--red);">Eliminar</button>
-                  </div>
+                  </div>`}
                 </div>
               `).join('')
             }
             <button class="pdf-btn" id="btnAddUser" style="margin-top:14px;">${ICONS.userPlus} Crear nuevo usuario</button>
           ` : `
-            <p class="desc" style="margin-top:6px;">Solo el administrador de tu empresa puede crear usuarios, cambiar contraseñas o correos, y eliminar cuentas.</p>
+            <p class="desc" style="margin-top:6px;">Solo los administradores de tu empresa pueden crear usuarios, cambiar contraseñas o correos, y eliminar cuentas.</p>
           `}
 
           <div class="section-title" style="margin-top:22px;">Apariencia</div>
@@ -1707,7 +1710,9 @@ function openChangePasswordModal(userId, nombre, isOwn) {
 function openCreateUserModal() {
   showModal(`
     <h3>Crear nuevo usuario</h3>
-    <p class="desc">Podrá ver y registrar cuentas y movimientos, pero no podrá crear ni eliminar otros usuarios.</p>
+    <p class="seg-label" style="margin-top:4px;">Rol</p>
+    <div class="seg" id="segRol"><button data-v="usuario" class="on">Usuario</button><button data-v="admin">Administrador</button></div>
+    <p class="seg-nota" id="notaRol"></p>
     <div class="field"><label>Nombre</label><input id="newUserNombre" type="text" maxlength="100">
       <p class="field-hint" id="newUserVista">El usuario para entrar se forma con el nombre, en minúsculas y sin espacios.</p></div>
     <div class="field"><label>Correo electrónico</label><input id="newUserEmail" type="email"></div>
@@ -1718,6 +1723,18 @@ function openCreateUserModal() {
     </div>
     <p class="login-error" id="newUserErr"></p>
   `);
+  // Rol: usuario normal (por defecto) o administrador.
+  let rol = 'usuario';
+  const NOTA_ROL = {
+    usuario: 'Podrá ver y registrar cuentas y movimientos, pero no podrá crear ni eliminar usuarios.',
+    admin: 'Podrá hacer todo lo que tú haces: crear, editar y eliminar usuarios (excepto al administrador principal) y ver las copias de seguridad.',
+  };
+  const pintarRol = () => {
+    document.querySelectorAll('#segRol button').forEach(b => b.classList.toggle('on', b.dataset.v === rol));
+    document.getElementById('notaRol').textContent = NOTA_ROL[rol];
+  };
+  document.querySelectorAll('#segRol button').forEach(b => b.onclick = () => { rol = b.dataset.v; pintarRol(); });
+  pintarRol();
   // El usuario sale del nombre; se muestra mientras se escribe.
   const nombreInput = document.getElementById('newUserNombre');
   const vista = document.getElementById('newUserVista');
@@ -1736,11 +1753,11 @@ function openCreateUserModal() {
     if (!usuario) { err.textContent = 'El nombre debe tener letras o números.'; return; }
     if (contrasena.length < 8) { err.textContent = 'La contraseña debe tener al menos 8 caracteres.'; return; }
     try {
-      await api('/usuarios', { method: 'POST', body: { nombre, usuario, email, contrasena } });
+      await api('/usuarios', { method: 'POST', body: { nombre, usuario, email, contrasena, rol } });
       renderUsersPage();
       // Ventana (no un aviso pasajero) para que dé tiempo de anotar con qué va a entrar.
       showModal(`
-        <h3>Usuario creado</h3>
+        <h3>${rol === 'admin' ? 'Administrador creado' : 'Usuario creado'}</h3>
         <p class="desc">${escapeHtml(nombre)} entrará con:</p>
         <div class="field"><input type="text" readonly value="${escapeHtml(EMPRESA ? idAcceso(usuario, EMPRESA.codigo) : usuario)}" style="text-align:center;font-weight:700;font-size:18px;"></div>
         <p class="desc">y la contraseña que acabas de escribir.</p>

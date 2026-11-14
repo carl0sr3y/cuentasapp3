@@ -731,3 +731,10 @@ header.topbar{gap:10px;}
 .pass-ojo svg{width:20px;height:20px;}
 .pass-ojo[aria-pressed="true"]{color:var(--accent);}
 .pass-ojo:active{background:var(--surface-2);}
+/* Etiqueta de rol en la lista de usuarios */
+.rol-chip{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--accent-bg);color:var(--accent);vertical-align:2px;margin-left:4px;}
+.rol-chip.principal{background:var(--tienda-bg);color:var(--tienda);}
+/* Selector de rol (ventana Crear usuario): la opción elegida se marca con el color de acento */
+#segRol{background:var(--surface-2);}
+#segRol button{background:transparent;box-shadow:none;}
+#segRol button.on{background:var(--accent);color:var(--on-accent);box-shadow:var(--shadow);}

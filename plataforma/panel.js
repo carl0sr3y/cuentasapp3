@@ -189,7 +189,7 @@
         h('div', { class: 'pl-quien' },
           h('div', null, u.nombre),
           h('div', { class: 'pl-meta' }, `${u.usuario}@${String(data.empresa.codigo).toLowerCase()}` + (u.email ? ' · ' + u.email : ''))),
-        h('span', { class: 'pl-badge ' + (u.rol === 'admin' ? 'azul' : 'verde') }, u.rol === 'admin' ? 'Admin' : 'Usuario'),
+        h('span', { class: 'pl-badge ' + (u.rol === 'admin' ? 'azul' : 'verde') }, u.es_principal ? 'Admin principal' : (u.rol === 'admin' ? 'Admin' : 'Usuario')),
         u.debe_cambiar_contrasena ? h('span', { class: 'pl-badge amarillo' }, 'Pendiente de cambiar') : null,
         h('button', { class: 'pl-btn peligro', onclick: () => restablecer(u, data.empresa) }, 'Restablecer contraseña')));
     }

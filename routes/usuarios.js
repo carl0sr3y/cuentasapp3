@@ -19,29 +19,36 @@ async function registrarHistorial(empresaId, usuarioId, accion, detalle) {
 
 // Info básica de la empresa y de quién soy yo (todos los roles pueden ver esto)
 router.get('/me', async (req, res) => {
-  const { rows } = await pool.query('SELECT id, nombre, usuario, email, rol FROM usuarios WHERE id = $1', [req.user.id]);
+  const { rows } = await pool.query('SELECT id, nombre, usuario, email, rol, es_principal FROM usuarios WHERE id = $1', [req.user.id]);
   const { rows: empRows } = await pool.query('SELECT id, nombre, codigo FROM empresas WHERE id = $1', [req.user.empresa_id]);
   res.json({ usuario: rows[0], empresa: empRows[0] });
 });
 
-// Todo lo demás en este archivo es exclusivo del administrador de la empresa.
+// Todo lo demás en este archivo es exclusivo de los administradores de la empresa.
 router.use(requireAdmin);
+
+// El administrador principal solo puede ser modificado por él mismo (o por el superadmin de la plataforma).
+// Sin esto, otro admin podría cambiarle la contraseña y dejarlo afuera, aunque no pueda eliminarlo.
+const MSG_PRINCIPAL = 'El administrador principal solo puede ser modificado por él mismo. No se puede eliminar.';
+function esPrincipalAjeno(target, req) { return target.es_principal && target.id !== req.user.id; }
 
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(
-    'SELECT id, nombre, usuario, email, rol, fecha_creacion FROM usuarios WHERE empresa_id = $1 ORDER BY fecha_creacion ASC',
+    'SELECT id, nombre, usuario, email, rol, es_principal, fecha_creacion FROM usuarios WHERE empresa_id = $1 ORDER BY es_principal DESC, (rol = \'admin\') DESC, fecha_creacion ASC',
     [req.user.empresa_id]
   );
   res.json(rows);
 });
 
-// Crea un usuario nuevo para MI empresa (siempre rol "usuario", nunca admin).
+// Crea un usuario nuevo para MI empresa, con rol "usuario" (por defecto) o "admin".
 router.post('/', async (req, res) => {
   const body = req.body || {};
   const nombre = texto(body.nombre, 100);
   const usuario = texto(body.usuario, 60);
   const email = texto(body.email, 254);
   const contrasena = typeof body.contrasena === 'string' && body.contrasena.length <= 200 ? body.contrasena : null;
+  const rol = body.rol === undefined ? 'usuario' : body.rol;
+  if (!['usuario', 'admin'].includes(rol)) return res.status(400).json({ error: 'Rol inválido' });
   if (!nombre || !usuario || !email || !contrasena || contrasena.length < 8) {
     return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta (mínimo 8 caracteres)' });
   }
@@ -52,11 +59,12 @@ router.post('/', async (req, res) => {
   if (existente[0]) return res.status(409).json({ error: 'Ese usuario o correo ya existe en tu empresa' });
   const hash = await bcrypt.hash(contrasena, 10);
   const { rows } = await pool.query(
-    `INSERT INTO usuarios (empresa_id, nombre, usuario, email, contrasena, rol) VALUES ($1,$2,$3,$4,$5,'usuario')
-     RETURNING id, nombre, usuario, email, rol, fecha_creacion`,
-    [req.user.empresa_id, nombre, usuario, email, hash]
+    `INSERT INTO usuarios (empresa_id, nombre, usuario, email, contrasena, rol) VALUES ($1,$2,$3,$4,$5,$6)
+     RETURNING id, nombre, usuario, email, rol, es_principal, fecha_creacion`,
+    [req.user.empresa_id, nombre, usuario, email, hash, rol]
   );
-  await registrarHistorial(req.user.empresa_id, req.user.id, 'Crear usuario', `Usuario "${nombre}" creado por ${req.user.nombre}`);
+  await registrarHistorial(req.user.empresa_id, req.user.id, 'Crear usuario',
+    `${rol === 'admin' ? 'Administrador' : 'Usuario'} "${nombre}" creado por ${req.user.nombre}`);
   broadcast({ scope: 'usuarios', empresaId: req.user.empresa_id, excludeClientId: req.headers['x-client-id'] });
   res.json(rows[0]);
 });
@@ -66,6 +74,9 @@ router.patch('/:id/email', async (req, res) => {
   const email = texto((req.body || {}).email, 254);
   if (!email) return res.status(400).json({ error: 'Correo requerido' });
   const targetId = Number(req.params.id);
+  const { rows: [objetivo] } = await pool.query('SELECT id, es_principal FROM usuarios WHERE id = $1 AND empresa_id = $2', [targetId, req.user.empresa_id]);
+  if (!objetivo) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (esPrincipalAjeno(objetivo, req)) return res.status(403).json({ error: MSG_PRINCIPAL });
   const { rows: existente } = await pool.query(
     'SELECT id FROM usuarios WHERE empresa_id = $1 AND email = $2 AND id != $3',
     [req.user.empresa_id, email.trim(), targetId]
@@ -90,6 +101,7 @@ router.patch('/:id/password', async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM usuarios WHERE id = $1 AND empresa_id = $2', [targetId, req.user.empresa_id]);
   const target = rows[0];
   if (!target) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (esPrincipalAjeno(target, req)) return res.status(403).json({ error: MSG_PRINCIPAL });
 
   if (targetId === req.user.id) {
     if (!actual) return res.status(400).json({ error: 'Ingresa tu contraseña actual' });
@@ -117,8 +129,8 @@ router.patch('/:id/password', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Elimina un usuario de mi empresa. El administrador no puede eliminarse a sí mismo
-// (dejaría a la empresa sin nadie que pueda gestionarla).
+// Elimina un usuario de mi empresa. Nadie puede eliminarse a sí mismo, y el administrador
+// principal no puede ser eliminado (la empresa siempre conserva a su dueño).
 router.delete('/:id', async (req, res) => {
   const targetId = Number(req.params.id);
   if (targetId === req.user.id) return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta de administrador' });
@@ -126,8 +138,9 @@ router.delete('/:id', async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM usuarios WHERE id = $1 AND empresa_id = $2', [targetId, req.user.empresa_id]);
   const target = rows[0];
   if (!target) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (target.es_principal) return res.status(403).json({ error: MSG_PRINCIPAL });
 
-  await pool.query('DELETE FROM usuarios WHERE id = $1', [targetId]);
+  await pool.query('DELETE FROM usuarios WHERE id = $1 AND NOT es_principal', [targetId]);
   await registrarHistorial(req.user.empresa_id, req.user.id, 'Eliminar usuario', `Usuario "${target.nombre}" eliminado`);
   broadcast({ scope: 'usuarios', empresaId: req.user.empresa_id, excludeClientId: req.headers['x-client-id'] });
   res.json({ ok: true });
