@@ -211,20 +211,34 @@
     } catch (e) { manejar(e); }
   }
 
+  // Usuario a partir del nombre: minúsculas, sin acentos, sin espacios ni símbolos ("Juan Pérez" → "juanperez").
+  function usuarioDesdeNombre(nombre) {
+    return String(nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 60);
+  }
+
   function formNuevaEmpresa(hueco, cont) {
     limpiar(hueco);
     const campos = {
       nombreEmpresa: h('input', { type: 'text', maxlength: '100' }),
       nombre: h('input', { type: 'text', maxlength: '100' }),
-      usuario: h('input', { type: 'text', maxlength: '60', autocapitalize: 'off', spellcheck: 'false' }),
       email: h('input', { type: 'email', maxlength: '254' }),
     };
     const err = h('p', { class: 'login-error' });
+    // El usuario del administrador sale del nombre; se muestra mientras se escribe.
+    const vistaUsuario = h('p', { class: 'pl-meta' });
+    const actualizarVista = () => {
+      const u = usuarioDesdeNombre(campos.nombre.value);
+      vistaUsuario.textContent = u ? `Entrará con el usuario: ${u}@(código de la empresa)` : 'El usuario para entrar se forma con el nombre, en minúsculas y sin espacios.';
+    };
+    campos.nombre.addEventListener('input', actualizarVista);
+    actualizarVista();
     const crear = h('button', { class: 'pl-btn primario' }, 'Crear empresa');
     crear.addEventListener('click', async () => {
       err.textContent = '';
       const body = Object.fromEntries(Object.entries(campos).map(([k, el]) => [k, el.value.trim()]));
-      if (!body.nombreEmpresa || !body.nombre || !body.usuario) { err.textContent = 'Completa los campos obligatorios.'; return; }
+      if (!body.nombreEmpresa || !body.nombre) { err.textContent = 'Completa los campos obligatorios.'; return; }
+      body.usuario = usuarioDesdeNombre(body.nombre);
+      if (!body.usuario) { err.textContent = 'El nombre del administrador debe tener letras o números.'; return; }
       crear.disabled = true;
       try {
         const r = await api('/empresas', { method: 'POST', body });
@@ -240,8 +254,7 @@
       h('p', { class: 'pl-meta' }, 'Se crea con su administrador. La contraseña inicial es temporal y se genera automáticamente.'),
       h('div', { class: 'pl-form' },
         h('div', { class: 'field pl-full' }, h('label', null, 'Nombre de la empresa *'), campos.nombreEmpresa),
-        h('div', { class: 'field' }, h('label', null, 'Nombre del administrador *'), campos.nombre),
-        h('div', { class: 'field' }, h('label', null, 'Usuario del administrador *'), campos.usuario),
+        h('div', { class: 'field pl-full' }, h('label', null, 'Nombre del administrador *'), campos.nombre, vistaUsuario),
         h('div', { class: 'field pl-full' }, h('label', null, 'Correo (opcional)'), campos.email)),
       h('div', { class: 'pl-acciones' }, crear, h('button', { class: 'pl-btn', onclick: () => limpiar(hueco) }, 'Cancelar')),
       err));
