@@ -17,7 +17,7 @@
       else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
       else el.setAttribute(k, v === true ? '' : v);
     }
-    for (const c of hijos.flat()) {
+    for (const c of hijos.flat(Infinity)) { // listas anidadas (p. ej. pares dt/dd) a cualquier profundidad
       if (c === null || c === undefined || c === false) continue;
       el.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
     }
