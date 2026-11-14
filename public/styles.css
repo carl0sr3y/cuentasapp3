@@ -678,11 +678,29 @@ header.topbar{gap:10px;}
 .favor{color:var(--text-dim);}
 .a-favor{font-family:var(--rounded);font-size:.72em;font-weight:700;color:var(--accent);background:var(--accent-bg);border-radius:6px;padding:1px 6px;margin-left:4px;vertical-align:1px;white-space:nowrap;}
 .balance-nota{font-size:13.5px;font-weight:700;color:var(--accent);margin-top:4px;}
-/* Línea de resumen: Te deben · Debes · Neto */
-.neto-linea{display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border-soft);border-radius:14px;padding:9px 12px;margin:0 0 10px;font-size:13px;color:var(--text-dim);}
-.neto-linea span{display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;}
-.neto-linea b{font-size:14.5px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;}
-#deudasView.buscando .neto-linea{display:none;}
+/* Resumen de arriba (Por cobrar / Por pagar): Te deben · Debes · Neto + botón PDF */
+.resumen-bar{display:flex;align-items:stretch;gap:8px;background:var(--surface);border:1px solid var(--border-soft);border-radius:18px;padding:6px;margin:4px 0 16px;box-shadow:var(--shadow);}
+.resumen-cols{flex:1;min-width:0;display:flex;gap:4px;}
+.resumen-cols span{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:9px 3px;border-radius:13px;font-size:12.5px;font-weight:600;color:var(--text-dim);transition:background .25s;}
+.resumen-cols b{font-size:clamp(12.5px,3.9vw,16px);font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;max-width:100%;overflow:hidden;}
+#deudasView[data-tipo="cobrar"] .resumen-cols span.activo{background:var(--accent-bg);}
+#deudasView[data-tipo="pagar"] .resumen-cols span.activo{background:var(--pagar-bg);}
+.resumen-pdf{flex:none;width:52px;border-radius:13px;background:var(--surface-2);color:var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;font-weight:800;}
+.resumen-pdf svg{width:18px;height:18px;}
+.resumen-pdf:active{transform:scale(.94);}
+#deudasView.buscando .resumen-bar{display:none;}
+/* Ventana de opciones de PDF */
+.pdf-opciones{display:flex;flex-direction:column;gap:8px;margin:4px 0 6px;}
+.pdf-opcion{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px;border-radius:16px;background:var(--surface-alt);border:1px solid var(--border-soft);color:var(--text);}
+.pdf-opcion:active{transform:scale(.98);background:var(--surface-2);}
+.pdf-op-icono{flex:none;width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;}
+.pdf-op-icono svg{width:20px;height:20px;}
+.pdf-op-icono.cobrar{background:var(--green-bg);color:var(--green);}
+.pdf-op-icono.pagar{background:var(--red-bg);color:var(--red);}
+.pdf-op-icono.todo{background:var(--accent-bg);color:var(--accent);}
+.pdf-op-texto{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.pdf-op-texto b{font-size:16px;}
+.pdf-op-texto small{font-size:13px;color:var(--text-dim);}
 
 /* Logo (flechas de entrada y salida + punto de la tienda) */
 .brand-logo{width:28px;height:28px;border-radius:8px;display:block;flex-shrink:0;}
@@ -690,3 +708,11 @@ header.topbar{gap:10px;}
 .login-card-fp .login-logo{margin:0 auto 16px;}
 /* Borde sutil para que el logo oscuro no se pierda en el modo oscuro */
 .brand-logo,.login-logo{outline:1px solid rgba(255,255,255,.09);outline-offset:-1px;}
+.nw{white-space:nowrap;}
+.cuentas-head > span{white-space:nowrap;}
+@media (max-width:370px){
+  .cuentas-head{gap:6px;}
+  .mini-acciones{gap:6px;}
+  .mini-btn{padding:7px 9px;gap:4px;}
+}
+@media (max-width:335px){.cuentas-head{flex-wrap:wrap;row-gap:8px;}}

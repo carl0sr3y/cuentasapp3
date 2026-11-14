@@ -360,7 +360,6 @@ function toast(msg) {
   const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
 }
-function totalGeneral() { return cuentasVisibles().reduce((s, c) => s + Number(c.balance), 0); }
 /* Cómo se muestran los saldos de las cuentas.
    Internamente un abono suma y un cargo resta, así que lo que se debe es -balance.
    En pantalla se muestra SIN signo y el color indica la dirección del dinero:
@@ -382,16 +381,33 @@ function saldoGrandeHtml(balance, tipo, clave) {
   return `<div class="balance-amount ${claseSaldo(balance, tipo)}" data-saldo="${Math.abs(deudaDe(balance))}" data-clave="${clave}">${montoSaldo(balance)}</div>`
     + (deudaDe(balance) < 0 ? `<div class="balance-nota">${textoAFavor(tipo)}</div>` : '');
 }
-// Línea "Te deben · Debes · Neto" (solo si hay cuentas de los dos tipos).
-function netoHtml() {
-  const de = t => CUENTAS.filter(c => (c.tipo || 'cobrar') === t);
-  if (!de('cobrar').length || !de('pagar').length) return '';
-  const suma = t => de(t).reduce((s, c) => s + deudaDe(c.balance), 0);
-  const teDeben = suma('cobrar'), debes = suma('pagar'), neto = Math.round((teDeben - debes) * 100) / 100;
-  return `<div class="neto-linea">
-      <span>Te deben <b class="pos">${money(teDeben)}</b></span>
-      <span>Debes <b class="neg">${money(debes)}</b></span>
-      <span>Neto <b class="${neto > 0 ? 'pos' : neto < 0 ? 'neg' : 'cero'}">${neto > 0 ? '+' : ''}${money(neto)}</b></span>
+// Resumen de arriba en Por cobrar / Por pagar: Te deben · Debes · Neto + botón PDF.
+// Reemplaza a los cuadros de "Total por cobrar/pagar"; se resalta la columna de la pestaña abierta.
+function totalesCuentas() {
+  const suma = t => CUENTAS.filter(c => (c.tipo || 'cobrar') === t).reduce((s, c) => s + deudaDe(c.balance), 0);
+  const teDeben = suma('cobrar'), debes = suma('pagar');
+  return { teDeben, debes, neto: Math.round((teDeben - debes) * 100) / 100 };
+}
+// Si un monto no cabe en su columna (p. ej. Q 127,265.50 en un teléfono chico), se achica la letra lo justo.
+function ajustarMontosResumen() {
+  document.querySelectorAll('.resumen-cols b').forEach(b => {
+    b.style.fontSize = '';
+    if (!b.clientWidth) return; // vista oculta: se ajusta al mostrarse
+    let fs = parseFloat(getComputedStyle(b).fontSize);
+    while (b.scrollWidth > b.clientWidth && fs > 9) { fs -= 0.5; b.style.fontSize = fs + 'px'; }
+  });
+}
+window.addEventListener('resize', ajustarMontosResumen);
+function textoNeto(neto) { return (neto > 0 ? '+' : '') + money(neto); }
+function resumenHtml() {
+  const { teDeben, debes, neto } = totalesCuentas();
+  return `<div class="resumen-bar">
+      <div class="resumen-cols">
+        <span class="${tipoCuentas === 'cobrar' ? 'activo' : ''}">Te deben <b class="pos" data-total="cobrar">${money(teDeben)}</b></span>
+        <span class="${tipoCuentas === 'pagar' ? 'activo' : ''}">Debes <b class="neg" data-total="pagar">${money(debes)}</b></span>
+        <span>Neto <b class="${neto > 0 ? 'pos' : neto < 0 ? 'neg' : 'cero'}" data-total="neto">${textoNeto(neto)}</b></span>
+      </div>
+      <button class="resumen-pdf" id="btnPdfGeneral" type="button" aria-label="Generar PDF">${ICONS.pdf}<span>PDF</span></button>
     </div>`;
 }
 function escapeHtml(s) {
@@ -737,6 +753,7 @@ function setTabUI(tab) {
   if (anterior !== tab) reiniciarBusqueda();
   // "Por cobrar" y "Por pagar" comparten la misma vista: al cambiar de tipo se vuelve a dibujar.
   if (esTabCuentas(tab) && tipoCuentas !== tab) { tipoCuentas = tab; if (AUTH) renderDeudas(); }
+  else if (esTabCuentas(tab)) ajustarMontosResumen();
   if (anterior !== tab && animOn()) {
     const vista = document.getElementById(tab === 'tienda' ? 'tiendaView' : 'deudasView');
     vista.classList.remove('entra-der', 'entra-izq');
@@ -787,16 +804,8 @@ async function applyHistoryState(state) {
 function renderDeudas() {
   const el = document.getElementById('deudasView');
   el.dataset.tipo = tipoCuentas;
-  const T = TEXTOS_TIPO[tipoCuentas];
-  const total = totalGeneral();
-
   el.innerHTML = `
-    ${netoHtml()}
-    <div class="balance-block">
-      <button class="balance-pdf-btn" id="btnPdfGeneral" type="button" aria-label="Generar PDF de ${T.pdfTitulo.toLowerCase()}">${ICONS.pdf}<span>PDF</span></button>
-      <div class="balance-label">${T.total}</div>
-      ${saldoGrandeHtml(total, tipoCuentas, 'general-' + tipoCuentas)}
-    </div>
+    ${resumenHtml()}
     <div id="favSection"></div>
     <div class="section-title cuentas-head">
       <span>Tus cuentas <span class="count" id="accountsCount">(${cuentasVisibles().length})</span></span>
@@ -810,9 +819,9 @@ function renderDeudas() {
 
   document.getElementById('btnCrearCuenta').onclick = openCreateAccountModal;
   if (esAdminActual()) document.getElementById('btnEliminarCuentas').onclick = toggleSelectMode;
-  document.getElementById('btnPdfGeneral').onclick = generarPdfGeneral;
+  document.getElementById('btnPdfGeneral').onclick = abrirOpcionesPdf;
   renderAccountsListOnly();
-  animarSaldos(document.getElementById('deudasView'));
+  ajustarMontosResumen();
 }
 
 // Búsqueda sin importar acentos ni mayúsculas ("lopez" encuentra "López").
@@ -1757,31 +1766,94 @@ function pdfHeader(doc, title) {
   doc.text('Generado el ' + new Date().toLocaleString('es-GT'), 14, 24);
   doc.setDrawColor(220, 220, 220); doc.line(14, 28, 196, 28);
 }
-async function generarPdfGeneral() {
-  let data;
-  const T = TEXTOS_TIPO[tipoCuentas];
-  try { data = await api(`/reportes/general?tipo=${tipoCuentas}`); } catch (e) { toast('No se pudo generar el PDF'); return; }
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  pdfHeader(doc, 'Kaab — ' + T.pdfTitulo);
-  doc.setFontSize(11); doc.setTextColor(30, 30, 30);
-  doc.text(T.total + ': ' + saldoTexto(data.balance, tipoCuentas), 14, 38);
-  doc.text('Total de cuentas: ' + data.cuentas.length, 14, 45);
-  const rows = data.cuentas.map(c => [c.nombre, c.favorito ? 'Sí' : 'No', saldoTexto(c.balance, tipoCuentas)]);
-  doc.autoTable({ startY: 52, head: [[T.pdfQuien, 'Favorito', 'Saldo']], body: rows, styles: { fontSize: 9 }, headStyles: { fillColor: [40, 40, 40] } });
-  data.cuentas.forEach(c => {
+// Ventana con las 3 opciones de PDF de las cuentas.
+function abrirOpcionesPdf() {
+  const { teDeben, debes, neto } = totalesCuentas();
+  showModal(`
+    <h3>Generar PDF</h3>
+    <p class="desc">Elige qué quieres incluir.</p>
+    <div class="pdf-opciones">
+      <button class="pdf-opcion" data-pdf="cobrar"><span class="pdf-op-icono cobrar">${ICONS.arrowDown}</span>
+        <span class="pdf-op-texto"><b>Lo que te deben</b><small>Cuentas por cobrar · <span class="nw">${money(teDeben)}</span></small></span></button>
+      <button class="pdf-opcion" data-pdf="pagar"><span class="pdf-op-icono pagar">${ICONS.arrowUp}</span>
+        <span class="pdf-op-texto"><b>Lo que debes</b><small>Cuentas por pagar · <span class="nw">${money(debes)}</span></small></span></button>
+      <button class="pdf-opcion" data-pdf="todo"><span class="pdf-op-icono todo">${ICONS.pdf}</span>
+        <span class="pdf-op-texto"><b>Reporte completo</b><small>Las dos secciones y el neto <span class="nw">(${textoNeto(neto)})</span></small></span></button>
+    </div>
+    <div class="modal-actions"><button class="btn-cancel" data-close>Cancelar</button></div>
+  `);
+  document.querySelectorAll('.pdf-opcion').forEach(b => b.onclick = () => {
+    closeModal();
+    if (b.dataset.pdf === 'todo') generarPdfCompleto(); else generarPdfTipo(b.dataset.pdf);
+  });
+}
+function pdfTablaCuentas(doc, cuentas, tipo, startY) {
+  const rows = cuentas.map(c => [c.nombre, c.favorito ? 'Sí' : 'No', saldoTexto(c.balance, tipo)]);
+  if (!rows.length) {
+    doc.setFontSize(10); doc.setTextColor(140, 140, 140); doc.text('Sin cuentas registradas.', 14, startY + 4);
+    doc.setTextColor(30, 30, 30); return startY + 10;
+  }
+  doc.autoTable({ startY, head: [[TEXTOS_TIPO[tipo].pdfQuien, 'Favorito', 'Saldo']], body: rows, styles: { fontSize: 9 }, headStyles: { fillColor: [40, 40, 40] } });
+  return doc.lastAutoTable.finalY;
+}
+function pdfPaginasCuentas(doc, cuentas, tipo, prefijo) {
+  cuentas.forEach(c => {
     doc.addPage();
-    pdfHeader(doc, 'Cuenta: ' + c.nombre);
-    doc.setFontSize(11);
-    doc.text('Saldo actual: ' + saldoTexto(c.balance, tipoCuentas), 14, 38);
-    const movRows = c.movimientos.map(m => [fmtDateShort(m.fecha), fmtTime(m.fecha), m.tipo, m.descripcion || '', money(Math.abs(m.monto)), saldoTexto(m.saldo_resultante, tipoCuentas), m.usuario || '']);
+    pdfHeader(doc, prefijo + c.nombre);
+    doc.setFontSize(11); doc.setTextColor(30, 30, 30);
+    doc.text('Saldo actual: ' + saldoTexto(c.balance, tipo), 14, 38);
+    const movRows = c.movimientos.map(m => [fmtDateShort(m.fecha), fmtTime(m.fecha), m.tipo, m.descripcion || '', money(Math.abs(m.monto)), saldoTexto(m.saldo_resultante, tipo), m.usuario || '']);
     if (movRows.length) {
       doc.autoTable({ startY: 45, head: [['Fecha', 'Hora', 'Tipo', 'Descripción', 'Monto', 'Saldo', 'Registrado por']], body: movRows, styles: { fontSize: 8 }, headStyles: { fillColor: [40, 40, 40] } });
     } else {
       doc.setFontSize(10); doc.setTextColor(140, 140, 140); doc.text('Sin movimientos registrados.', 14, 45);
     }
   });
+}
+// PDF de una sola sección (por cobrar o por pagar).
+async function generarPdfTipo(tipo) {
+  let data;
+  const T = TEXTOS_TIPO[tipo];
+  try { data = await api(`/reportes/general?tipo=${tipo}`); } catch (e) { toast('No se pudo generar el PDF'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  pdfHeader(doc, 'Kaab — ' + T.pdfTitulo);
+  doc.setFontSize(11); doc.setTextColor(30, 30, 30);
+  doc.text(T.total + ': ' + saldoTexto(data.balance, tipo), 14, 38);
+  doc.text('Total de cuentas: ' + data.cuentas.length, 14, 45);
+  pdfTablaCuentas(doc, data.cuentas, tipo, 52);
+  pdfPaginasCuentas(doc, data.cuentas, tipo, 'Cuenta: ');
   doc.save(T.pdfArchivo);
+  toast('PDF generado');
+}
+// PDF completo: resumen con lo que te deben, lo que debes y el neto; luego ambas listas y el detalle de cada cuenta.
+async function generarPdfCompleto() {
+  let data;
+  try { data = await api('/reportes/general'); } catch (e) { toast('No se pudo generar el PDF'); return; }
+  const cobrar = data.cuentas.filter(c => (c.tipo || 'cobrar') === 'cobrar');
+  const pagar = data.cuentas.filter(c => c.tipo === 'pagar');
+  const suma = l => l.reduce((s, c) => s + deudaDe(c.balance), 0);
+  const teDeben = suma(cobrar), debes = suma(pagar), neto = Math.round((teDeben - debes) * 100) / 100;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  pdfHeader(doc, 'Kaab — Reporte completo');
+  doc.setFontSize(11); doc.setTextColor(30, 30, 30);
+  doc.text('Te deben (por cobrar): ' + money(teDeben), 14, 38);
+  doc.text('Debes (por pagar): ' + money(debes), 14, 45);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Neto: ' + textoNeto(neto) + (neto > 0 ? '  (a tu favor)' : neto < 0 ? '  (debes más de lo que te deben)' : ''), 14, 52);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+  doc.text('Cuentas por cobrar (' + cobrar.length + ')', 14, 65);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+  let y = pdfTablaCuentas(doc, cobrar, 'cobrar', 69);
+  if (y > 250) { doc.addPage(); y = 20; }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(30, 30, 30);
+  doc.text('Cuentas por pagar (' + pagar.length + ')', 14, y + 12);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+  pdfTablaCuentas(doc, pagar, 'pagar', y + 16);
+  pdfPaginasCuentas(doc, cobrar, 'cobrar', 'Por cobrar: ');
+  pdfPaginasCuentas(doc, pagar, 'pagar', 'Por pagar: ');
+  doc.save('reporte-completo.pdf');
   toast('PDF generado');
 }
 function generarPdfCuenta(c) {
