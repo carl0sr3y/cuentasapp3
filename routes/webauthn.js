@@ -11,6 +11,7 @@ const { requireAuth, setAuthCookie } = require('../middleware/auth');
 const { setChallenge, takeChallenge, getRpAndOrigin } = require('../lib/webauthn');
 
 const { paramId } = require('../lib/validate');
+const limites = require('../lib/rateLimits');
 
 const router = express.Router();
 router.param('id', paramId);
@@ -92,7 +93,7 @@ router.delete('/credentials/:id', requireAuth, async (req, res) => {
 });
 
 // ---------- Iniciar sesión con huella (todavía sin sesión) ----------
-router.get('/login-options', async (req, res) => {
+router.get('/login-options', limites.webauthnOpciones, async (req, res) => {
   const { rpID } = getRpAndOrigin(req);
   const options = await generateAuthenticationOptions({ rpID, userVerification: 'required' });
   const requestId = crypto.randomUUID();
@@ -100,7 +101,7 @@ router.get('/login-options', async (req, res) => {
   res.json({ options, requestId });
 });
 
-router.post('/login-verify', async (req, res) => {
+router.post('/login-verify', limites.loginIp, async (req, res) => {
   const { requestId, response } = req.body || {};
   const expectedChallenge = typeof requestId === 'string' ? takeChallenge('login:' + requestId) : null;
   if (!expectedChallenge) return res.status(400).json({ error: 'La solicitud venció, intenta de nuevo' });

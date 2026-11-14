@@ -9,6 +9,7 @@ const cron = require('node-cron');
 const { pool, migrate } = require('./db/pool');
 const { COOKIE_NAME, verifyToken } = require('./middleware/auth');
 const realtime = require('./lib/realtime');
+const limites = require('./lib/rateLimits');
 const { limpiarHistorialRodante, crearBackupGeneral, crearBackupTienda } = require('./jobs/backup');
 
 const authRoutes = require('./routes/auth');
@@ -36,6 +37,7 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use('/api', limites.api);
 app.use('/api/auth', authRoutes);
 app.use('/api/empresas', empresasRoutes);
 app.use('/api/usuarios', usuariosRoutes);

@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../db/pool');
 const { setAuthCookie } = require('../middleware/auth');
+const limites = require('../lib/rateLimits');
 
 const router = express.Router();
 
@@ -43,7 +44,7 @@ router.get('/status', async (req, res) => {
 });
 
 // Crea una empresa nueva junto con su único administrador.
-router.post('/', async (req, res) => {
+router.post('/', limites.crearEmpresa, async (req, res) => {
   const body = req.body || {};
   for (const c of ['nombreEmpresa', 'nombre', 'usuario', 'email', 'contrasena', 'codigo']) {
     if (body[c] !== undefined && (typeof body[c] !== 'string' || body[c].length > 254)) {

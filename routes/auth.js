@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { requireAuth, setAuthCookie, clearAuthCookie } = require('../middleware/auth');
 const { sendMail } = require('../lib/mailer');
+const limites = require('../lib/rateLimits');
 
 // Todos los campos de estos formularios deben ser texto de largo razonable.
 // (Antes, un número en vez de texto hacía fallar .trim() y tumbaba el servidor.)
@@ -55,7 +56,7 @@ router.get('/status', async (req, res) => {
   res.json({ user: req.user || null, empresaCreationEnabled: codeConfigured && cupoDisponible });
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', limites.loginIp, limites.loginCuenta, async (req, res) => {
   const body = req.body || {};
   if (!camposTexto(body, ['codigoEmpresa', 'usuario', 'contrasena'])) return res.status(400).json({ error: 'Completa código de empresa, usuario y contraseña' });
   const { codigoEmpresa, usuario, contrasena } = body;
@@ -85,7 +86,7 @@ router.post('/login', async (req, res) => {
   res.json({ user, empresa: { id: empresa.id, nombre: empresa.nombre, codigo: empresa.codigo } });
 });
 
-router.post('/force-change-password', async (req, res) => {
+router.post('/force-change-password', limites.loginIp, limites.loginCuenta, async (req, res) => {
   const body = req.body || {};
   if (!camposTexto(body, ['codigoEmpresa', 'usuario', 'contrasena', 'nuevaContrasena']) || body.nuevaContrasena.length < 4) {
     return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta' });
@@ -115,7 +116,7 @@ router.post('/logout', requireAuth, async (req, res) => {
 });
 
 // El correo tampoco es único en toda la plataforma, así que hace falta el código de empresa.
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', limites.forgotIp, limites.forgotCorreo, async (req, res) => {
   const body = req.body || {};
   if (!camposTexto(body, ['codigoEmpresa', 'email'], 254)) return res.status(400).json({ error: 'Completa el código de empresa y el correo' });
   const { codigoEmpresa, email } = body;
@@ -143,7 +144,7 @@ router.post('/forgot-password', async (req, res) => {
   res.json({ ok: true });
 });
 
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', limites.resetIp, async (req, res) => {
   const body = req.body || {};
   if (!camposTexto(body, ['codigoEmpresa', 'email', 'code', 'nuevaContrasena'], 254) || body.nuevaContrasena.length < 4) {
     return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta' });
