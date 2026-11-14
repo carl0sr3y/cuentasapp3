@@ -152,6 +152,57 @@ router.post('/empresas/:id/estado', async (req, res) => {
   res.json(rows[0]);
 });
 
+// Cuánto se borraría al eliminar la empresa (para mostrarlo antes de confirmar).
+router.get('/empresas/:id/resumen', async (req, res) => {
+  const { rows: [r] } = await pool.query(
+    `SELECT e.id, e.nombre, e.codigo, e.activa,
+       (SELECT COUNT(*)::int FROM usuarios WHERE empresa_id = e.id) AS usuarios,
+       (SELECT COUNT(*)::int FROM cuentas WHERE empresa_id = e.id) AS cuentas,
+       (SELECT COUNT(*)::int FROM movimientos_cuentas m JOIN cuentas c ON c.id = m.cuenta_id WHERE c.empresa_id = e.id) AS movimientos_cuentas,
+       (SELECT COUNT(*)::int FROM movimientos_tienda WHERE empresa_id = e.id) AS movimientos_tienda
+     FROM empresas e WHERE e.id = $1`, [req.params.id]);
+  if (!r) return res.status(404).json({ error: 'Empresa no encontrada' });
+  res.json(r);
+});
+
+// Elimina una empresa con TODOS sus datos (usuarios, cuentas, movimientos, tienda, historial,
+// respaldos, huellas y notificaciones: todo cuelga de empresas con ON DELETE CASCADE).
+// Seguros: la empresa debe estar suspendida antes, hay que escribir su código exacto y dar un
+// código nuevo de la app autenticadora (un código ya usado no sirve). Queda en la bitácora.
+router.post('/empresas/:id/eliminar', async (req, res) => {
+  const body = req.body || {};
+  const confirmacion = texto(body.confirmacion, 40);
+  const codigoTotp = String(body.codigoTotp || '').replace(/\s/g, '');
+  const { rows: [emp] } = await pool.query('SELECT id, nombre, codigo, activa FROM empresas WHERE id = $1', [req.params.id]);
+  if (!emp) return res.status(404).json({ error: 'Empresa no encontrada' });
+  if (emp.activa) return res.status(409).json({ error: 'Primero suspende la empresa. Solo se pueden eliminar empresas suspendidas.' });
+  if (!confirmacion || confirmacion.trim().toUpperCase() !== emp.codigo) {
+    return res.status(400).json({ error: 'El código de empresa escrito no coincide.' });
+  }
+  const { rows: [sa] } = await pool.query('SELECT id, totp_secreto FROM superadmins WHERE id = $1', [req.superadmin.id]);
+  const paso = sa ? totp.verificar(sa.totp_secreto, codigoTotp) : null;
+  let totpOk = false;
+  if (paso !== null) {
+    const r = await pool.query(
+      'UPDATE superadmins SET ultimo_paso_totp = $1 WHERE id = $2 AND (ultimo_paso_totp IS NULL OR ultimo_paso_totp < $1)',
+      [paso, sa.id]
+    );
+    totpOk = r.rowCount === 1;
+  }
+  if (!totpOk) {
+    await registrarBitacora(req, req.superadmin.id, 'Eliminar empresa (rechazado)', `"${emp.nombre}" (${emp.codigo}): código de la app incorrecto o ya usado`);
+    // 400 (no 401): un 401 haría que el panel crea que la sesión venció y te saque.
+    return res.status(400).json({ error: 'Código de la app autenticadora incorrecto o ya usado. Espera el siguiente e intenta de nuevo.' });
+  }
+  const { rows: [cuenta] } = await pool.query(
+    `SELECT (SELECT COUNT(*)::int FROM usuarios WHERE empresa_id = $1) AS usuarios,
+            (SELECT COUNT(*)::int FROM cuentas WHERE empresa_id = $1) AS cuentas`, [emp.id]);
+  await pool.query('DELETE FROM empresas WHERE id = $1 AND activa = false', [emp.id]);
+  await registrarBitacora(req, req.superadmin.id, 'Eliminar empresa',
+    `"${emp.nombre}" (${emp.codigo}) eliminada con todos sus datos: ${cuenta.usuarios} usuario(s), ${cuenta.cuentas} cuenta(s)`);
+  res.json({ ok: true });
+});
+
 router.get('/empresas/:id/usuarios', async (req, res) => {
   const { rows: emp } = await pool.query('SELECT id, nombre, codigo, activa FROM empresas WHERE id = $1', [req.params.id]);
   if (!emp[0]) return res.status(404).json({ error: 'Empresa no encontrada' });

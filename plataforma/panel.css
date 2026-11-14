@@ -67,3 +67,8 @@
 .pl-datos dt{color:var(--text-dim);}
 .pl-datos dd{margin:0;font-family:var(--mono);}
 .pl-vacio{color:var(--text-dim);text-align:center;padding:30px 0;}
+/* Eliminar empresa */
+.pl-btn.peligro-lleno{background:var(--red);color:#fff;border-color:var(--red);}
+.pl-btn.peligro-lleno:disabled{opacity:.45;cursor:not-allowed;}
+.pl-borrar{margin:0 0 16px;padding-left:20px;color:var(--text);line-height:1.7;}
+.pl-modal .field{margin-bottom:12px;}

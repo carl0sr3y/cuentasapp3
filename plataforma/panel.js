@@ -170,7 +170,10 @@
             toast(accion === 'SUSPENDER' ? 'Empresa suspendida' : 'Empresa reactivada');
             cargarEmpresas(cont);
           } catch (err) { manejar(err); }
-        } }, e.activa ? 'Suspender' : 'Reactivar')),
+        } }, e.activa ? 'Suspender' : 'Reactivar'),
+        // Eliminar solo aparece con la empresa suspendida: dos pasos, imposible borrar una activa por error.
+        e.activa ? null : h('button', { class: 'pl-btn peligro', onclick: () => modalEliminar(e, cont) }, 'Eliminar empresa')),
+      e.activa ? null : h('div', { class: 'pl-meta' }, 'Suspendida: nadie puede entrar. Puedes reactivarla o eliminarla definitivamente.'),
       usuariosHueco);
     if (abiertas.has(e.id)) cargarUsuarios(e, usuariosHueco);
     return card;
@@ -259,6 +262,47 @@
       h('div', { class: 'pl-acciones' }, crear, h('button', { class: 'pl-btn', onclick: () => limpiar(hueco) }, 'Cancelar')),
       err));
     campos.nombreEmpresa.focus();
+  }
+
+  // Eliminar empresa: muestra lo que se borra y pide su código + un código de la app autenticadora.
+  async function modalEliminar(e, cont) {
+    let r;
+    try { r = await api(`/empresas/${e.id}/resumen`); } catch (err) { return manejar(err); }
+    const velo = h('div', { class: 'pl-velo' });
+    const cerrar = () => velo.remove();
+    const inputCodigo = h('input', { type: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', placeholder: r.codigo });
+    const inputTotp = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '6', placeholder: '6 dígitos' });
+    const err = h('p', { class: 'login-error' });
+    const borrar = h('button', { class: 'pl-btn peligro-lleno', disabled: true }, 'Eliminar para siempre');
+    const revisar = () => {
+      borrar.disabled = !(inputCodigo.value.trim().toUpperCase() === r.codigo && /^\d{6}$/.test(inputTotp.value.replace(/\s/g, '')));
+    };
+    inputCodigo.addEventListener('input', revisar);
+    inputTotp.addEventListener('input', revisar);
+    borrar.addEventListener('click', async () => {
+      err.textContent = ''; borrar.disabled = true;
+      try {
+        await api(`/empresas/${e.id}/eliminar`, { method: 'POST', body: { confirmacion: inputCodigo.value, codigoTotp: inputTotp.value } });
+        cerrar(); abiertas.delete(e.id);
+        toast(`"${r.nombre}" eliminada`);
+        cargarEmpresas(cont);
+      } catch (x) { err.textContent = x.message; inputTotp.value = ''; revisar(); }
+    });
+    velo.appendChild(h('div', { class: 'pl-modal', role: 'dialog', 'aria-modal': 'true' },
+      h('h2', null, `Eliminar "${r.nombre}"`),
+      h('p', null, 'Se borrará la empresa con TODOS sus datos. Esto no se puede deshacer, ni siquiera desde aquí.'),
+      h('ul', { class: 'pl-borrar' },
+        h('li', null, `${r.usuarios} usuario(s) y sus huellas`),
+        h('li', null, `${r.cuentas} cuenta(s) por cobrar y por pagar`),
+        h('li', null, `${r.movimientos_cuentas} movimiento(s) de cuentas`),
+        h('li', null, `${r.movimientos_tienda} movimiento(s) de tienda`),
+        h('li', null, 'Historial, copias de seguridad y notificaciones')),
+      h('div', { class: 'field' }, h('label', null, `Escribe el código de la empresa: ${r.codigo}`), inputCodigo),
+      h('div', { class: 'field' }, h('label', null, 'Código de tu app autenticadora'), inputTotp),
+      h('div', { class: 'pl-acciones' }, borrar, h('button', { class: 'pl-btn', onclick: cerrar }, 'Cancelar')),
+      err));
+    document.body.appendChild(velo);
+    inputCodigo.focus();
   }
 
   function modalSecreto(titulo, texto, datos, secreto, alCerrar) {
