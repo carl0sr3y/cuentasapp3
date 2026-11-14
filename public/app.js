@@ -24,7 +24,6 @@ const ICONS = {
   fingerprint: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>`,
   camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
   receipt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h16v20l-3-2-3 2-3-2-3 2-3-2-1 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>`,
-  more: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>`,
 };
 
 /* ============================================================
@@ -312,62 +311,6 @@ function resaltar(selector) {
   if (!animOn()) return;
   const el = document.querySelector(selector);
   if (el) { el.classList.remove('nuevo'); void el.offsetWidth; el.classList.add('nuevo'); }
-}
-
-/* ============================================================
-   MENÚ DESPLEGABLE (botón de tres puntitos)
-   ============================================================ */
-let menuAbierto = null;
-function cerrarMenu() {
-  if (!menuAbierto) return;
-  const { el, boton } = menuAbierto;
-  menuAbierto = null;
-  boton.setAttribute('aria-expanded', 'false');
-  document.removeEventListener('pointerdown', cerrarMenuFuera, true);
-  document.removeEventListener('keydown', cerrarMenuTecla);
-  window.removeEventListener('scroll', cerrarMenu, true);
-  window.removeEventListener('resize', cerrarMenu);
-  if (animOn()) { el.classList.add('cerrando'); setTimeout(() => el.remove(), 140); } else el.remove();
-}
-// Tocar fuera SOLO cierra el menú: ese mismo toque no debe abrir lo que haya debajo (p. ej. una cuenta).
-function cerrarMenuFuera(e) {
-  if (!menuAbierto || menuAbierto.el.contains(e.target) || menuAbierto.boton.contains(e.target)) return;
-  cerrarMenu();
-  const tragar = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
-  document.addEventListener('click', tragar, { capture: true, once: true });
-  setTimeout(() => document.removeEventListener('click', tragar, true), 500);
-}
-function cerrarMenuTecla(e) { if (e.key === 'Escape') { const b = menuAbierto && menuAbierto.boton; cerrarMenu(); if (b) b.focus(); } }
-// items: [{ icono, texto, accion }]. Se abre pegado al botón, alineado a su borde derecho.
-function abrirMenu(boton, items) {
-  if (menuAbierto && menuAbierto.boton === boton) { cerrarMenu(); return; }
-  cerrarMenu();
-  const el = document.createElement('div');
-  el.className = 'menu-pop';
-  el.setAttribute('role', 'menu');
-  items.forEach(it => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.setAttribute('role', 'menuitem');
-    b.innerHTML = it.icono + '<span></span>';
-    b.querySelector('span').textContent = it.texto;
-    b.onclick = () => { cerrarMenu(); it.accion(); };
-    el.appendChild(b);
-  });
-  document.body.appendChild(el);
-  const r = boton.getBoundingClientRect();
-  el.style.top = (r.bottom + 6) + 'px';
-  el.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
-  boton.setAttribute('aria-expanded', 'true');
-  menuAbierto = { el, boton };
-  setTimeout(() => {
-    document.addEventListener('pointerdown', cerrarMenuFuera, true);
-    document.addEventListener('keydown', cerrarMenuTecla);
-    window.addEventListener('scroll', cerrarMenu, true);
-    window.addEventListener('resize', cerrarMenu);
-  }, 0);
-  const primero = el.querySelector('button');
-  if (primero) primero.focus({ preventScroll: true });
 }
 
 /* ============================================================
@@ -790,13 +733,12 @@ async function applyHistoryState(state) {
    VISTA DEUDAS
    ============================================================ */
 function renderDeudas() {
-  cerrarMenu(); // si estaba abierto, su botón va a desaparecer al redibujar
   const el = document.getElementById('deudasView');
   const total = totalGeneral();
 
   el.innerHTML = `
     <div class="balance-block">
-      <button class="kebab-btn" id="btnMasGeneral" type="button" aria-label="Más opciones" aria-haspopup="menu">${ICONS.more}</button>
+      <button class="balance-pdf-btn" id="btnPdfGeneral" type="button" aria-label="Generar PDF general">${ICONS.pdf}<span>PDF</span></button>
       <div class="balance-label">Balance general</div>
       <div class="balance-amount ${total >= 0 ? 'pos' : 'neg'}" data-saldo="${total}" data-clave="general">${money(total)}</div>
     </div>
@@ -813,9 +755,7 @@ function renderDeudas() {
 
   document.getElementById('btnCrearCuenta').onclick = openCreateAccountModal;
   if (esAdminActual()) document.getElementById('btnEliminarCuentas').onclick = toggleSelectMode;
-  document.getElementById('btnMasGeneral').onclick = (e) => abrirMenu(e.currentTarget, [
-    { icono: ICONS.pdf, texto: 'Generar PDF general', accion: generarPdfGeneral },
-  ]);
+  document.getElementById('btnPdfGeneral').onclick = generarPdfGeneral;
   renderAccountsListOnly();
   animarSaldos(document.getElementById('deudasView'));
 }
@@ -999,6 +939,7 @@ function renderAccountDetailPage() {
       </div>
       <div class="detail-body">
         <div class="balance-block">
+          <button class="balance-pdf-btn" id="btnPdfCuenta" type="button" aria-label="Generar PDF del historial de ${escapeHtml(c.nombre)}">${ICONS.pdf}<span>PDF</span></button>
           <div class="balance-label">Balance de ${escapeHtml(c.nombre)}</div>
           <div class="balance-amount ${c.balance >= 0 ? 'pos' : 'neg'}" data-saldo="${c.balance}" data-clave="cuenta-${c.id}">${money(c.balance)}</div>
         </div>
@@ -1006,7 +947,6 @@ function renderAccountDetailPage() {
           <button class="abono-btn" id="btnAbono">${ICONS.arrowDown} Abono</button>
           <button class="cargo-btn" id="btnCargo">${ICONS.arrowUp} Cargo</button>
         </div>
-        <button class="pdf-btn" id="btnPdfCuenta">${ICONS.pdf} Generar PDF del historial</button>
         ${movs.length ? `<div class="swipe-hint">Mantén presionado un movimiento para eliminarlo</div>` : ''}
         <div id="movList">
           ${movs.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Sin movimientos todavía. Registra un abono o un cargo.</p></div>` :
