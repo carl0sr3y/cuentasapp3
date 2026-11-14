@@ -383,7 +383,7 @@ function renderForcedPasswordChange(codigoEmpresa, usuario, contrasenaActual, me
         <div class="field"><label>Código de empresa</label><input id="fpcCodigo" type="text" value="${escapeHtml(codigoEmpresa || '')}" style="text-transform:uppercase;"></div>
         <div class="field"><label>Usuario</label><input id="fpcUsuario" type="text" value="${escapeHtml(usuario || '')}"></div>
         <div class="field"><label>Contraseña actual</label><input id="fpcActual" type="password"></div>`}
-      <div class="field"><label>Nueva contraseña</label><input id="fpcNueva" type="password" placeholder="Mínimo 4 caracteres"></div>
+      <div class="field"><label>Nueva contraseña</label><input id="fpcNueva" type="password" placeholder="Mínimo 8 caracteres"></div>
       <button class="btn-primary" id="fpcBtn">Actualizar y continuar</button>
       <p class="login-error" id="fpcErr"></p>
     </div>`;
@@ -393,7 +393,7 @@ function renderForcedPasswordChange(codigoEmpresa, usuario, contrasenaActual, me
     const actual = contrasenaActual || document.getElementById('fpcActual').value;
     const nueva = document.getElementById('fpcNueva').value;
     const err = document.getElementById('fpcErr');
-    if (!codigoVal || !usuarioVal || !actual || !nueva || nueva.length < 4) { err.textContent = 'Completa todos los campos (mínimo 4 caracteres).'; return; }
+    if (!codigoVal || !usuarioVal || !actual || !nueva || nueva.length < 8) { err.textContent = 'Completa todos los campos (mínimo 8 caracteres).'; return; }
     try {
       const { user, empresa } = await api('/auth/force-change-password', { method: 'POST', body: { codigoEmpresa: codigoVal, usuario: usuarioVal, contrasena: actual, nuevaContrasena: nueva } });
       AUTH = user; EMPRESA = empresa;
@@ -413,7 +413,7 @@ function renderCreateEmpresaView() {
       <div class="field"><label>Tu nombre</label><input id="ceNombre" type="text"></div>
       <div class="field"><label>Usuario</label><input id="ceUsuario" type="text"></div>
       <div class="field"><label>Correo electrónico</label><input id="ceEmail" type="email"></div>
-      <div class="field"><label>Contraseña</label><input id="cePass" type="password" placeholder="Mínimo 4 caracteres"></div>
+      <div class="field"><label>Contraseña</label><input id="cePass" type="password" placeholder="Mínimo 8 caracteres"></div>
       <div class="field"><label>Código de invitación</label><input id="ceCodigo" type="text"></div>
       <button class="btn-primary" id="ceBtn">Crear empresa</button>
       <p class="login-error" id="ceErr"></p>
@@ -505,7 +505,9 @@ async function doLogoutCleanup() {
   document.getElementById('loginScreen').classList.remove('hidden');
   renderLogin();
 }
+function esAdminActual() { return !!(AUTH && AUTH.rol === 'admin'); }
 async function checkPendingTiendaBackup() {
+  if (!esAdminActual()) return; // las copias son solo del administrador
   try {
     const pending = await api('/backups/tienda/pending');
     if (!pending) return;
@@ -637,7 +639,7 @@ function renderDeudas() {
     </div>
     <div class="action-row">
       <button class="action-btn" id="btnCrearCuenta">${ICONS.plus}Crear cuenta</button>
-      <button class="action-btn danger" id="btnEliminarCuentas">${ICONS.trash}Eliminar</button>
+      ${esAdminActual() ? `<button class="action-btn danger" id="btnEliminarCuentas">${ICONS.trash}Eliminar</button>` : ''}
       <button class="action-btn" id="btnPdfGeneral">${ICONS.pdf}PDF general</button>
     </div>
     <div class="search-wrap">${ICONS.search}<input class="search-input" id="searchAccounts" placeholder="Buscar cuenta..." value="${searchQuery.replace(/"/g, '&quot;')}"></div>
@@ -647,7 +649,7 @@ function renderDeudas() {
   `;
 
   document.getElementById('btnCrearCuenta').onclick = openCreateAccountModal;
-  document.getElementById('btnEliminarCuentas').onclick = toggleSelectMode;
+  if (esAdminActual()) document.getElementById('btnEliminarCuentas').onclick = toggleSelectMode;
   document.getElementById('btnPdfGeneral').onclick = generarPdfGeneral;
   document.getElementById('searchAccounts').oninput = (e) => { searchQuery = e.target.value; renderAccountsListOnly(); };
   renderAccountsListOnly();
@@ -848,7 +850,7 @@ function movRowHtml(m) {
         <div class="mov-desc">${escapeHtml(m.descripcion || (isIn ? 'Abono' : 'Cargo'))}</div>
         <div class="mov-time">${fmtTime(m.fecha)}${m.usuario ? ' · <span class="mov-author">' + escapeHtml(m.usuario) + '</span>' : ''}</div>
       </div>
-      ${m.foto ? `<button class="mov-photo-btn" data-photo="${m.id}" title="Ver factura">${ICONS.camera}</button>` : ''}
+      ${m.tiene_foto ? `<button class="mov-photo-btn" data-photo="${m.id}" title="Ver factura">${ICONS.camera}</button>` : ''}
       <div class="mov-amounts">
         <div class="mov-monto ${isIn ? 'pos' : 'neg'}">${isIn ? '+' : ''}${money(m.monto)}</div>
         <div class="mov-saldo">saldo: ${money(m.saldo_resultante)}</div>
@@ -860,7 +862,8 @@ function bindPhotoButtons(container, movs) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const m = movs.find(x => String(x.id) === btn.dataset.photo);
-      if (m && m.foto) openPhotoLightbox(m.foto);
+      if (!m || !m.tiene_foto) return;
+      obtenerFoto(m.id).then(openPhotoLightbox).catch(() => toast('No se pudo cargar la foto'));
     });
   });
 }
@@ -875,6 +878,15 @@ function crearImgFoto(dataUrl, estilo) {
   if (esFotoSegura(dataUrl)) img.src = dataUrl;
   else img.alt = 'Foto no disponible';
   return img;
+}
+// Las fotos ya no vienen en la lista de movimientos: se piden una por una y se guardan aquí.
+const cacheFotos = new Map();
+async function obtenerFoto(movId) {
+  if (!cacheFotos.has(movId)) {
+    const { foto } = await api(`/tienda/${movId}/foto`);
+    cacheFotos.set(movId, foto);
+  }
+  return cacheFotos.get(movId);
 }
 function openPhotoLightbox(dataUrl) {
   showModal(`
@@ -1151,7 +1163,12 @@ function generarPdfFactura() {
    ============================================================ */
 async function openHistorialPage(opts = {}) {
   let hist = [], backups = [], backupsTienda = [];
-  try { [hist, backups, backupsTienda] = await Promise.all([api('/historial'), api('/backups'), api('/backups/tienda')]); } catch (e) { toast('No se pudo cargar el historial'); }
+  const esAdmin = esAdminActual(); // las copias de seguridad solo las ve el administrador
+  try {
+    [hist, backups, backupsTienda] = await Promise.all([
+      api('/historial'), esAdmin ? api('/backups') : [], esAdmin ? api('/backups/tienda') : [],
+    ]);
+  } catch (e) { toast('No se pudo cargar el historial'); }
   if (!opts.fromHistory) history.pushState({ view: 'historial' }, '', location.href);
   const root = document.getElementById('pageRoot');
   const groups = {};
@@ -1182,7 +1199,7 @@ async function openHistorialPage(opts = {}) {
             </div>
           `).join('')
         }
-        <div class="section-title" style="margin-top:22px;">Copias de seguridad general</div>
+        ${esAdmin ? `<div class="section-title" style="margin-top:22px;">Copias de seguridad general</div>
         <p class="desc" style="margin:-6px 0 14px;">Se genera una cada domingo (cierra la semana lunes-domingo). Se conservan las últimas 4 semanas.</p>
         ${backups.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Todavía no se ha generado ninguna copia.</p></div>` :
           backups.map(b => backupRowHtml(b, 'general')).join('')
@@ -1191,7 +1208,7 @@ async function openHistorialPage(opts = {}) {
         <p class="desc" style="margin:-6px 0 14px;">Se genera una a fin de cada mes, con las fotos de facturas y un resumen. Se conservan los últimos 2 meses.</p>
         ${backupsTienda.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Todavía no se ha generado ninguna copia de tienda.</p></div>` :
           backupsTienda.map(b => backupRowHtml(b, 'tienda')).join('')
-        }
+        }` : ''}
       </div>
     </div>`;
   document.getElementById('histBack').onclick = () => { history.back(); };
@@ -1404,7 +1421,7 @@ function openChangePasswordModal(userId, nombre, isOwn) {
     <h3>Cambiar contraseña${isOwn ? '' : ' de ' + escapeHtml(nombre)}</h3>
     <p class="desc">${isOwn ? 'Confirma tu contraseña actual y elige una nueva. Se cerrará tu sesión en tus otros dispositivos.' : 'Define una contraseña temporal y entrégasela a la persona. Se cerrarán sus sesiones, se quitará su huella y, al entrar, deberá elegir una contraseña propia.'}</p>
     ${isOwn ? `<div class="field"><label>Contraseña actual</label><input id="passActual" type="password"></div>` : ''}
-    <div class="field"><label>Nueva contraseña</label><input id="passNueva" type="password" placeholder="Mínimo 4 caracteres"></div>
+    <div class="field"><label>Nueva contraseña</label><input id="passNueva" type="password" placeholder="Mínimo 8 caracteres"></div>
     <div class="modal-actions">
       <button class="btn-cancel" data-close>Cancelar</button>
       <button class="btn-confirm" id="confirmPass">Guardar</button>
@@ -1415,7 +1432,7 @@ function openChangePasswordModal(userId, nombre, isOwn) {
     const nueva = document.getElementById('passNueva').value;
     const actual = isOwn ? document.getElementById('passActual').value : undefined;
     const err = document.getElementById('passErr');
-    if (!nueva || nueva.length < 4) { err.textContent = 'La nueva contraseña debe tener al menos 4 caracteres.'; return; }
+    if (!nueva || nueva.length < 8) { err.textContent = 'La nueva contraseña debe tener al menos 8 caracteres.'; return; }
     try {
       await api(`/usuarios/${userId}/password`, { method: 'PATCH', body: { actual, nueva } });
       closeModal(); toast('Contraseña actualizada');
@@ -1429,7 +1446,7 @@ function openCreateUserModal() {
     <div class="field"><label>Nombre</label><input id="newUserNombre" type="text"></div>
     <div class="field"><label>Usuario</label><input id="newUserUsuario" type="text"></div>
     <div class="field"><label>Correo electrónico</label><input id="newUserEmail" type="email"></div>
-    <div class="field"><label>Contraseña</label><input id="newUserPass" type="password" placeholder="Mínimo 4 caracteres"></div>
+    <div class="field"><label>Contraseña</label><input id="newUserPass" type="password" placeholder="Mínimo 8 caracteres"></div>
     <div class="modal-actions">
       <button class="btn-cancel" data-close>Cancelar</button>
       <button class="btn-confirm" id="confirmNewUser">Crear</button>
@@ -1590,8 +1607,13 @@ async function generarPdfTienda(movs, label) {
     doc.setFontSize(10); doc.setTextColor(140, 140, 140); doc.text('No hay movimientos en este rango.', 14, 43);
   }
 
-  const conFoto = movs.filter(m => esFotoSegura(m.foto));
+  const conFoto = movs.filter(m => m.tiene_foto);
+  if (conFoto.length) toast(`Descargando ${conFoto.length} foto(s) para el PDF…`);
   for (const m of conFoto) {
+    let foto;
+    try { foto = await obtenerFoto(m.id); } catch (e) { continue; }
+    if (!esFotoSegura(foto)) continue;
+    m.foto = foto;
     doc.addPage();
     pdfHeader(doc, 'Factura — ' + fmtDateShort(m.fecha) + ' ' + fmtTime(m.fecha));
     doc.setFontSize(10); doc.setTextColor(80, 80, 80);

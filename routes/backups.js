@@ -1,11 +1,13 @@
 const express = require('express');
 const { pool } = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 const { paramId } = require('../lib/validate');
 
 const router = express.Router();
 router.use(requireAuth);
+// Las copias contienen TODOS los datos de la empresa: solo el administrador (auditoría V10).
+router.use(requireAdmin);
 router.param('id', paramId);
 
 router.get('/', async (req, res) => {

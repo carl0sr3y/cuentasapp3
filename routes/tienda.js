@@ -24,7 +24,9 @@ async function registrarHistorial(empresaId, usuarioId, accion, detalle, extra =
 
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT m.id, m.tipo, m.descripcion, m.monto, m.saldo_resultante, m.fecha, m.foto, u.nombre AS usuario
+    // Sin la foto: solo si tiene una. Antes cada carga (y cada refresco en tiempo real de cada
+    // dispositivo) descargaba TODAS las fotos del mes: megas de tráfico pagado (auditoría V8).
+    `SELECT m.id, m.tipo, m.descripcion, m.monto, m.saldo_resultante, m.fecha, (m.foto IS NOT NULL) AS tiene_foto, u.nombre AS usuario
      FROM movimientos_tienda m LEFT JOIN usuarios u ON u.id = m.usuario_id
      WHERE m.empresa_id = $1
      ORDER BY m.fecha ASC, m.id ASC`,
@@ -59,7 +61,7 @@ router.post('/', async (req, res) => {
     const saldo = (await saldoTienda(client, empresaId)) + montoFinal;
     const { rows } = await client.query(
       `INSERT INTO movimientos_tienda (empresa_id, usuario_id, tipo, descripcion, monto, saldo_resultante, foto, fecha)
-       VALUES ($1,$2,$3,$4,$5,$6,$7, clock_timestamp()) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha, foto`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7, clock_timestamp()) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha, (foto IS NOT NULL) AS tiene_foto`,
       [empresaId, req.user.id, tipo, descripcion, montoFinal, saldo, foto]
     );
     return { mov: { ...rows[0], usuario: req.user.nombre }, saldoResultante: Number(rows[0].saldo_resultante) };
@@ -79,6 +81,17 @@ router.post('/', async (req, res) => {
     excludeClientId: clientIdOf(req),
   }).catch(e => console.error('Error enviando push:', e.message));
   res.json({ movimiento: mov, balance: saldoResultante });
+});
+
+// La foto de un movimiento, solo cuando se pide (al abrirla o al generar el PDF).
+router.get('/:movId/foto', async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT foto FROM movimientos_tienda WHERE id = $1 AND empresa_id = $2 AND foto IS NOT NULL',
+    [req.params.movId, req.user.empresa_id]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Foto no encontrada' });
+  res.set('Cache-Control', 'private, max-age=86400'); // la foto de un movimiento nunca cambia
+  res.json({ foto: rows[0].foto });
 });
 
 router.delete('/:movId', async (req, res) => {

@@ -49,8 +49,8 @@ router.post('/', limites.crearEmpresa, async (req, res) => {
       return res.status(403).json({ error: 'Por ahora no hay cupo disponible para nuevas empresas. Intenta más tarde.' });
     }
   }
-  if (!nombreEmpresa || !nombre || !usuario || !email || !contrasena || contrasena.length < 4) {
-    return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta' });
+  if (!nombreEmpresa || !nombre || !usuario || !email || !contrasena || contrasena.length < 8) {
+    return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta (mínimo 8 caracteres)' });
   }
 
   const codigoEmpresa = await generarCodigoUnico(nombreEmpresa);

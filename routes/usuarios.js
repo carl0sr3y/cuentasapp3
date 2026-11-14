@@ -42,8 +42,8 @@ router.post('/', async (req, res) => {
   const usuario = texto(body.usuario, 60);
   const email = texto(body.email, 254);
   const contrasena = typeof body.contrasena === 'string' && body.contrasena.length <= 200 ? body.contrasena : null;
-  if (!nombre || !usuario || !email || !contrasena || contrasena.length < 4) {
-    return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta' });
+  if (!nombre || !usuario || !email || !contrasena || contrasena.length < 8) {
+    return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta (mínimo 8 caracteres)' });
   }
   const { rows: existente } = await pool.query(
     'SELECT id FROM usuarios WHERE empresa_id = $1 AND (usuario = $2 OR email = $3)',
@@ -85,7 +85,7 @@ router.patch('/:id/email', async (req, res) => {
 router.patch('/:id/password', async (req, res) => {
   const { actual, nueva } = req.body || {};
   if (actual !== undefined && typeof actual !== 'string') return res.status(400).json({ error: 'Datos inválidos' });
-  if (typeof nueva !== 'string' || nueva.length < 4 || nueva.length > 200) return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 4 caracteres' });
+  if (typeof nueva !== 'string' || nueva.length < 8 || nueva.length > 200) return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres' });
   const targetId = Number(req.params.id);
   const { rows } = await pool.query('SELECT * FROM usuarios WHERE id = $1 AND empresa_id = $2', [targetId, req.user.empresa_id]);
   const target = rows[0];

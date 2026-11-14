@@ -1,6 +1,6 @@
 const express = require('express');
 const { pool } = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { broadcast } = require('../lib/realtime');
 const { sendPushToOthers } = require('../lib/push');
 const { texto, textoOpcional, idValido, montoValido, paramId } = require('../lib/validate');
@@ -61,7 +61,8 @@ router.patch('/:id', async (req, res) => {
   res.json(rows[0]);
 });
 
-router.post('/delete', async (req, res) => {
+// Borrar cuentas completas (con todo su historial) es solo del administrador (auditoría V10).
+router.post('/delete', requireAdmin, async (req, res) => {
   const idsCrudos = (req.body || {}).ids;
   if (!Array.isArray(idsCrudos) || idsCrudos.length === 0 || idsCrudos.length > 1000) return res.status(400).json({ error: 'ids requerido' });
   const ids = idsCrudos.map(idValido);

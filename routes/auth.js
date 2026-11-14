@@ -87,8 +87,8 @@ router.post('/login', limites.loginIp, limites.loginCuenta, async (req, res) => 
 
 router.post('/force-change-password', limites.loginIp, limites.loginCuenta, async (req, res) => {
   const body = req.body || {};
-  if (!camposTexto(body, ['codigoEmpresa', 'usuario', 'contrasena', 'nuevaContrasena']) || body.nuevaContrasena.length < 4) {
-    return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta' });
+  if (!camposTexto(body, ['codigoEmpresa', 'usuario', 'contrasena', 'nuevaContrasena']) || body.nuevaContrasena.length < 8) {
+    return res.status(400).json({ error: 'Datos incompletos o contraseña muy corta (mínimo 8 caracteres)' });
   }
   const cred = await verificarCredenciales(body.codigoEmpresa, body.usuario, body.contrasena);
   if (!cred) return res.status(401).json({ error: MSG_CREDENCIALES });

@@ -23,13 +23,65 @@ const backupsRoutes = require('./routes/backups');
 const pushRoutes = require('./routes/push');
 const webauthnRoutes = require('./routes/webauthn');
 const plataformaRoutes = require('./routes/plataforma');
+const { IS_PROD } = require('./lib/config');
 
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1); // detrás del proxy de Railway; necesario para que WebAuthn detecte bien el protocolo/origen
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json({ limit: '10mb' }));
+// Cabeceras de seguridad para toda la app (auditoría V14).
+app.use((req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',                       // nadie puede incrustar la app (clickjacking)
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(self), microphone=(), geolocation=(), payment=()',
+  });
+  if (IS_PROD) res.set('Strict-Transport-Security', 'max-age=15552000'); // 180 días solo HTTPS
+  next();
+});
+
+// Política de contenido (CSP) en MODO OBSERVACIÓN para la app de empresas: no bloquea nada,
+// solo informa en los logs lo que bloquearía. Cuando los logs confirmen que no hay avisos
+// legítimos, se cambia a Content-Security-Policy para que sí bloquee.
+const CSP_APP = [
+  "default-src 'self'",
+  "script-src 'self' https://cdnjs.cloudflare.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "connect-src 'self'",
+  "worker-src 'self'",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  'report-uri /csp-report',
+].join('; ');
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/') && !req.path.startsWith('/plataforma')) {
+    res.set('Content-Security-Policy-Report-Only', CSP_APP);
+  }
+  next();
+});
+const avisosCsp = new Set();
+app.post('/csp-report', limites.cspReport,
+  express.json({ type: ['application/csp-report', 'application/reports+json', 'application/json'], limit: '20kb' }),
+  (req, res) => {
+    const r = (req.body && (req.body['csp-report'] || (Array.isArray(req.body) && req.body[0] && req.body[0].body))) || {};
+    const directiva = String(r['violated-directive'] || r.effectiveDirective || r['effective-directive'] || '?').slice(0, 80);
+    const bloqueado = String(r['blocked-uri'] || r.blockedURL || '?').slice(0, 200);
+    const clave = directiva + ' ' + bloqueado;
+    if (!avisosCsp.has(clave) && avisosCsp.size < 200) { // cada aviso distinto se registra una sola vez
+      avisosCsp.add(clave);
+      console.warn(`CSP (modo observación) bloquearía: ${directiva} → ${bloqueado}`);
+    }
+    res.status(204).end();
+  });
+
+// Las fotos de factura (máx. 1,5 MB) son lo más grande que se envía; 2 MB deja margen.
+app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 
 app.use((req, res, next) => {
