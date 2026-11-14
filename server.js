@@ -13,7 +13,6 @@ const limites = require('./lib/rateLimits');
 const { limpiarHistorialRodante, crearBackupGeneral, crearBackupTienda } = require('./jobs/backup');
 
 const authRoutes = require('./routes/auth');
-const empresasRoutes = require('./routes/empresas');
 const usuariosRoutes = require('./routes/usuarios');
 const cuentasRoutes = require('./routes/cuentas');
 const tiendaRoutes = require('./routes/tienda');
@@ -103,7 +102,6 @@ app.get('/health', async (req, res) => {
 
 app.use('/api', limites.api);
 app.use('/api/auth', authRoutes);
-app.use('/api/empresas', empresasRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/cuentas', cuentasRoutes);
 app.use('/api/tienda', tiendaRoutes);
@@ -131,6 +129,9 @@ app.use('/api/plataforma', cabecerasPlataforma, plataformaRoutes);
 app.use('/plataforma', cabecerasPlataforma, express.static(path.join(__dirname, 'plataforma'), { index: 'index.html', redirect: true }));
 
 app.use(express.static(path.join(__dirname, 'public')));
+// Cualquier dirección /api/... que no existe responde 404 (no la página de la app).
+app.use('/api', (req, res) => res.status(404).json({ error: 'No encontrado' }));
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

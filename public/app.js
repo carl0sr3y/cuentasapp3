@@ -426,12 +426,10 @@ function escapeHtml(s) {
 /* ============================================================
    AUTENTICACIÓN
    ============================================================ */
-let empresaCreationEnabled = false;
 let EMPRESA = null; // {id, nombre, codigo} de la empresa actual, una vez logueado
 async function initAuth() {
   try {
     const status = await api('/auth/status');
-    empresaCreationEnabled = !!status.empresaCreationEnabled;
     if (status.user) { AUTH = status.user; return enterApp(); }
     renderLogin(false, { autoHuella: true }); // solo al abrir la app, no al cerrar sesión
   } catch (e) {
@@ -492,7 +490,6 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
       <button class="btn-primary" id="loginBtn">Iniciar sesión</button>
       <p class="login-error" id="loginErr"></p>
       ${fingerprintSupported() ? `<button class="btn-secondary" id="fpLoginBtn">${ICONS.fingerprint}<span>${conHuella ? 'Volver a entrar con huella' : 'Entrar con huella / Face ID'}</span></button>` : ''}
-      ${empresaCreationEnabled ? `<p class="login-toggle"><button id="goCreateEmpresa">Crear nueva empresa</button></p>` : ''}
       <p class="login-help">¿Olvidaste tu contraseña? Pídele al administrador de tu empresa que te la restablezca.</p>
     </div>`;
   if (fingerprintSupported()) {
@@ -527,7 +524,6 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
   };
   document.getElementById('loginBtn').onclick = tryLogin;
   root.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); }));
-  if (empresaCreationEnabled) document.getElementById('goCreateEmpresa').onclick = () => renderCreateEmpresaView();
 }
 function renderForcedPasswordChange(codigoEmpresa, usuario, contrasenaActual, message) {
   const root = document.getElementById('loginScreen');
@@ -558,59 +554,6 @@ function renderForcedPasswordChange(codigoEmpresa, usuario, contrasenaActual, me
       enterApp();
     } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo actualizar la contraseña.'; }
   };
-}
-function renderCreateEmpresaView() {
-  const root = document.getElementById('loginScreen');
-  root.innerHTML = `
-    <div class="login-card">
-      <div class="login-mark">${ICONS.userPlus}</div>
-      <h1>Crear nueva empresa</h1>
-      <p class="sub">Vas a ser el único administrador de esta empresa. Necesitas el código de invitación que te dieron.</p>
-      <div class="field"><label>Nombre de la empresa</label><input id="ceNombreEmpresa" type="text" placeholder="Ej. Tienda Santa Elena"></div>
-      <div class="field"><label>Tu nombre</label><input id="ceNombre" type="text"></div>
-      <div class="field"><label>Usuario</label><input id="ceUsuario" type="text"></div>
-      <div class="field"><label>Correo electrónico</label><input id="ceEmail" type="email"></div>
-      <div class="field"><label>Contraseña</label><input id="cePass" type="password" placeholder="Mínimo 8 caracteres"></div>
-      <div class="field"><label>Código de invitación</label><input id="ceCodigo" type="text"></div>
-      <button class="btn-primary" id="ceBtn">Crear empresa</button>
-      <p class="login-error" id="ceErr"></p>
-      <p class="login-toggle"><button id="backToLoginCE">Ya tengo una empresa, iniciar sesión</button></p>
-    </div>`;
-  document.getElementById('backToLoginCE').onclick = () => renderLogin();
-  document.getElementById('ceBtn').onclick = async () => {
-    const nombreEmpresa = document.getElementById('ceNombreEmpresa').value.trim();
-    const nombre = document.getElementById('ceNombre').value.trim();
-    const usuario = document.getElementById('ceUsuario').value.trim();
-    const email = document.getElementById('ceEmail').value.trim();
-    const contrasena = document.getElementById('cePass').value;
-    const codigo = document.getElementById('ceCodigo').value.trim();
-    const err = document.getElementById('ceErr');
-    if (!nombreEmpresa || !nombre || !usuario || !email || !contrasena || !codigo) { err.textContent = 'Completa todos los campos.'; return; }
-    try {
-      const { user, empresa } = await api('/empresas', { method: 'POST', body: { nombreEmpresa, nombre, usuario, email, contrasena, codigo } });
-      AUTH = user; EMPRESA = empresa;
-      renderEmpresaCreatedScreen(empresa);
-    } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo crear la empresa.'; }
-  };
-}
-function renderEmpresaCreatedScreen(empresa) {
-  const root = document.getElementById('loginScreen');
-  root.innerHTML = `
-    <div class="login-card">
-      <div class="login-mark">${ICONS.check}</div>
-      <h1>¡Empresa creada!</h1>
-      <p class="sub">Guarda tu usuario para entrar: lo vas a necesitar junto con tu contraseña. Las personas de tu equipo entrarán igual, con su usuario y el mismo código de empresa después de la @.</p>
-      <div class="field">
-        <label>Tu usuario para entrar</label>
-        <input type="text" value="${escapeHtml(idAcceso(AUTH.usuario, empresa.codigo))}" readonly style="font-size:18px;text-align:center;font-weight:700;">
-      </div>
-      <div class="field">
-        <label>Código de tu empresa</label>
-        <input type="text" value="${escapeHtml(empresa.codigo)}" readonly style="font-family:var(--mono);font-size:16px;text-align:center;font-weight:700;letter-spacing:2px;">
-      </div>
-      <button class="btn-primary" id="ceContinueBtn">Entrar a mi empresa</button>
-    </div>`;
-  document.getElementById('ceContinueBtn').onclick = () => enterApp();
 }
 async function enterApp() {
   document.getElementById('loginScreen').classList.add('hidden');

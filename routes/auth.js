@@ -55,15 +55,9 @@ function datosEmpresa(empresa) {
   return { id: empresa.id, nombre: empresa.nombre, codigo: empresa.codigo };
 }
 
-// Sesión activa (si hay, y si sigue vigente en la base) + si el registro de nuevas empresas está habilitado.
+// Sesión activa (si hay, y si sigue vigente en la base).
+// Las empresas nuevas solo se crean desde el panel de plataforma (no hay registro público).
 router.get('/status', async (req, res) => {
-  const codeConfigured = Boolean(process.env.INVITE_CODE);
-  const maxEmpresas = process.env.MAX_EMPRESAS ? parseInt(process.env.MAX_EMPRESAS, 10) : null;
-  let cupoDisponible = true;
-  if (maxEmpresas) {
-    const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM empresas');
-    cupoDisponible = rows[0].n < maxEmpresas;
-  }
   let user = null;
   const token = req.cookies[COOKIE_NAME];
   if (token) {
@@ -71,7 +65,7 @@ router.get('/status', async (req, res) => {
     user = r.user || null;
     if (!user) clearAuthCookie(res);
   }
-  res.json({ user, empresaCreationEnabled: codeConfigured && cupoDisponible });
+  res.json({ user });
 });
 
 router.post('/login', limites.loginIp, limites.loginCuenta, async (req, res) => {
