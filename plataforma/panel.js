@@ -90,7 +90,7 @@
     app.appendChild(h('div', { class: 'pl-login' },
       h('div', { class: 'login-card' },
         h('span', { class: 'pl-tag' }, 'Administración de plataforma'),
-        h('h1', null, 'Cuentas-App'),
+        h('h1', null, 'Kaab'),
         h('p', { class: 'sub' }, 'Acceso restringido. Necesitas tu contraseña y el código de tu app autenticadora.'),
         h('div', { class: 'field' }, h('label', null, 'Usuario'), usuario),
         h('div', { class: 'field' }, h('label', null, 'Contraseña'), pass),

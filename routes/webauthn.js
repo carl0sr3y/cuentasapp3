@@ -32,7 +32,7 @@ router.get('/register-options', requireAuth, async (req, res) => {
     [req.user.id]
   );
   const options = await generateRegistrationOptions({
-    rpName: 'Cuentas-App',
+    rpName: 'Kaab',
     rpID,
     userName: req.user.usuario,
     userID: Buffer.from(String(req.user.id)),

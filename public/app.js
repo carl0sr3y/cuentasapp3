@@ -425,7 +425,7 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
     root.innerHTML = `
       <div class="login-card login-card-fp">
         <img class="login-logo" src="/favicon.svg" alt="" width="56" height="56">
-        <h1>Cuentas-App</h1>
+        <h1>Kaab</h1>
         <p class="sub">Hola de nuevo. Entra con tu huella o Face ID.</p>
         <button class="fp-circle" id="fpCircle" aria-label="Entrar con huella o Face ID">${ICONS.fingerprint}</button>
         <p class="fp-hint">Toca para usar la huella</p>
@@ -441,7 +441,7 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
   root.innerHTML = `
     <div class="login-card">
       <img class="login-logo" src="/favicon.svg" alt="" width="56" height="56">
-      <h1>Cuentas-App</h1>
+      <h1>Kaab</h1>
       <p class="sub">Inicia sesión en tu empresa.</p>
       <div class="field">
         <label for="loginCodigoEmpresa">Código de empresa</label>
@@ -1763,7 +1763,7 @@ async function generarPdfGeneral() {
   try { data = await api(`/reportes/general?tipo=${tipoCuentas}`); } catch (e) { toast('No se pudo generar el PDF'); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  pdfHeader(doc, 'Cuentas-App — ' + T.pdfTitulo);
+  pdfHeader(doc, 'Kaab — ' + T.pdfTitulo);
   doc.setFontSize(11); doc.setTextColor(30, 30, 30);
   doc.text(T.total + ': ' + saldoTexto(data.balance, tipoCuentas), 14, 38);
   doc.text('Total de cuentas: ' + data.cuentas.length, 14, 45);

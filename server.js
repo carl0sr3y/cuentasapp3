@@ -191,7 +191,7 @@ async function start() {
     crearBackupTienda().catch(e => console.error('Error creando backup de tienda:', e.message));
   }, { timezone: 'America/Guatemala' });
 
-  server.listen(PORT, () => console.log(`Cuentas-App escuchando en el puerto ${PORT}`));
+  server.listen(PORT, () => console.log(`Kaab escuchando en el puerto ${PORT}`));
 }
 
 start();

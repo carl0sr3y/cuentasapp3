@@ -1,7 +1,7 @@
 {
   "name": "cuentas-app",
   "version": "1.0.0",
-  "description": "Cuentas-App: administracion de cuentas de clientes (deudores) y movimientos de tienda",
+  "description": "Kaab: administracion de cuentas de clientes (deudores) y movimientos de tienda",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

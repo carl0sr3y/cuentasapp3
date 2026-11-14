@@ -3,10 +3,10 @@ self.addEventListener('install', () => { self.skipWaiting(); });
 self.addEventListener('activate', (event) => { event.waitUntil(self.clients.claim()); });
 
 self.addEventListener('push', (event) => {
-  let data = { title: 'Cuentas-App', body: '' };
+  let data = { title: 'Kaab', body: '' };
   try { if (event.data) data = event.data.json(); } catch (e) { data.body = event.data ? event.data.text() : ''; }
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Cuentas-App', {
+    self.registration.showNotification(data.title || 'Kaab', {
       body: data.body || '',
       icon: '/icon-192.png',
       badge: '/badge-96.png',

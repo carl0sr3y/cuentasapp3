@@ -1,4 +1,4 @@
-# Cuentas-App
+# Kaab
 
 Aplicación web para administrar cuentas de clientes (deudores) y los movimientos internos de una tienda. Node.js/Express + PostgreSQL, con sincronización en tiempo real, notificaciones push, backups automáticos en varios niveles, fotos de facturas, generador de facturas simple, y un panel de plataforma (superadmin) para gestionar empresas y restablecer contraseñas.
 

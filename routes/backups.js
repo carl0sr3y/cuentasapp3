@@ -26,7 +26,7 @@ router.get('/:id/download', async (req, res) => {
   const backup = rows[0];
   if (!backup) return res.status(404).json({ error: 'Copia no encontrada' });
   const nombreArchivo = (backup.nombre || 'backup').replace(/[^\w\-]+/g, '-');
-  res.setHeader('Content-Disposition', `attachment; filename="cuentas-app-${nombreArchivo}.json"`);
+  res.setHeader('Content-Disposition', `attachment; filename="kaab-${nombreArchivo}.json"`);
   res.setHeader('Content-Type', 'application/json');
   res.send(JSON.stringify(backup.data, null, 2));
 });
@@ -60,7 +60,7 @@ router.get('/tienda/:id/download', async (req, res) => {
   const backup = rows[0];
   if (!backup) return res.status(404).json({ error: 'Copia no encontrada' });
   const nombreArchivo = (backup.nombre || 'tienda').replace(/[^\w\-]+/g, '-');
-  res.setHeader('Content-Disposition', `attachment; filename="cuentas-app-tienda-${nombreArchivo}.json"`);
+  res.setHeader('Content-Disposition', `attachment; filename="kaab-tienda-${nombreArchivo}.json"`);
   res.setHeader('Content-Type', 'application/json');
   res.send(JSON.stringify(backup.data, null, 2));
 });
