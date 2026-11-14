@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { requireAuth, setAuthCookie, clearAuthCookie } = require('../middleware/auth');
 const { sendMail } = require('../lib/mailer');
@@ -14,6 +15,21 @@ function camposTexto(body, campos, max = 200) {
 }
 
 const router = express.Router();
+
+// Recuperación de contraseña: código de 6 dígitos (1.000.000 combinaciones) generado con
+// crypto, y como máximo MAX_INTENTOS_CODIGO intentos fallidos por código: después se invalida.
+const MAX_INTENTOS_CODIGO = 5;
+function generarCodigoRecuperacion() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+}
+function mismoCodigo(a, b) {
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 async function registrarHistorial(empresaId, usuarioId, accion, detalle) {
   await pool.query(
@@ -109,7 +125,7 @@ router.post('/forgot-password', async (req, res) => {
     const { rows } = await pool.query('SELECT id, nombre FROM usuarios WHERE empresa_id = $1 AND email = $2', [empresa.id, email]);
     const user = rows[0];
     if (user) {
-      const code = String(Math.floor(1000 + Math.random() * 9000));
+      const code = generarCodigoRecuperacion();
       await pool.query('UPDATE password_resets SET usado = true WHERE usuario_id = $1 AND usado = false', [user.id]);
       await pool.query(
         `INSERT INTO password_resets (usuario_id, code, expira_en) VALUES ($1,$2, now() + interval '15 minutes')`,
@@ -119,7 +135,7 @@ router.post('/forgot-password', async (req, res) => {
         await sendMail({
           to: email,
           subject: 'Código para restablecer tu contraseña — Cuentas-App',
-          html: `<p>Hola ${user.nombre},</p><p>Tu código para restablecer tu contraseña es:</p><h2 style="letter-spacing:4px;">${code}</h2><p>Este código vence en 15 minutos. Si no lo pediste, ignora este correo.</p>`,
+          html: `<p>Hola ${escapeHtml(user.nombre)},</p><p>Tu código para restablecer tu contraseña es:</p><h2 style="letter-spacing:4px;">${code}</h2><p>Este código vence en 15 minutos. Si no lo pediste, ignora este correo.</p>`,
         });
       } catch (e) { console.error('Error enviando correo de recuperación:', e.message); }
     }
@@ -141,16 +157,33 @@ router.post('/reset-password', async (req, res) => {
   const user = userRows[0];
   if (!user) return res.status(400).json({ error: 'Código incorrecto o vencido' });
 
+  // Cada intento consume uno de los MAX_INTENTOS_CODIGO del código vigente, de forma atómica
+  // (aunque lleguen muchas peticiones a la vez, nunca se prueban más de 5 valores por código).
   const { rows: codeRows } = await pool.query(
-    `SELECT id FROM password_resets WHERE usuario_id = $1 AND code = $2 AND usado = false AND expira_en > now()
-     ORDER BY fecha_creacion DESC LIMIT 1`,
-    [user.id, code]
+    `UPDATE password_resets SET intentos = intentos + 1
+     WHERE id = (
+       SELECT id FROM password_resets
+       WHERE usuario_id = $1 AND usado = false AND expira_en > now()
+       ORDER BY fecha_creacion DESC LIMIT 1
+     ) AND intentos < $2
+     RETURNING id, code, intentos`,
+    [user.id, MAX_INTENTOS_CODIGO]
   );
-  if (!codeRows[0]) return res.status(400).json({ error: 'Código incorrecto o vencido' });
+  const vigente = codeRows[0];
+  if (!vigente) return res.status(400).json({ error: 'Código incorrecto o vencido' });
+  if (!mismoCodigo(code.trim(), vigente.code)) {
+    if (vigente.intentos >= MAX_INTENTOS_CODIGO) {
+      await pool.query('UPDATE password_resets SET usado = true WHERE id = $1', [vigente.id]);
+      return res.status(400).json({ error: 'Demasiados intentos. Solicita un código nuevo.' });
+    }
+    return res.status(400).json({ error: 'Código incorrecto o vencido' });
+  }
 
+  // Marcar el código como usado ANTES de cambiar la contraseña (y solo si nadie lo usó en paralelo).
+  const { rowCount } = await pool.query('UPDATE password_resets SET usado = true WHERE id = $1 AND usado = false', [vigente.id]);
+  if (rowCount === 0) return res.status(400).json({ error: 'Código incorrecto o vencido' });
   const hash = await bcrypt.hash(nuevaContrasena, 10);
   await pool.query('UPDATE usuarios SET contrasena = $1, contrasena_actualizada_en = now() WHERE id = $2', [hash, user.id]);
-  await pool.query('UPDATE password_resets SET usado = true WHERE id = $1', [codeRows[0].id]);
   await registrarHistorial(empresa.id, user.id, 'Restablecer contraseña', 'Contraseña restablecida mediante código enviado por correo');
   res.json({ ok: true });
 });

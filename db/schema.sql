@@ -194,3 +194,6 @@ CREATE INDEX IF NOT EXISTS idx_cuentas_empresa ON cuentas(empresa_id);
 CREATE INDEX IF NOT EXISTS idx_movtienda_empresa ON movimientos_tienda(empresa_id);
 CREATE INDEX IF NOT EXISTS idx_historial_empresa ON historial_general(empresa_id);
 CREATE INDEX IF NOT EXISTS idx_usuarios_empresa ON usuarios(empresa_id);
+
+-- Intentos fallidos por código de recuperación (se invalida al llegar a 5)
+ALTER TABLE password_resets ADD COLUMN IF NOT EXISTS intentos INTEGER NOT NULL DEFAULT 0;

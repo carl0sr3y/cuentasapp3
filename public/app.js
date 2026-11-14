@@ -460,7 +460,7 @@ function renderForgotView() {
     <div class="login-card">
       <div class="login-mark">${ICONS.key}</div>
       <h1>Recuperar contraseña</h1>
-      <p class="sub">Ingresa el código de tu empresa y tu correo. Te enviaremos un código de 4 dígitos.</p>
+      <p class="sub">Ingresa el código de tu empresa y tu correo. Te enviaremos un código de 6 dígitos.</p>
       <div class="field"><label>Código de empresa</label><input id="forgotCodigo" type="text" style="text-transform:uppercase;"></div>
       <div class="field"><label>Correo electrónico</label><input id="forgotEmail" type="email"></div>
       <button class="btn-primary" id="forgotBtn">Enviar código</button>
@@ -485,8 +485,8 @@ function renderResetView(codigoEmpresa, email) {
     <div class="login-card">
       <div class="login-mark">${ICONS.key}</div>
       <h1>Ingresa el código</h1>
-      <p class="sub">Si ${escapeHtml(email)} está registrado en esa empresa, te enviamos un código de 4 dígitos. Vence en 15 minutos.</p>
-      <div class="field"><label>Código</label><input id="resetCode" type="text" maxlength="4" inputmode="numeric"></div>
+      <p class="sub">Si ${escapeHtml(email)} está registrado en esa empresa, te enviamos un código de 6 dígitos. Vence en 15 minutos.</p>
+      <div class="field"><label>Código</label><input id="resetCode" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code"></div>
       <div class="field"><label>Nueva contraseña</label><input id="resetPass" type="password" placeholder="Mínimo 4 caracteres"></div>
       <button class="btn-primary" id="resetBtn">Restablecer contraseña</button>
       <p class="login-error" id="resetErr"></p>
