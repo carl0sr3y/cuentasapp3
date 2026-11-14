@@ -822,6 +822,11 @@ function renderAccountsListOnly() {
   const favoritos = CUENTAS.filter(c => c.favorito);
   const q = currentTab === 'deudas' ? searchQuery.trim().toLowerCase() : '';
   const filtered = CUENTAS.filter(c => c.nombre.toLowerCase().includes(q));
+  // Mientras se busca una cuenta se ocultan saldo, favoritos y encabezado: los resultados suben arriba.
+  const vista = document.getElementById('deudasView');
+  const yaBuscaba = vista.classList.contains('buscando');
+  vista.classList.toggle('buscando', !!q);
+  if (q && !yaBuscaba) window.scrollTo({ top: 0 });
   const sorted = [...filtered].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   const groups = {};
   sorted.forEach(c => { const L = initialOf(c.nombre); (groups[L] = groups[L] || []).push(c); });
