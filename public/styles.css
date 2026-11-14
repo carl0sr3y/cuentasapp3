@@ -22,6 +22,8 @@
   --on-accent:#FFFFFF;
   --tienda:#C77A12;
   --tienda-bg:rgba(230,150,40,0.13);
+  --pagar:#0E877E;
+  --pagar-bg:rgba(14,143,134,0.11);
   --overlay:rgba(27,33,50,0.38);
   --shadow:0 4px 14px rgba(27,33,50,0.07);
   --shadow-lg:0 16px 40px rgba(27,33,50,0.16);
@@ -53,6 +55,8 @@
   --on-accent:#10131F;
   --tienda:#F2B35A;
   --tienda-bg:rgba(242,179,90,0.13);
+  --pagar:#4FD1C5;
+  --pagar-bg:rgba(79,209,197,0.13);
   --overlay:rgba(0,0,0,0.55);
   --shadow:0 4px 14px rgba(0,0,0,0.25);
   --shadow-lg:0 16px 40px rgba(0,0,0,0.5);
@@ -64,7 +68,7 @@
     --border:#2B2F3F; --border-soft:#232736; --text:#E8EAF2; --text-dim:#A2A8BA; --text-faint:#6F7588;
     --green:#4CC79A; --green-bg:rgba(76,199,154,0.13); --red:#FF7E75; --red-bg:rgba(255,126,117,0.13);
     --yellow:#F2B35A; --accent:#8C95FF; --accent-bg:rgba(140,149,255,0.14); --on-accent:#10131F;
-    --tienda:#F2B35A; --tienda-bg:rgba(242,179,90,0.13); --overlay:rgba(0,0,0,0.55);
+    --tienda:#F2B35A; --tienda-bg:rgba(242,179,90,0.13); --pagar:#4FD1C5; --pagar-bg:rgba(79,209,197,0.13); --overlay:rgba(0,0,0,0.55);
     --shadow:0 4px 14px rgba(0,0,0,0.25); --shadow-lg:0 16px 40px rgba(0,0,0,0.5);
   }
 }
@@ -484,6 +488,16 @@ header.topbar,.page-header{border-bottom-color:transparent;}
 #tiendaView .balance-block{background:var(--tienda-bg);}
 #tiendaView .balance-label{color:var(--tienda);}
 #tiendaView .action-btn svg{color:var(--tienda);}
+/* Por pagar: mismo diseño que Por cobrar, con su propio color */
+#deudasView[data-tipo="pagar"] .balance-block,#detailPage[data-tipo="pagar"] .balance-block{background:var(--pagar-bg);}
+#detailPage[data-tipo="pagar"] .balance-label,#detailPage[data-tipo="pagar"] .balance-pdf-btn,
+#deudasView[data-tipo="pagar"] .balance-label,
+#deudasView[data-tipo="pagar"] .balance-pdf-btn,
+#deudasView[data-tipo="pagar"] .mini-btn:not(.danger) svg,
+#deudasView[data-tipo="pagar"] .acc-circ{color:var(--pagar);}
+#deudasView[data-tipo="pagar"] .acc-circ{background:var(--pagar-bg);}
+/* Tres pestañas: textos un poco más compactos */
+.tab-btn{font-size:15px;line-height:1.15;}
 
 /* Tarjetas blandas: sin bordes, con sombra ligera */
 .action-btn,.pdf-btn,.fav-chip,.search-input,.login-card,.modal-card,.user-card,.backup-row,.select-bar{

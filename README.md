@@ -32,6 +32,7 @@ Aplicación web para administrar cuentas de clientes (deudores) y los movimiento
   - Exportar: ` DATABASE_URL="postgresql://..." node scripts/respaldo.js exportar` → `respaldos/cuentasapp-AAAA-MM-DD-HHMM.jsonl.gz`
   - Restaurar (solo en una base vacía): ` DATABASE_URL="postgresql://...nueva..." node scripts/respaldo.js restaurar respaldos/<archivo>`
   - El archivo contiene todos los datos: guárdalo en un lugar privado. La carpeta `respaldos/` está excluida de git.
+- **Por cobrar, Por pagar y Movimientos tienda**: tres pestañas. "Por cobrar" (antes "Deudas") son los clientes que te deben; "Por pagar" lo que tú debes a proveedores. Funcionan igual (cuentas, abonos/cargos, favoritos, búsqueda, PDF) y cada una tiene su propio total. Cada cuenta guarda su tipo en `cuentas.tipo` ('cobrar' | 'pagar'); las cuentas antiguas quedaron como 'cobrar'.
 - **Sincronización en tiempo real** entre dispositivos vía WebSocket, con indicador de estado (verde/amarillo/rojo) junto al nombre de la app.
 - **Notificaciones push** reales (funcionan con la app cerrada), activables con el ícono de campana.
 - **Fotos de facturas**: se pueden adjuntar al registrar una entrada o salida de tienda (cámara directa en móvil), se comprimen automáticamente, y se incluyen como hojas grandes en el PDF de movimientos.

@@ -5,11 +5,14 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-// Devuelve todas las cuentas de MI empresa junto con todos sus movimientos, para el PDF general
+// Devuelve las cuentas de MI empresa (opcional: ?tipo=cobrar|pagar) con todos sus movimientos, para el PDF general
 router.get('/general', async (req, res) => {
+  const tipo = req.query.tipo;
+  if (tipo !== undefined && !['cobrar', 'pagar'].includes(tipo)) return res.status(400).json({ error: 'Tipo de cuenta inválido' });
   const { rows: cuentas } = await pool.query(
-    `SELECT id, nombre, favorito, fecha_creacion FROM cuentas WHERE empresa_id = $1 ORDER BY nombre ASC`,
-    [req.user.empresa_id]
+    `SELECT id, nombre, tipo, favorito, fecha_creacion FROM cuentas
+     WHERE empresa_id = $1 AND ($2::text IS NULL OR tipo = $2) ORDER BY nombre ASC`,
+    [req.user.empresa_id, tipo || null]
   );
   const { rows: movimientos } = await pool.query(
     `SELECT m.id, m.cuenta_id, m.tipo, m.descripcion, m.monto, m.saldo_resultante, m.fecha, u.nombre AS usuario

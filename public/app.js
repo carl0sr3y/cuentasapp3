@@ -229,10 +229,10 @@ async function handleRealtimeRefresh({ scope, id, by }) {
   try {
     if (scope === 'cuentas') {
       CUENTAS = await api('/cuentas');
-      if (currentTab === 'deudas' && !document.getElementById('detailPage')) renderDeudas();
+      if (esTabCuentas() && !document.getElementById('detailPage')) renderDeudas();
     } else if (scope === 'cuenta') {
       CUENTAS = await api('/cuentas');
-      if (currentTab === 'deudas') renderDeudas();
+      if (esTabCuentas()) renderDeudas();
       if (currentAccountDetail && String(currentAccountDetail.id) === String(id)) {
         currentAccountDetail = await api(`/cuentas/${id}`);
         renderAccountDetailPage();
@@ -250,7 +250,7 @@ async function refrescarTodo() {
   try {
     CUENTAS = await api('/cuentas');
     TIENDA = await api('/tienda');
-    if (currentTab === 'deudas') renderDeudas();
+    if (esTabCuentas()) renderDeudas();
     if (currentTab === 'tienda') renderTienda();
     if (currentAccountDetail) {
       currentAccountDetail = await api(`/cuentas/${currentAccountDetail.id}`);
@@ -321,7 +321,20 @@ let CUENTAS = [];
 let TIENDA = { balance: 0, balanceHoy: 0, movimientos: [] };
 let currentAccountDetail = null;
 
-let currentTab = 'deudas';
+let currentTab = 'cobrar';     // 'cobrar' | 'pagar' | 'tienda'
+let tipoCuentas = 'cobrar';    // qué cuentas muestra la vista de cuentas: 'cobrar' | 'pagar'
+const ORDEN_PESTANAS = ['cobrar', 'pagar', 'tienda'];
+function esTabCuentas(t = currentTab) { return t === 'cobrar' || t === 'pagar'; }
+// Cuentas del tipo que se está viendo (las antiguas, sin tipo, son "por cobrar").
+function cuentasVisibles() { return CUENTAS.filter(c => (c.tipo || 'cobrar') === tipoCuentas); }
+const TEXTOS_TIPO = {
+  cobrar: { total: 'Total por cobrar', nuevaDesc: 'Ingresa el nombre del cliente o deudor.', vacio: 'Aún no tienes cuentas por cobrar. Crea la primera con el botón Crear.',
+            pdfTitulo: 'Cuentas por cobrar', pdfQuien: 'Cliente', pdfArchivo: 'cuentas-por-cobrar.pdf',
+            abonoDesc: 'Registra un pago que te hizo esta cuenta.', cargoDesc: 'Registra algo que esta cuenta queda debiendo.' },
+  pagar:  { total: 'Total por pagar', nuevaDesc: 'Ingresa el nombre del proveedor o a quién le debes.', vacio: 'Aún no tienes cuentas por pagar. Crea la primera con el botón Crear.',
+            pdfTitulo: 'Cuentas por pagar', pdfQuien: 'Proveedor', pdfArchivo: 'cuentas-por-pagar.pdf',
+            abonoDesc: 'Registra un pago que tú le hiciste a esta cuenta.', cargoDesc: 'Registra una compra o deuda nueva con esta cuenta.' },
+};
 let searchQuery = '';
 let selectMode = false;
 let selectedIds = new Set();
@@ -347,7 +360,7 @@ function toast(msg) {
   const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
 }
-function totalGeneral() { return CUENTAS.reduce((s, c) => s + Number(c.balance), 0); }
+function totalGeneral() { return cuentasVisibles().reduce((s, c) => s + Number(c.balance), 0); }
 function escapeHtml(s) {
   return (s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
@@ -530,9 +543,11 @@ async function enterApp() {
   await checkPushStatus();
   renderNotifBtn();
   animarEntrada();
+  tipoCuentas = 'cobrar';
+  setTabUI('cobrar'); // siempre se empieza en "Por cobrar"
   renderDeudas();
   renderTienda();
-  history.replaceState({ view: 'deudas' }, '', location.href);
+  history.replaceState({ view: 'cobrar' }, '', location.href);
   connectWS();
   checkPendingTiendaBackup();
   startIdleWatcher();
@@ -682,14 +697,16 @@ function setTabUI(tab) {
   const anterior = currentTab;
   currentTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  document.getElementById('deudasView').classList.toggle('hidden', tab !== 'deudas');
+  document.getElementById('deudasView').classList.toggle('hidden', !esTabCuentas(tab));
   document.getElementById('tiendaView').classList.toggle('hidden', tab !== 'tienda');
   if (anterior !== tab) reiniciarBusqueda();
+  // "Por cobrar" y "Por pagar" comparten la misma vista: al cambiar de tipo se vuelve a dibujar.
+  if (esTabCuentas(tab) && tipoCuentas !== tab) { tipoCuentas = tab; if (AUTH) renderDeudas(); }
   if (anterior !== tab && animOn()) {
     const vista = document.getElementById(tab === 'tienda' ? 'tiendaView' : 'deudasView');
     vista.classList.remove('entra-der', 'entra-izq');
     void vista.offsetWidth; // reinicia la animación
-    vista.classList.add(tab === 'tienda' ? 'entra-der' : 'entra-izq');
+    vista.classList.add(ORDEN_PESTANAS.indexOf(tab) > ORDEN_PESTANAS.indexOf(anterior) ? 'entra-der' : 'entra-izq');
     animarSaldos(vista);
   }
 }
@@ -709,7 +726,7 @@ window.addEventListener('popstate', (e) => {
   applyHistoryState(e.state);
 });
 async function applyHistoryState(state) {
-  state = state || { view: 'deudas' };
+  state = state || { view: 'cobrar' };
   document.getElementById('pageRoot').innerHTML = '';
   document.getElementById('modalRoot').innerHTML = '';
   currentAccountDetail = null;
@@ -722,10 +739,10 @@ async function applyHistoryState(state) {
     await openAccountSettingsPage({ fromHistory: true });
   } else if (state.view === 'invoice') {
     openInvoicePage({ fromHistory: true });
-  } else if (state.view === 'tienda') {
-    setTabUI('tienda');
+  } else if (state.view === 'tienda' || state.view === 'pagar') {
+    setTabUI(state.view);
   } else {
-    setTabUI('deudas');
+    setTabUI('cobrar'); // incluye el antiguo 'deudas'
   }
 }
 
@@ -734,17 +751,19 @@ async function applyHistoryState(state) {
    ============================================================ */
 function renderDeudas() {
   const el = document.getElementById('deudasView');
+  el.dataset.tipo = tipoCuentas;
+  const T = TEXTOS_TIPO[tipoCuentas];
   const total = totalGeneral();
 
   el.innerHTML = `
     <div class="balance-block">
-      <button class="balance-pdf-btn" id="btnPdfGeneral" type="button" aria-label="Generar PDF general">${ICONS.pdf}<span>PDF</span></button>
-      <div class="balance-label">Balance general</div>
-      <div class="balance-amount ${total >= 0 ? 'pos' : 'neg'}" data-saldo="${total}" data-clave="general">${money(total)}</div>
+      <button class="balance-pdf-btn" id="btnPdfGeneral" type="button" aria-label="Generar PDF de ${T.pdfTitulo.toLowerCase()}">${ICONS.pdf}<span>PDF</span></button>
+      <div class="balance-label">${T.total}</div>
+      <div class="balance-amount ${total >= 0 ? 'pos' : 'neg'}" data-saldo="${total}" data-clave="general-${tipoCuentas}">${money(total)}</div>
     </div>
     <div id="favSection"></div>
     <div class="section-title cuentas-head">
-      <span>Tus cuentas <span class="count" id="accountsCount">(${CUENTAS.length})</span></span>
+      <span>Tus cuentas <span class="count" id="accountsCount">(${cuentasVisibles().length})</span></span>
       <div class="mini-acciones">
         <button class="mini-btn" id="btnCrearCuenta" type="button">${ICONS.plus}<span>Crear</span></button>
         ${esAdminActual() ? `<button class="mini-btn danger" id="btnEliminarCuentas" type="button">${ICONS.trash}<span>Eliminar</span></button>` : ''}
@@ -771,9 +790,10 @@ function rangoCoincidencia(nombre, q) {
   return n.includes(q) ? 2 : -1;
 }
 function renderAccountsListOnly() {
-  const favoritos = CUENTAS.filter(c => c.favorito);
-  const q = currentTab === 'deudas' ? sinAcentos(searchQuery.trim()) : '';
-  const filtered = q ? CUENTAS.filter(c => rangoCoincidencia(c.nombre, q) >= 0) : CUENTAS;
+  const lista = cuentasVisibles();
+  const favoritos = lista.filter(c => c.favorito);
+  const q = esTabCuentas() ? sinAcentos(searchQuery.trim()) : '';
+  const filtered = q ? lista.filter(c => rangoCoincidencia(c.nombre, q) >= 0) : lista;
   // Mientras se busca una cuenta se ocultan saldo, favoritos y encabezado: los resultados suben arriba.
   const vista = document.getElementById('deudasView');
   const yaBuscaba = vista.classList.contains('buscando');
@@ -794,11 +814,11 @@ function renderAccountsListOnly() {
         <div class="info"><div class="name">${escapeHtml(c.nombre)}</div><div class="bal ${c.balance >= 0 ? 'pos' : 'neg'}">${money(c.balance)}</div></div>
       </div>`).join('')}</div>` : '';
 
-  document.getElementById('accountsCount').textContent = `(${CUENTAS.length})`;
+  document.getElementById('accountsCount').textContent = `(${lista.length})`;
 
   const wrap = document.getElementById('accountListWrap');
   wrap.innerHTML = sorted.length === 0 ? `
-    <div class="empty-state">${ICONS.inbox}<p>${CUENTAS.length === 0 ? 'Aún no tienes cuentas. Crea la primera con el botón de arriba.' : 'No se encontraron cuentas con ese nombre.'}</p></div>
+    <div class="empty-state">${ICONS.inbox}<p>${lista.length === 0 ? TEXTOS_TIPO[tipoCuentas].vacio : 'No se encontraron cuentas con ese nombre.'}</p></div>
   ` : q ? `
     <div class="letter-group">${sorted.map(c => accountCardHtml(c)).join('')}</div>
   ` : letters.map(L => `
@@ -888,8 +908,8 @@ function renderSelectBar() {
 }
 function openCreateAccountModal() {
   showModal(`
-    <h3>Crear nueva cuenta</h3>
-    <p class="desc">Ingresa el nombre del cliente o deudor.</p>
+    <h3>Nueva cuenta ${tipoCuentas === 'pagar' ? 'por pagar' : 'por cobrar'}</h3>
+    <p class="desc">${TEXTOS_TIPO[tipoCuentas].nuevaDesc}</p>
     <div class="field"><input id="newAccName" type="text" placeholder="Nombre" autofocus></div>
     <div class="modal-actions">
       <button class="btn-cancel" data-close>Cancelar</button>
@@ -902,7 +922,7 @@ function openCreateAccountModal() {
     const nombre = input.value.trim();
     if (!nombre) return;
     try {
-      const cuenta = await api('/cuentas', { method: 'POST', body: { nombre } });
+      const cuenta = await api('/cuentas', { method: 'POST', body: { nombre, tipo: tipoCuentas } });
       CUENTAS.push(cuenta);
       closeModal(); renderDeudas(); toast('Cuenta creada');
     } catch (e) { toast('No se pudo crear la cuenta'); }
@@ -932,7 +952,7 @@ function renderAccountDetailPage() {
   const dateKeys = Object.keys(groups);
 
   root.innerHTML = `
-    <div class="page-slide" id="detailPage">
+    <div class="page-slide" id="detailPage" data-tipo="${c.tipo || 'cobrar'}">
       <div class="page-header">
         <button class="back-btn" id="detailBack">${ICONS.back}</button>
         <h2>${escapeHtml(c.nombre)}</h2>
@@ -1040,7 +1060,7 @@ function openMovModal(tipo, cuentaId) {
   const isAbono = tipo === 'abono';
   showModal(`
     <h3>${isAbono ? 'Nuevo abono' : 'Nuevo cargo'}</h3>
-    <p class="desc">${isAbono ? 'Registra una entrada de dinero a esta cuenta.' : 'Registra una salida de dinero de esta cuenta.'}</p>
+    <p class="desc">${(() => { const T = TEXTOS_TIPO[(currentAccountDetail && currentAccountDetail.tipo) || 'cobrar']; return isAbono ? T.abonoDesc : T.cargoDesc; })()}</p>
     <div class="field"><label>Descripción</label><input id="movDesc" type="text" placeholder="Ej. Pago quincenal"></div>
     <div class="field"><label>Monto (Q)</label><input id="movMonto" type="number" step="0.01" min="0" placeholder="0.00"></div>
     <div class="modal-actions">
@@ -1702,15 +1722,16 @@ function pdfHeader(doc, title) {
 }
 async function generarPdfGeneral() {
   let data;
-  try { data = await api('/reportes/general'); } catch (e) { toast('No se pudo generar el PDF'); return; }
+  const T = TEXTOS_TIPO[tipoCuentas];
+  try { data = await api(`/reportes/general?tipo=${tipoCuentas}`); } catch (e) { toast('No se pudo generar el PDF'); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  pdfHeader(doc, 'Cuentas-App — Reporte general');
+  pdfHeader(doc, 'Cuentas-App — ' + T.pdfTitulo);
   doc.setFontSize(11); doc.setTextColor(30, 30, 30);
-  doc.text('Balance general: ' + money(data.balance), 14, 38);
+  doc.text(T.total + ': ' + money(data.balance), 14, 38);
   doc.text('Total de cuentas: ' + data.cuentas.length, 14, 45);
   const rows = data.cuentas.map(c => [c.nombre, c.favorito ? 'Sí' : 'No', money(c.balance)]);
-  doc.autoTable({ startY: 52, head: [['Cliente', 'Favorito', 'Balance']], body: rows, styles: { fontSize: 9 }, headStyles: { fillColor: [40, 40, 40] } });
+  doc.autoTable({ startY: 52, head: [[T.pdfQuien, 'Favorito', 'Balance']], body: rows, styles: { fontSize: 9 }, headStyles: { fillColor: [40, 40, 40] } });
   data.cuentas.forEach(c => {
     doc.addPage();
     pdfHeader(doc, 'Cuenta: ' + c.nombre);
@@ -1723,7 +1744,7 @@ async function generarPdfGeneral() {
       doc.setFontSize(10); doc.setTextColor(140, 140, 140); doc.text('Sin movimientos registrados.', 14, 45);
     }
   });
-  doc.save('cuentas-app-reporte-general.pdf');
+  doc.save(T.pdfArchivo);
   toast('PDF generado');
 }
 function generarPdfCuenta(c) {

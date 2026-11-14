@@ -240,3 +240,16 @@ CREATE TABLE IF NOT EXISTS plataforma_bitacora (
   fecha TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_plataforma_bitacora_fecha ON plataforma_bitacora(fecha DESC);
+
+-- ============================================================
+-- Cuentas por cobrar (clientes que nos deben) y por pagar (lo que debemos a proveedores).
+-- Las cuentas existentes quedan como 'cobrar' (lo que antes era "Deudas").
+-- ============================================================
+ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'cobrar';
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cuentas_tipo_check') THEN
+    ALTER TABLE cuentas ADD CONSTRAINT cuentas_tipo_check CHECK (tipo IN ('cobrar','pagar'));
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_cuentas_empresa_tipo ON cuentas(empresa_id, tipo);

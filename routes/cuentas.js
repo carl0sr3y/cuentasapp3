@@ -25,7 +25,7 @@ async function registrarHistorial(empresaId, usuarioId, accion, detalle, extra =
 
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(`
-    SELECT c.id, c.nombre, c.favorito, c.fecha_creacion,
+    SELECT c.id, c.nombre, c.tipo, c.favorito, c.fecha_creacion,
            COALESCE((
              SELECT m.saldo_resultante FROM movimientos_cuentas m
              WHERE m.cuenta_id = c.id ORDER BY m.fecha DESC, m.id DESC LIMIT 1
@@ -40,12 +40,15 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const nombre = texto((req.body || {}).nombre, 120);
   if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio (máximo 120 caracteres)' });
+  const tipoCuenta = (req.body || {}).tipo === undefined ? 'cobrar' : (req.body || {}).tipo;
+  if (!['cobrar', 'pagar'].includes(tipoCuenta)) return res.status(400).json({ error: 'Tipo de cuenta inválido' });
   const { rows } = await pool.query(
-    `INSERT INTO cuentas (empresa_id, usuario_id, nombre) VALUES ($1,$2,$3) RETURNING id, nombre, favorito, fecha_creacion`,
-    [req.user.empresa_id, req.user.id, nombre]
+    `INSERT INTO cuentas (empresa_id, usuario_id, nombre, tipo) VALUES ($1,$2,$3,$4) RETURNING id, nombre, tipo, favorito, fecha_creacion`,
+    [req.user.empresa_id, req.user.id, nombre, tipoCuenta]
   );
   const cuenta = { ...rows[0], balance: 0 };
-  await registrarHistorial(req.user.empresa_id, req.user.id, 'Crear cuenta', `Cuenta "${cuenta.nombre}" creada`, { referencia_id: cuenta.id });
+  await registrarHistorial(req.user.empresa_id, req.user.id, 'Crear cuenta',
+    `Cuenta "${cuenta.nombre}" creada (${tipoCuenta === 'pagar' ? 'por pagar' : 'por cobrar'})`, { referencia_id: cuenta.id });
   broadcast({ scope: 'cuentas', empresaId: req.user.empresa_id, by: req.user.nombre, excludeClientId: clientIdOf(req) });
   res.json(cuenta);
 });
@@ -53,7 +56,7 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   const { favorito } = req.body || {};
   const { rows } = await pool.query(
-    `UPDATE cuentas SET favorito = $1 WHERE id = $2 AND empresa_id = $3 RETURNING id, nombre, favorito, fecha_creacion`,
+    `UPDATE cuentas SET favorito = $1 WHERE id = $2 AND empresa_id = $3 RETURNING id, nombre, tipo, favorito, fecha_creacion`,
     [!!favorito, req.params.id, req.user.empresa_id]
   );
   if (!rows[0]) return res.status(404).json({ error: 'Cuenta no encontrada' });
@@ -81,7 +84,7 @@ router.post('/delete', requireAdmin, async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT id, nombre, favorito, fecha_creacion FROM cuentas WHERE id = $1 AND empresa_id = $2`,
+    `SELECT id, nombre, tipo, favorito, fecha_creacion FROM cuentas WHERE id = $1 AND empresa_id = $2`,
     [req.params.id, req.user.empresa_id]
   );
   const cuenta = rows[0];
