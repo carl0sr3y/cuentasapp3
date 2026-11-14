@@ -559,7 +559,7 @@ header.topbar{gap:10px;}
 .top-search-clear{width:28px;height:28px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
   background:var(--surface-2);color:var(--text-dim);font-size:20px;line-height:1;}
 .top-search:focus-within .top-search-clear{background:var(--surface-alt);}
-@media (max-width:359px){.topbar .brand{display:none;}}
+/* La barra superior solo muestra el logo (sin texto), así que cabe también en pantallas chicas. */
 
 /* ============================================================
    PERFIL: filas de ajustes e interruptor
