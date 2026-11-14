@@ -62,7 +62,7 @@ async function crearBackupGeneral() {
 }
 
 // ============================================================
-// BACKUP DE TIENDA: mensual, con fotos y resumen, guarda 2 meses. Por empresa.
+// BACKUP DE TIENDA: mensual, con fotos y resumen. Guarda 2 meses + los no descargados (máx. 12). Por empresa.
 // ============================================================
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -101,10 +101,15 @@ async function crearBackupTienda() {
       `DELETE FROM movimientos_tienda WHERE empresa_id = $1 AND fecha >= $2 AND fecha < $3`,
       [empresa.id, inicioMesAnterior, inicioMesActual]
     );
+    // Se conservan los 2 meses más recientes y, además, cualquier copia que el admin todavía NO
+    // haya descargado (antes se borraban igual y esos meses se perdían para siempre: auditoría V9).
+    // Tope de 12 copias por empresa para que la base no crezca sin límite.
     await pool.query(`
       DELETE FROM backups_tienda WHERE empresa_id = $1 AND id NOT IN (
         SELECT id FROM backups_tienda WHERE empresa_id = $1 ORDER BY fecha_creacion DESC LIMIT 2
-      )
+      ) AND (descargado = true OR id NOT IN (
+        SELECT id FROM backups_tienda WHERE empresa_id = $1 ORDER BY fecha_creacion DESC LIMIT 12
+      ))
     `, [empresa.id]);
   }
   console.log(`Backup de tienda creado para ${empresas.length} empresa(s): "${nombreMes}"`);

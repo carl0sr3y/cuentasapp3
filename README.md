@@ -28,6 +28,10 @@ Aplicación web para administrar cuentas de clientes (deudores) y los movimiento
   - **Crear o restablecer el superadmin** (no hay registro web): desde tu computadora, con la URL pública de la base (Railway → Postgres → Variables → `DATABASE_PUBLIC_URL`):
     `DATABASE_URL="postgresql://..." node scripts/superadmin.js <usuario>`
     Muestra un QR para la app autenticadora, una contraseña generada y 10 códigos de respaldo de un solo uso.
+- **Respaldo completo fuera de Railway** (`scripts/respaldo.js`): descarga TODA la base (fotos incluidas) a un archivo comprimido en tu computadora, y la restaura en una base vacía si hiciera falta. Usa la URL pública de la base (activar TCP Proxy en Postgres → Settings → Networking, y desactivarlo al terminar):
+  - Exportar: ` DATABASE_URL="postgresql://..." node scripts/respaldo.js exportar` → `respaldos/cuentasapp-AAAA-MM-DD-HHMM.jsonl.gz`
+  - Restaurar (solo en una base vacía): ` DATABASE_URL="postgresql://...nueva..." node scripts/respaldo.js restaurar respaldos/<archivo>`
+  - El archivo contiene todos los datos: guárdalo en un lugar privado. La carpeta `respaldos/` está excluida de git.
 - **Sincronización en tiempo real** entre dispositivos vía WebSocket, con indicador de estado (verde/amarillo/rojo) junto al nombre de la app.
 - **Notificaciones push** reales (funcionan con la app cerrada), activables con el ícono de campana.
 - **Fotos de facturas**: se pueden adjuntar al registrar una entrada o salida de tienda (cámara directa en móvil), se comprimen automáticamente, y se incluyen como hojas grandes en el PDF de movimientos.
@@ -36,7 +40,7 @@ Aplicación web para administrar cuentas de clientes (deudores) y los movimiento
 - **Retención automática de datos**:
   - Historial general: ventana móvil de 7 días.
   - Backup general (cuentas + movimientos + historial): semanal, lunes-domingo, guarda 4 semanas.
-  - Backup de tienda (con fotos y resumen): mensual, guarda 2 meses, se descarga automáticamente la próxima vez que se abre la app tras generarse. Los movimientos de tienda en vivo solo cubren el mes actual (los meses anteriores viven en estos backups).
+  - Backup de tienda (con fotos y resumen): mensual, guarda 2 meses (y las que no se hayan descargado, hasta 12), se descarga automáticamente la próxima vez que se abre la app tras generarse. Los movimientos de tienda en vivo solo cubren el mes actual (los meses anteriores viven en estos backups).
 - **Botón "atrás" del navegador** navega dentro de la app en vez de salir de la página.
 - **Modo sin conexión**: si el servidor no responde, se muestra una pantalla de aviso con botón de recargar.
 
@@ -51,6 +55,7 @@ lib/push.js                 # Notificaciones push (web-push)
 lib/totp.js                 # Códigos de app autenticadora (RFC 6238)
 lib/rateLimits.js           # Límites de intentos
 jobs/backup.js               # Historial rodante, backup general semanal, backup de tienda mensual
+scripts/respaldo.js           # Respaldo completo externo (exportar/restaurar)
 middleware/auth.js           # JWT en cookie httpOnly + revocación de sesiones en la base
 middleware/plataforma.js     # Sesión separada del panel de plataforma
 routes/auth.js                # login, cambio obligatorio de contraseña

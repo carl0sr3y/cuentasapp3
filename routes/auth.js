@@ -36,7 +36,15 @@ async function verificarCredenciales(codigoEmpresa, usuario, contrasena) {
     dbUser = rows[0] || null;
   }
   const ok = await compararContrasena(contrasena, dbUser && dbUser.contrasena);
-  if (!ok || !empresa || !dbUser) return null;
+  if (!ok || !empresa || !dbUser) {
+    // Rastro de intentos fallidos (auditoría V18): en los logs siempre; y si el usuario existe,
+    // también en el historial de su empresa, para que el admin vea si alguien prueba contraseñas.
+    console.warn(`Login fallido: empresa "${String(codigoEmpresa).slice(0, 40)}", usuario "${String(usuario).slice(0, 40)}"`);
+    if (dbUser) {
+      await registrarHistorial(empresa.id, dbUser.id, 'Inicio de sesión fallido', 'Contraseña incorrecta').catch(() => {});
+    }
+    return null;
+  }
   return { empresa, dbUser };
 }
 

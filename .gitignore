@@ -2,3 +2,7 @@ node_modules/
 .env
 *.log
 .DS_Store
+
+# Respaldos completos de la base (contienen TODOS los datos): nunca al repositorio
+respaldos/
+*.jsonl.gz

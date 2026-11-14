@@ -1205,7 +1205,7 @@ async function openHistorialPage(opts = {}) {
           backups.map(b => backupRowHtml(b, 'general')).join('')
         }
         <div class="section-title" style="margin-top:22px;">Copias de seguridad de tienda</div>
-        <p class="desc" style="margin:-6px 0 14px;">Se genera una a fin de cada mes, con las fotos de facturas y un resumen. Se conservan los últimos 2 meses.</p>
+        <p class="desc" style="margin:-6px 0 14px;">Se genera una a fin de cada mes, con las fotos de facturas y un resumen. Se conservan los últimos 2 meses y también las que aún no hayas descargado (hasta 12).</p>
         ${backupsTienda.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Todavía no se ha generado ninguna copia de tienda.</p></div>` :
           backupsTienda.map(b => backupRowHtml(b, 'tienda')).join('')
         }` : ''}

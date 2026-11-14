@@ -90,6 +90,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// Chequeo de salud para Railway: responde 200 solo si la base de datos contesta. Durante un
+// deploy, Railway espera este 200 antes de mandar tráfico a la versión nueva (si falla, sigue la anterior).
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.set('Cache-Control', 'no-store').json({ ok: true });
+  } catch (e) {
+    res.status(503).json({ ok: false });
+  }
+});
+
 app.use('/api', limites.api);
 app.use('/api/auth', authRoutes);
 app.use('/api/empresas', empresasRoutes);
