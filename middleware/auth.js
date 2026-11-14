@@ -1,7 +1,17 @@
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET, IS_PROD } = require('../lib/config');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-cambia-esto';
 const COOKIE_NAME = 'cuentas_app_token';
+
+// Devuelve el payload del token o null si es inválido/expirado.
+function verifyToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  try {
+    return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+  } catch (e) {
+    return null;
+  }
+}
 
 function signToken(user) {
   return jwt.sign(
@@ -16,7 +26,7 @@ function setAuthCookie(res, user) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: IS_PROD,
     // Sin maxAge: es una cookie de sesión, el navegador la borra al cerrar la app/pestaña por completo.
   });
 }
@@ -28,13 +38,10 @@ function clearAuthCookie(res) {
 function requireAuth(req, res, next) {
   const token = req.cookies[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: 'No autenticado' });
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload;
-    next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Sesión inválida o expirada' });
-  }
+  const payload = verifyToken(token);
+  if (!payload) return res.status(401).json({ error: 'Sesión inválida o expirada' });
+  req.user = payload;
+  next();
 }
 
 // Extrae y verifica el token a partir del header Cookie crudo (usado en el handshake de WebSocket,
@@ -43,12 +50,9 @@ function verifyTokenFromCookieHeader(cookieHeader) {
   if (!cookieHeader) return null;
   const match = cookieHeader.split(';').map(s => s.trim()).find(s => s.startsWith(COOKIE_NAME + '='));
   if (!match) return null;
-  const token = decodeURIComponent(match.slice(COOKIE_NAME.length + 1));
-  try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (e) {
-    return null;
-  }
+  let token;
+  try { token = decodeURIComponent(match.slice(COOKIE_NAME.length + 1)); } catch (e) { return null; }
+  return verifyToken(token);
 }
 
 function requireAdmin(req, res, next) {
@@ -56,4 +60,4 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireAdmin, setAuthCookie, clearAuthCookie, verifyTokenFromCookieHeader, COOKIE_NAME };
+module.exports = { requireAuth, requireAdmin, setAuthCookie, clearAuthCookie, verifyToken, verifyTokenFromCookieHeader, COOKIE_NAME };

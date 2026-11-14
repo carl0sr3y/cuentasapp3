@@ -3,11 +3,10 @@ const path = require('path');
 const http = require('http');
 const express = require('express');
 const cookieParser = require('cookie-parser');
-const jwt = require('jsonwebtoken');
 const cron = require('node-cron');
 
 const { pool, migrate } = require('./db/pool');
-const { COOKIE_NAME } = require('./middleware/auth');
+const { COOKIE_NAME, verifyToken } = require('./middleware/auth');
 const realtime = require('./lib/realtime');
 const { limpiarHistorialRodante, crearBackupGeneral, crearBackupTienda } = require('./jobs/backup');
 
@@ -25,16 +24,13 @@ const webauthnRoutes = require('./routes/webauthn');
 const app = express();
 app.set('trust proxy', 1); // detrás del proxy de Railway; necesario para que WebAuthn detecte bien el protocolo/origen
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-cambia-esto';
 
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
 app.use((req, res, next) => {
-  const token = req.cookies[COOKIE_NAME];
-  if (token) {
-    try { req.user = jwt.verify(token, JWT_SECRET); } catch (e) { /* token inválido o expirado, se ignora */ }
-  }
+  const payload = verifyToken(req.cookies[COOKIE_NAME]); // null si no hay token o es inválido/expirado
+  if (payload) req.user = payload;
   next();
 });
 
