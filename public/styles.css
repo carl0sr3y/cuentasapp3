@@ -672,3 +672,14 @@ header.topbar{gap:10px;}
 :root[data-animaciones="no"] *,:root[data-animaciones="no"] *::before,:root[data-animaciones="no"] *::after{
   animation:none !important;transition:none !important;
 }
+
+/* Saldos de cuentas: sin signo; verde = por cobrar, rojo = por pagar, gris = en cero, "a favor" = se pagó de más */
+.cero{color:var(--text-faint);}
+.favor{color:var(--text-dim);}
+.a-favor{font-family:var(--rounded);font-size:.72em;font-weight:700;color:var(--accent);background:var(--accent-bg);border-radius:6px;padding:1px 6px;margin-left:4px;vertical-align:1px;white-space:nowrap;}
+.balance-nota{font-size:13.5px;font-weight:700;color:var(--accent);margin-top:4px;}
+/* Línea de resumen: Te deben · Debes · Neto */
+.neto-linea{display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border-soft);border-radius:14px;padding:9px 12px;margin:0 0 10px;font-size:13px;color:var(--text-dim);}
+.neto-linea span{display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;}
+.neto-linea b{font-size:14.5px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;}
+#deudasView.buscando .neto-linea{display:none;}

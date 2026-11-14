@@ -361,6 +361,39 @@ function toast(msg) {
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
 }
 function totalGeneral() { return cuentasVisibles().reduce((s, c) => s + Number(c.balance), 0); }
+/* Cómo se muestran los saldos de las cuentas.
+   Internamente un abono suma y un cargo resta, así que lo que se debe es -balance.
+   En pantalla se muestra SIN signo y el color indica la dirección del dinero:
+   Por cobrar = verde (te van a pagar) · Por pagar = rojo (tú vas a pagar) · en cero = gris.
+   Si se pagó de más, el monto se marca "a favor". */
+function deudaDe(balance) { const d = -(Number(balance) || 0); return Math.abs(d) < 0.005 ? 0 : d; }
+function claseSaldo(balance, tipo) {
+  const d = deudaDe(balance);
+  return d > 0 ? (tipo === 'pagar' ? 'neg' : 'pos') : d < 0 ? 'favor' : 'cero';
+}
+function textoAFavor(tipo) { return tipo === 'pagar' ? 'Saldo a tu favor' : 'Saldo a favor del cliente'; }
+function montoSaldo(balance) { return money(Math.abs(deudaDe(balance))); }
+// Monto + etiqueta corta "a favor" (para listas).
+function saldoHtml(balance) { return montoSaldo(balance) + (deudaDe(balance) < 0 ? ' <span class="a-favor">a favor</span>' : ''); }
+// Para PDF y textos planos.
+function saldoTexto(balance, tipo) { return montoSaldo(balance) + (deudaDe(balance) < 0 ? ' (' + textoAFavor(tipo).toLowerCase() + ')' : ''); }
+// Cuadro grande del saldo: el número cuenta animado; la nota "a favor" va debajo.
+function saldoGrandeHtml(balance, tipo, clave) {
+  return `<div class="balance-amount ${claseSaldo(balance, tipo)}" data-saldo="${Math.abs(deudaDe(balance))}" data-clave="${clave}">${montoSaldo(balance)}</div>`
+    + (deudaDe(balance) < 0 ? `<div class="balance-nota">${textoAFavor(tipo)}</div>` : '');
+}
+// Línea "Te deben · Debes · Neto" (solo si hay cuentas de los dos tipos).
+function netoHtml() {
+  const de = t => CUENTAS.filter(c => (c.tipo || 'cobrar') === t);
+  if (!de('cobrar').length || !de('pagar').length) return '';
+  const suma = t => de(t).reduce((s, c) => s + deudaDe(c.balance), 0);
+  const teDeben = suma('cobrar'), debes = suma('pagar'), neto = Math.round((teDeben - debes) * 100) / 100;
+  return `<div class="neto-linea">
+      <span>Te deben <b class="pos">${money(teDeben)}</b></span>
+      <span>Debes <b class="neg">${money(debes)}</b></span>
+      <span>Neto <b class="${neto > 0 ? 'pos' : neto < 0 ? 'neg' : 'cero'}">${neto > 0 ? '+' : ''}${money(neto)}</b></span>
+    </div>`;
+}
 function escapeHtml(s) {
   return (s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
@@ -756,10 +789,11 @@ function renderDeudas() {
   const total = totalGeneral();
 
   el.innerHTML = `
+    ${netoHtml()}
     <div class="balance-block">
       <button class="balance-pdf-btn" id="btnPdfGeneral" type="button" aria-label="Generar PDF de ${T.pdfTitulo.toLowerCase()}">${ICONS.pdf}<span>PDF</span></button>
       <div class="balance-label">${T.total}</div>
-      <div class="balance-amount ${total >= 0 ? 'pos' : 'neg'}" data-saldo="${total}" data-clave="general-${tipoCuentas}">${money(total)}</div>
+      ${saldoGrandeHtml(total, tipoCuentas, 'general-' + tipoCuentas)}
     </div>
     <div id="favSection"></div>
     <div class="section-title cuentas-head">
@@ -811,7 +845,7 @@ function renderAccountsListOnly() {
     <div class="fav-row">${favoritos.map(c => `
       <div class="fav-chip" data-open="${c.id}">
         <div class="circ">${initialOf(c.nombre)}</div>
-        <div class="info"><div class="name">${escapeHtml(c.nombre)}</div><div class="bal ${c.balance >= 0 ? 'pos' : 'neg'}">${money(c.balance)}</div></div>
+        <div class="info"><div class="name">${escapeHtml(c.nombre)}</div><div class="bal ${claseSaldo(c.balance, c.tipo)}">${saldoHtml(c.balance)}</div></div>
       </div>`).join('')}</div>` : '';
 
   document.getElementById('accountsCount').textContent = `(${lista.length})`;
@@ -840,7 +874,7 @@ function accountCardHtml(c) {
       <div class="acc-circ">${initialOf(c.nombre)}</div>
       <div class="acc-info">
         <div class="acc-name">${escapeHtml(c.nombre)}</div>
-        <div class="acc-balance ${c.balance >= 0 ? 'pos' : 'neg'}">${money(c.balance)}</div>
+        <div class="acc-balance ${claseSaldo(c.balance, c.tipo)}">${saldoHtml(c.balance)}</div>
       </div>
       ${!selectMode ? `<button class="star-btn ${c.favorito ? 'fav' : ''}" data-star="${c.id}">${c.favorito ? ICONS.star : ICONS.starOutline}</button>` : ''}
     </div>`;
@@ -961,7 +995,7 @@ function renderAccountDetailPage() {
         <div class="balance-block">
           <button class="balance-pdf-btn" id="btnPdfCuenta" type="button" aria-label="Generar PDF del historial de ${escapeHtml(c.nombre)}">${ICONS.pdf}<span>PDF</span></button>
           <div class="balance-label">Balance de ${escapeHtml(c.nombre)}</div>
-          <div class="balance-amount ${c.balance >= 0 ? 'pos' : 'neg'}" data-saldo="${c.balance}" data-clave="cuenta-${c.id}">${money(c.balance)}</div>
+          ${saldoGrandeHtml(c.balance, c.tipo, 'cuenta-' + c.id)}
         </div>
         <div class="detail-actions">
           <button class="abono-btn" id="btnAbono">${ICONS.arrowDown} Abono</button>
@@ -973,7 +1007,7 @@ function renderAccountDetailPage() {
             dateKeys.map(dk => `
               <div class="history-date-group">
                 <div class="history-date-label">${fmtDateLabel(groups[dk][0].fecha)}</div>
-                ${groups[dk].map(m => movRowHtml(m)).join('')}
+                ${groups[dk].map(m => movRowHtml(m, c.tipo || 'cobrar')).join('')}
               </div>
             `).join('')
           }
@@ -988,7 +1022,8 @@ function renderAccountDetailPage() {
   bindMovLongPress(document.getElementById('movList'), (movId) => confirmDeleteMovCuenta(c.id, movId));
   animarSaldos(document.getElementById('pageRoot'));
 }
-function movRowHtml(m) {
+// tipoCuenta solo se pasa en cuentas (cobrar/pagar): ahí los montos van sin signo, como los saldos.
+function movRowHtml(m, tipoCuenta) {
   const isIn = m.tipo === 'abono' || m.tipo === 'entrada';
   return `
     <div class="mov-row" data-mov="${m.id}">
@@ -999,8 +1034,8 @@ function movRowHtml(m) {
       </div>
       ${m.tiene_foto ? `<button class="mov-photo-btn" data-photo="${m.id}" title="Ver factura">${ICONS.camera}</button>` : ''}
       <div class="mov-amounts">
-        <div class="mov-monto ${isIn ? 'pos' : 'neg'}">${isIn ? '+' : ''}${money(m.monto)}</div>
-        <div class="mov-saldo">saldo: ${money(m.saldo_resultante)}</div>
+        <div class="mov-monto ${isIn ? 'pos' : 'neg'}">${tipoCuenta ? money(Math.abs(m.monto)) : (isIn ? '+' : '') + money(m.monto)}</div>
+        <div class="mov-saldo">saldo: ${tipoCuenta ? saldoTexto(m.saldo_resultante, tipoCuenta).replace('(saldo ', '(') : money(m.saldo_resultante)}</div>
       </div>
     </div>`;
 }
@@ -1728,16 +1763,16 @@ async function generarPdfGeneral() {
   const doc = new jsPDF();
   pdfHeader(doc, 'Cuentas-App — ' + T.pdfTitulo);
   doc.setFontSize(11); doc.setTextColor(30, 30, 30);
-  doc.text(T.total + ': ' + money(data.balance), 14, 38);
+  doc.text(T.total + ': ' + saldoTexto(data.balance, tipoCuentas), 14, 38);
   doc.text('Total de cuentas: ' + data.cuentas.length, 14, 45);
-  const rows = data.cuentas.map(c => [c.nombre, c.favorito ? 'Sí' : 'No', money(c.balance)]);
-  doc.autoTable({ startY: 52, head: [[T.pdfQuien, 'Favorito', 'Balance']], body: rows, styles: { fontSize: 9 }, headStyles: { fillColor: [40, 40, 40] } });
+  const rows = data.cuentas.map(c => [c.nombre, c.favorito ? 'Sí' : 'No', saldoTexto(c.balance, tipoCuentas)]);
+  doc.autoTable({ startY: 52, head: [[T.pdfQuien, 'Favorito', 'Saldo']], body: rows, styles: { fontSize: 9 }, headStyles: { fillColor: [40, 40, 40] } });
   data.cuentas.forEach(c => {
     doc.addPage();
     pdfHeader(doc, 'Cuenta: ' + c.nombre);
     doc.setFontSize(11);
-    doc.text('Balance actual: ' + money(c.balance), 14, 38);
-    const movRows = c.movimientos.map(m => [fmtDateShort(m.fecha), fmtTime(m.fecha), m.tipo, m.descripcion || '', money(m.monto), money(m.saldo_resultante), m.usuario || '']);
+    doc.text('Saldo actual: ' + saldoTexto(c.balance, tipoCuentas), 14, 38);
+    const movRows = c.movimientos.map(m => [fmtDateShort(m.fecha), fmtTime(m.fecha), m.tipo, m.descripcion || '', money(Math.abs(m.monto)), saldoTexto(m.saldo_resultante, tipoCuentas), m.usuario || '']);
     if (movRows.length) {
       doc.autoTable({ startY: 45, head: [['Fecha', 'Hora', 'Tipo', 'Descripción', 'Monto', 'Saldo', 'Registrado por']], body: movRows, styles: { fontSize: 8 }, headStyles: { fillColor: [40, 40, 40] } });
     } else {
@@ -1752,8 +1787,9 @@ function generarPdfCuenta(c) {
   const doc = new jsPDF();
   pdfHeader(doc, 'Historial de cuenta: ' + c.nombre);
   doc.setFontSize(11); doc.setTextColor(30, 30, 30);
-  doc.text('Balance actual: ' + money(c.balance), 14, 38);
-  const movRows = c.movimientos.map(m => [fmtDateShort(m.fecha), fmtTime(m.fecha), m.tipo, m.descripcion || '', money(m.monto), money(m.saldo_resultante), m.usuario || '']);
+  const tipo = c.tipo || 'cobrar';
+  doc.text('Saldo actual: ' + saldoTexto(c.balance, tipo), 14, 38);
+  const movRows = c.movimientos.map(m => [fmtDateShort(m.fecha), fmtTime(m.fecha), m.tipo, m.descripcion || '', money(Math.abs(m.monto)), saldoTexto(m.saldo_resultante, tipo), m.usuario || '']);
   if (movRows.length) {
     doc.autoTable({ startY: 45, head: [['Fecha', 'Hora', 'Tipo', 'Descripción', 'Monto', 'Saldo', 'Registrado por']], body: movRows, styles: { fontSize: 8 }, headStyles: { fillColor: [40, 40, 40] } });
   } else {
