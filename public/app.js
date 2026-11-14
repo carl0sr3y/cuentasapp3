@@ -636,20 +636,44 @@ async function disablePush() {
   renderNotifBtn();
   toast('Notificaciones desactivadas en este dispositivo');
 }
+// Interruptor de notificaciones en Perfil → "Notificaciones e historial".
+function pushSoportado() { return 'serviceWorker' in navigator && 'PushManager' in window; }
 function renderNotifBtn() {
-  const b = document.getElementById('notifBtn');
-  b.innerHTML = notificacionesActivas ? ICONS.bell : ICONS.bellOff;
-  b.classList.toggle('active-state', notificacionesActivas);
+  const sw = document.getElementById('swNotif');
+  if (!sw) return;
+  sw.classList.toggle('on', notificacionesActivas);
+  sw.setAttribute('aria-checked', String(notificacionesActivas));
+  sw.disabled = !pushSoportado();
+  const estado = document.getElementById('notifEstado');
+  if (estado) {
+    estado.textContent = !pushSoportado() ? 'Este navegador no permite notificaciones'
+      : notificacionesActivas ? 'Activadas en este dispositivo' : 'Desactivadas en este dispositivo';
+  }
 }
-document.getElementById('notifBtn').addEventListener('click', () => {
-  if (notificacionesActivas) disablePush(); else enablePush();
-});
 
 /* ============================================================
    BARRA SUPERIOR
    ============================================================ */
-document.getElementById('historialBtn').innerHTML = ICONS.history;
-document.getElementById('historialBtn').addEventListener('click', openHistorialPage);
+// Buscador de la barra superior: filtra la pestaña que estás viendo
+// (Deudas → cuentas por nombre; Tienda → movimientos por descripción, monto o quién lo registró).
+document.getElementById('topSearchIcon').innerHTML = ICONS.search;
+const buscador = document.getElementById('buscador');
+const buscadorLimpiar = document.getElementById('buscadorLimpiar');
+function aplicarBusqueda() {
+  searchQuery = buscador.value;
+  buscadorLimpiar.classList.toggle('hidden', !searchQuery);
+  if (currentTab === 'tienda') renderTiendaListOnly(); else renderAccountsListOnly();
+}
+buscador.addEventListener('input', aplicarBusqueda);
+buscador.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') buscador.blur(); });
+buscadorLimpiar.addEventListener('click', () => { buscador.value = ''; aplicarBusqueda(); buscador.focus(); });
+function reiniciarBusqueda() {
+  const habia = !!searchQuery;
+  buscador.value = ''; searchQuery = '';
+  buscadorLimpiar.classList.add('hidden');
+  buscador.placeholder = currentTab === 'tienda' ? 'Buscar movimiento…' : 'Buscar cuenta…';
+  if (habia) { renderAccountsListOnly(); renderTiendaListOnly(); }
+}
 document.getElementById('avatarBtn').addEventListener('click', openAccountSettingsPage);
 
 function setTabUI(tab) {
@@ -658,6 +682,7 @@ function setTabUI(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('deudasView').classList.toggle('hidden', tab !== 'deudas');
   document.getElementById('tiendaView').classList.toggle('hidden', tab !== 'tienda');
+  if (anterior !== tab) reiniciarBusqueda();
   if (anterior !== tab && animOn()) {
     const vista = document.getElementById(tab === 'tienda' ? 'tiendaView' : 'deudasView');
     vista.classList.remove('entra-der', 'entra-izq');
@@ -719,7 +744,6 @@ function renderDeudas() {
       ${esAdminActual() ? `<button class="action-btn danger" id="btnEliminarCuentas">${ICONS.trash}Eliminar</button>` : ''}
       <button class="action-btn" id="btnPdfGeneral">${ICONS.pdf}PDF general</button>
     </div>
-    <div class="search-wrap">${ICONS.search}<input class="search-input" id="searchAccounts" placeholder="Buscar cuenta..." value="${searchQuery.replace(/"/g, '&quot;')}"></div>
     <div id="favSection"></div>
     <div class="section-title">Tus cuentas <span class="count" id="accountsCount">(${CUENTAS.length})</span></div>
     <div id="accountListWrap"></div>
@@ -728,14 +752,13 @@ function renderDeudas() {
   document.getElementById('btnCrearCuenta').onclick = openCreateAccountModal;
   if (esAdminActual()) document.getElementById('btnEliminarCuentas').onclick = toggleSelectMode;
   document.getElementById('btnPdfGeneral').onclick = generarPdfGeneral;
-  document.getElementById('searchAccounts').oninput = (e) => { searchQuery = e.target.value; renderAccountsListOnly(); };
   renderAccountsListOnly();
   animarSaldos(document.getElementById('deudasView'));
 }
 
 function renderAccountsListOnly() {
   const favoritos = CUENTAS.filter(c => c.favorito);
-  const q = searchQuery.trim().toLowerCase();
+  const q = currentTab === 'deudas' ? searchQuery.trim().toLowerCase() : '';
   const filtered = CUENTAS.filter(c => c.nombre.toLowerCase().includes(q));
   const sorted = [...filtered].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   const groups = {};
@@ -1040,10 +1063,7 @@ function confirmDeleteMovCuenta(cuentaId, movId) {
    ============================================================ */
 function renderTienda() {
   const el = document.getElementById('tiendaView');
-  const movs = TIENDA.movimientos.slice().reverse();
-  const groups = {};
-  movs.forEach(m => { const key = fmtDateShort(m.fecha); (groups[key] = groups[key] || []).push(m); });
-  const dateKeys = Object.keys(groups);
+  const movs = TIENDA.movimientos;
   const balanceHoy = TIENDA.balanceHoy || 0;
 
   el.innerHTML = `
@@ -1058,25 +1078,36 @@ function renderTienda() {
     <button class="pdf-btn" id="btnFactura">${ICONS.receipt} Generar factura</button>
     <button class="pdf-btn" id="btnPdfTienda">${ICONS.pdf} Generar PDF de movimientos</button>
     ${movs.length ? `<div class="swipe-hint">Mantén presionado un movimiento para eliminarlo</div>` : ''}
-    <div id="tiendaMovList">
-      ${movs.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Sin movimientos registrados en la tienda todavía.</p></div>` :
-        dateKeys.map(dk => `
-          <div class="history-date-group">
-            <div class="history-date-label">${fmtDateLabel(groups[dk][0].fecha)}</div>
-            ${groups[dk].map(m => movRowHtml(m)).join('')}
-          </div>
-        `).join('')
-      }
-    </div>
+    <div id="tiendaMovList"></div>
   `;
   document.getElementById('btnEntrada').onclick = () => openTiendaMovModal('entrada');
   document.getElementById('btnSalida').onclick = () => openTiendaMovModal('salida');
   document.getElementById('btnPdfTienda').onclick = openPdfTiendaFilterModal;
   document.getElementById('btnFactura').onclick = openInvoicePage;
+  renderTiendaListOnly();
+  animarSaldos(document.getElementById('tiendaView'));
+}
+function renderTiendaListOnly() {
   const listEl = document.getElementById('tiendaMovList');
+  if (!listEl) return;
+  const q = currentTab === 'tienda' ? searchQuery.trim().toLowerCase() : '';
+  const todos = TIENDA.movimientos.slice().reverse();
+  const movs = !q ? todos : todos.filter(m =>
+    (m.descripcion || '').toLowerCase().includes(q) ||
+    (m.usuario || '').toLowerCase().includes(q) ||
+    (m.tipo || '').toLowerCase().includes(q) ||
+    String(Math.abs(Number(m.monto)).toFixed(2)).includes(q.replace(/[q,\s]/g, '')));
+  const groups = {};
+  movs.forEach(m => { const key = fmtDateShort(m.fecha); (groups[key] = groups[key] || []).push(m); });
+  listEl.innerHTML = movs.length === 0
+    ? `<div class="empty-state">${ICONS.inbox}<p>${q ? `Ningún movimiento coincide con «${escapeHtml(searchQuery.trim())}».` : 'Sin movimientos registrados en la tienda todavía.'}</p></div>`
+    : Object.keys(groups).map(dk => `
+        <div class="history-date-group">
+          <div class="history-date-label">${fmtDateLabel(groups[dk][0].fecha)}</div>
+          ${groups[dk].map(m => movRowHtml(m)).join('')}
+        </div>`).join('');
   bindMovLongPress(listEl, confirmDeleteMovTienda);
   bindPhotoButtons(listEl, movs);
-  animarSaldos(document.getElementById('tiendaView'));
 }
 function compressImage(file, maxWidth = 1000, quality = 0.7) {
   return new Promise((resolve, reject) => {
@@ -1364,6 +1395,18 @@ function renderUsersPage(meParam, usuariosParam) {
             </div>
           </div>
 
+          <div class="section-title" style="margin-top:22px;">Notificaciones e historial</div>
+          <div class="ajuste-row">
+            <div class="ajuste-ico">${ICONS.bell}</div>
+            <div class="info"><div class="name">Notificaciones</div><div class="handle" id="notifEstado"></div></div>
+            <button class="switch" id="swNotif" type="button" role="switch" aria-checked="false" aria-label="Notificaciones"><span></span></button>
+          </div>
+          <button class="ajuste-row ajuste-link" id="btnHistorialPerfil" type="button">
+            <div class="ajuste-ico">${ICONS.history}</div>
+            <div class="info"><div class="name">Historial general</div><div class="handle">Actividad de los últimos 7 días${esAdmin ? ' y copias de seguridad' : ''}</div></div>
+            <span class="ajuste-chev">›</span>
+          </button>
+
           ${esAdmin ? `
             <div class="section-title" style="margin-top:22px;">Usuarios de tu empresa</div>
             ${otros.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Todavía no has creado ningún usuario.</p></div>` :
@@ -1426,6 +1469,14 @@ function renderUsersPage(meParam, usuariosParam) {
     document.getElementById('btnAddFingerprint').onclick = openRegisterFingerprintModal;
     loadFingerprintDevices();
     bindApariencia();
+    document.getElementById('btnHistorialPerfil').onclick = () => openHistorialPage();
+    const sw = document.getElementById('swNotif');
+    sw.onclick = async () => {
+      sw.disabled = true;
+      try { if (notificacionesActivas) await disablePush(); else await enablePush(); }
+      finally { renderNotifBtn(); }
+    };
+    renderNotifBtn();
   };
   if (meParam) render(meParam, usuariosParam);
   else api('/usuarios/me').then(r => render(r.usuario, null)).catch(() => toast('No se pudo cargar tu información'));

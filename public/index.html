@@ -19,10 +19,12 @@
   <header class="topbar">
     <div class="brand">Cuentas-App</div>
     <div class="sync-wrap" id="syncWrap" title="Estado de sincronización"><span class="sync-dot" id="syncDot"></span></div>
-    <div class="spacer"></div>
-    <button class="icon-btn" id="notifBtn" title="Notificaciones"></button>
-    <button class="icon-btn" id="historialBtn" title="Historial"></button>
-    <button class="icon-btn" id="avatarBtn" style="width:auto;padding:0 4px 0 0;display:flex;align-items:center;gap:0;">
+    <div class="top-search" id="topSearch">
+      <span class="top-search-icon" id="topSearchIcon"></span>
+      <input id="buscador" type="text" placeholder="Buscar cuenta…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Buscar">
+      <button class="top-search-clear hidden" id="buscadorLimpiar" type="button" aria-label="Borrar búsqueda">×</button>
+    </div>
+    <button class="icon-btn" id="avatarBtn" title="Perfil" style="width:auto;padding:0 4px 0 0;display:flex;align-items:center;gap:0;">
       <span class="avatar" id="avatarInitial">A</span>
       <span class="username-label" id="userLabel"></span>
     </button>

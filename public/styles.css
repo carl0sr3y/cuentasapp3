@@ -531,6 +531,44 @@ header.topbar,.page-header{border-bottom-color:transparent;}
 .seg-nota{font-size:13.5px;color:var(--text-faint);margin:-6px 0 16px;line-height:1.45;}
 
 /* ============================================================
+   BARRA SUPERIOR: buscador junto al perfil
+   ============================================================ */
+header.topbar{gap:10px;}
+.top-search{flex:1;min-width:0;position:relative;display:flex;align-items:center;
+  height:40px;background:var(--surface-2);border-radius:13px;padding:0 6px 0 34px;
+  transition:background .2s,box-shadow .2s;}
+.top-search:focus-within{background:var(--surface);box-shadow:0 0 0 2px var(--accent-bg),var(--shadow);}
+.top-search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);display:flex;color:var(--text-faint);pointer-events:none;}
+.top-search-icon svg{width:16px;height:16px;}
+.top-search input{flex:1;min-width:0;height:100%;background:none;border:none;outline:none;color:var(--text);font-size:16px;}
+.top-search input::placeholder{color:var(--text-faint);}
+.top-search-clear{width:28px;height:28px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
+  background:var(--surface-2);color:var(--text-dim);font-size:20px;line-height:1;}
+.top-search:focus-within .top-search-clear{background:var(--surface-alt);}
+@media (max-width:359px){.topbar .brand{display:none;}}
+
+/* ============================================================
+   PERFIL: filas de ajustes e interruptor
+   ============================================================ */
+.ajuste-row{width:100%;display:flex;align-items:center;gap:12px;padding:12px;margin-bottom:8px;text-align:left;
+  background:var(--surface);border-radius:16px;box-shadow:var(--shadow);color:var(--text);}
+.ajuste-row .info{flex:1;min-width:0;}
+.ajuste-row .name{font-size:17px;font-weight:700;}
+.ajuste-row .handle{font-size:14.5px;color:var(--text-dim);margin-top:1px;}
+.ajuste-ico{width:38px;height:38px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;
+  background:var(--accent-bg);color:var(--accent);}
+.ajuste-ico svg{width:19px;height:19px;}
+.ajuste-chev{font-size:26px;color:var(--text-faint);line-height:1;padding-right:2px;}
+.ajuste-link{transition:transform .14s var(--ease-out),background .2s;}
+.ajuste-link:active{transform:scale(.985);background:var(--surface-alt);}
+.switch{width:50px;height:30px;border-radius:999px;flex:none;position:relative;background:var(--border);transition:background .25s var(--ease-out);}
+.switch span{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .28s var(--ease-spring);}
+.switch.on{background:var(--green);}
+.switch.on span{transform:translateX(20px);}
+.switch[disabled]{opacity:.45;}
+
+/* ============================================================
    ANIMACIONES
    Se pueden desactivar en el perfil (o se desactivan solas en equipos modestos y con
    "reducir movimiento"): tema.js pone data-animaciones="no" en <html>.
