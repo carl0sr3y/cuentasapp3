@@ -4,6 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { broadcast } = require('../lib/realtime');
 const { sendPushToOthers } = require('../lib/push');
 const { texto, textoOpcional, idValido, montoValido, paramId } = require('../lib/validate');
+const { enTransaccion, bloquearCuenta, saldoCuenta, recalcularCuentas } = require('../lib/saldos');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -103,23 +104,22 @@ router.post('/:id/movimientos', async (req, res) => {
   if (descripcion === null) return res.status(400).json({ error: 'Descripción inválida (máximo 300 caracteres)' });
   const montoFinal = tipo === 'abono' ? montoNum : -montoNum;
 
-  const { rows: cuentaRows } = await pool.query(`SELECT nombre FROM cuentas WHERE id = $1 AND empresa_id = $2`, [req.params.id, req.user.empresa_id]);
-  if (!cuentaRows[0]) return res.status(404).json({ error: 'Cuenta no encontrada' });
-
-  const { rows: last } = await pool.query(
-    `SELECT saldo_resultante FROM movimientos_cuentas WHERE cuenta_id = $1 ORDER BY fecha DESC, id DESC LIMIT 1`,
-    [req.params.id]
-  );
-  const saldoAnterior = last[0] ? Number(last[0].saldo_resultante) : 0;
-  const saldoResultante = saldoAnterior + montoFinal;
-
-  const { rows } = await pool.query(
-    `INSERT INTO movimientos_cuentas (cuenta_id, usuario_id, tipo, descripcion, monto, saldo_resultante)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha`,
-    [req.params.id, req.user.id, tipo, descripcion, montoFinal, saldoResultante]
-  );
-  const mov = { ...rows[0], usuario: req.user.nombre };
-  const nombreCuenta = cuentaRows[0].nombre;
+  // Con la cuenta bloqueada: saldo = suma real + este movimiento. La fecha se toma DESPUÉS del
+  // bloqueo (clock_timestamp) para que el orden por fecha coincida con el orden de registro.
+  const resultado = await enTransaccion(pool, async (client) => {
+    const cuenta = await bloquearCuenta(client, req.params.id, req.user.empresa_id);
+    if (!cuenta) return null;
+    const saldo = (await saldoCuenta(client, cuenta.id)) + montoFinal;
+    const { rows } = await client.query(
+      `INSERT INTO movimientos_cuentas (cuenta_id, usuario_id, tipo, descripcion, monto, saldo_resultante, fecha)
+       VALUES ($1,$2,$3,$4,$5,$6, clock_timestamp()) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha`,
+      [cuenta.id, req.user.id, tipo, descripcion, montoFinal, saldo]
+    );
+    return { cuenta, mov: { ...rows[0], usuario: req.user.nombre }, saldoResultante: Number(rows[0].saldo_resultante) };
+  });
+  if (!resultado) return res.status(404).json({ error: 'Cuenta no encontrada' });
+  const { mov, saldoResultante } = resultado;
+  const nombreCuenta = resultado.cuenta.nombre;
   await registrarHistorial(
     req.user.empresa_id, req.user.id,
     tipo === 'abono' ? 'Abono' : 'Cargo',
@@ -138,34 +138,17 @@ router.post('/:id/movimientos', async (req, res) => {
 
 router.delete('/:cuentaId/movimientos/:movId', async (req, res) => {
   const { cuentaId, movId } = req.params;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows: cuentaRows } = await client.query(`SELECT id FROM cuentas WHERE id = $1 AND empresa_id = $2`, [cuentaId, req.user.empresa_id]);
-    if (!cuentaRows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Cuenta no encontrada' }); }
-
-    await client.query(`DELETE FROM movimientos_cuentas WHERE id = $1 AND cuenta_id = $2`, [movId, cuentaId]);
-
-    const { rows: restantes } = await client.query(
-      `SELECT id, monto FROM movimientos_cuentas WHERE cuenta_id = $1 ORDER BY fecha ASC, id ASC`,
-      [cuentaId]
-    );
-    let running = 0;
-    for (const m of restantes) {
-      running += Number(m.monto);
-      await client.query(`UPDATE movimientos_cuentas SET saldo_resultante = $1 WHERE id = $2`, [running, m.id]);
-    }
-    await client.query('COMMIT');
-    await registrarHistorial(req.user.empresa_id, req.user.id, 'Eliminar movimiento', 'Movimiento eliminado de cuenta', { referencia_id: Number(cuentaId) });
-    broadcast({ scope: 'cuenta', id: Number(cuentaId), empresaId: req.user.empresa_id, by: req.user.nombre, excludeClientId: clientIdOf(req) });
-    res.json({ balance: running });
-  } catch (e) {
-    await client.query('ROLLBACK');
-    console.error(e);
-    res.status(500).json({ error: 'Error al eliminar el movimiento' });
-  } finally {
-    client.release();
-  }
+  const balance = await enTransaccion(pool, async (client) => {
+    const cuenta = await bloquearCuenta(client, cuentaId, req.user.empresa_id);
+    if (!cuenta) return null;
+    await client.query('DELETE FROM movimientos_cuentas WHERE id = $1 AND cuenta_id = $2', [movId, cuenta.id]);
+    await recalcularCuentas(client, cuenta.id);
+    return saldoCuenta(client, cuenta.id);
+  });
+  if (balance === null) return res.status(404).json({ error: 'Cuenta no encontrada' });
+  await registrarHistorial(req.user.empresa_id, req.user.id, 'Eliminar movimiento', 'Movimiento eliminado de cuenta', { referencia_id: Number(cuentaId) });
+  broadcast({ scope: 'cuenta', id: Number(cuentaId), empresaId: req.user.empresa_id, by: req.user.nombre, excludeClientId: clientIdOf(req) });
+  res.json({ balance });
 });
 
 module.exports = router;

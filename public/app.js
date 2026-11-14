@@ -864,14 +864,27 @@ function bindPhotoButtons(container, movs) {
     });
   });
 }
+// Las fotos se insertan creando el <img> con el DOM y solo si son JPEG en base64: nunca como texto
+// dentro del HTML (una "foto" maliciosa podría ejecutar código en la sesión de quien la abre).
+function esFotoSegura(dataUrl) {
+  return typeof dataUrl === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(dataUrl);
+}
+function crearImgFoto(dataUrl, estilo) {
+  const img = document.createElement('img');
+  if (estilo) img.style.cssText = estilo;
+  if (esFotoSegura(dataUrl)) img.src = dataUrl;
+  else img.alt = 'Foto no disponible';
+  return img;
+}
 function openPhotoLightbox(dataUrl) {
   showModal(`
     <h3>Factura</h3>
-    <img src="${dataUrl}" style="width:100%;border-radius:10px;margin:8px 0;display:block;">
+    <div id="lightboxFoto"></div>
     <div class="modal-actions">
       <button class="btn-confirm" data-close style="width:100%;">Cerrar</button>
     </div>
   `, { center: true });
+  document.getElementById('lightboxFoto').appendChild(crearImgFoto(dataUrl, 'width:100%;border-radius:10px;margin:8px 0;display:block;'));
 }
 function bindMovLongPress(container, onDelete) {
   let timer = null;
@@ -1017,7 +1030,8 @@ function openTiendaMovModal(tipo) {
     try {
       fotoDataUrl = await compressImage(file);
       document.getElementById('fotoPreviewWrap').innerHTML = `
-        <div class="photo-preview"><img src="${fotoDataUrl}"><button type="button" class="remove-photo" id="btnQuitarFoto">${ICONS.trash}</button></div>`;
+        <div class="photo-preview"><span id="fotoPreviewImg"></span><button type="button" class="remove-photo" id="btnQuitarFoto">${ICONS.trash}</button></div>`;
+      document.getElementById('fotoPreviewImg').replaceWith(crearImgFoto(fotoDataUrl));
       document.getElementById('btnQuitarFoto').onclick = () => { fotoDataUrl = null; document.getElementById('fotoPreviewWrap').innerHTML = ''; };
     } catch (err) { toast('No se pudo procesar la foto'); }
   });
@@ -1576,7 +1590,7 @@ async function generarPdfTienda(movs, label) {
     doc.setFontSize(10); doc.setTextColor(140, 140, 140); doc.text('No hay movimientos en este rango.', 14, 43);
   }
 
-  const conFoto = movs.filter(m => m.foto);
+  const conFoto = movs.filter(m => esFotoSegura(m.foto));
   for (const m of conFoto) {
     doc.addPage();
     pdfHeader(doc, 'Factura — ' + fmtDateShort(m.fecha) + ' ' + fmtTime(m.fecha));

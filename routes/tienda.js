@@ -4,6 +4,8 @@ const { requireAuth } = require('../middleware/auth');
 const { broadcast } = require('../lib/realtime');
 const { sendPushToOthers } = require('../lib/push');
 const { textoOpcional, montoValido, paramId } = require('../lib/validate');
+const { validarFoto } = require('../lib/fotos');
+const { enTransaccion, bloquearTienda, saldoTienda, recalcularTienda } = require('../lib/saldos');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -39,75 +41,57 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { tipo, monto, foto } = req.body || {};
+  const { tipo, monto } = req.body || {};
   if (!['entrada', 'salida'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido' });
   const montoNum = montoValido(monto);
   if (montoNum === null) return res.status(400).json({ error: 'Monto inválido' });
   const descripcion = textoOpcional((req.body || {}).descripcion, 300);
   if (descripcion === null) return res.status(400).json({ error: 'Descripción inválida (máximo 300 caracteres)' });
+  const { foto, error: errorFoto } = validarFoto((req.body || {}).foto);
+  if (errorFoto) return res.status(400).json({ error: errorFoto });
   const montoFinal = tipo === 'entrada' ? montoNum : -montoNum;
+  const empresaId = req.user.empresa_id;
 
-  if (foto !== undefined && foto !== null && typeof foto !== 'string') {
-    return res.status(400).json({ error: 'Foto inválida' });
-  }
-  if (foto && Buffer.byteLength(foto, 'utf8') > 4 * 1024 * 1024) {
-    return res.status(400).json({ error: 'La foto es demasiado grande' });
-  }
+  // Con la tienda bloqueada: saldo = suma real + este movimiento. La fecha se toma DESPUÉS del
+  // bloqueo (clock_timestamp) para que el orden por fecha coincida con el orden de registro.
+  const { mov, saldoResultante } = await enTransaccion(pool, async (client) => {
+    await bloquearTienda(client, empresaId);
+    const saldo = (await saldoTienda(client, empresaId)) + montoFinal;
+    const { rows } = await client.query(
+      `INSERT INTO movimientos_tienda (empresa_id, usuario_id, tipo, descripcion, monto, saldo_resultante, foto, fecha)
+       VALUES ($1,$2,$3,$4,$5,$6,$7, clock_timestamp()) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha, foto`,
+      [empresaId, req.user.id, tipo, descripcion, montoFinal, saldo, foto]
+    );
+    return { mov: { ...rows[0], usuario: req.user.nombre }, saldoResultante: Number(rows[0].saldo_resultante) };
+  });
 
-  const { rows: last } = await pool.query(
-    `SELECT saldo_resultante FROM movimientos_tienda WHERE empresa_id = $1 ORDER BY fecha DESC, id DESC LIMIT 1`,
-    [req.user.empresa_id]
-  );
-  const saldoAnterior = last[0] ? Number(last[0].saldo_resultante) : 0;
-  const saldoResultante = saldoAnterior + montoFinal;
-
-  const { rows } = await pool.query(
-    `INSERT INTO movimientos_tienda (empresa_id, usuario_id, tipo, descripcion, monto, saldo_resultante, foto)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha, foto`,
-    [req.user.empresa_id, req.user.id, tipo, descripcion, montoFinal, saldoResultante, foto || null]
-  );
-  const mov = { ...rows[0], usuario: req.user.nombre };
   await registrarHistorial(
-    req.user.empresa_id, req.user.id,
+    empresaId, req.user.id,
     tipo === 'entrada' ? 'Entrada' : 'Salida',
     `${tipo === 'entrada' ? 'Entrada' : 'Salida'} de tienda${mov.descripcion ? ': ' + mov.descripcion : ''}${foto ? ' (con factura)' : ''}`,
     { tipo, monto: montoFinal }
   );
-  broadcast({ scope: 'tienda', empresaId: req.user.empresa_id, by: req.user.nombre, excludeClientId: clientIdOf(req) });
+  broadcast({ scope: 'tienda', empresaId, by: req.user.nombre, excludeClientId: clientIdOf(req) });
   sendPushToOthers({
     title: `${tipo === 'entrada' ? 'Entrada' : 'Salida'} de tienda`,
     body: `${req.user.nombre}: ${tipo === 'entrada' ? 'Entrada' : 'Salida'} de ${money(montoNum)}`,
-    empresaId: req.user.empresa_id,
+    empresaId,
     excludeClientId: clientIdOf(req),
   }).catch(e => console.error('Error enviando push:', e.message));
   res.json({ movimiento: mov, balance: saldoResultante });
 });
 
 router.delete('/:movId', async (req, res) => {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(`DELETE FROM movimientos_tienda WHERE id = $1 AND empresa_id = $2`, [req.params.movId, req.user.empresa_id]);
-    const { rows: restantes } = await client.query(
-      `SELECT id, monto FROM movimientos_tienda WHERE empresa_id = $1 ORDER BY fecha ASC, id ASC`,
-      [req.user.empresa_id]
-    );
-    let running = 0;
-    for (const m of restantes) {
-      running += Number(m.monto);
-      await client.query(`UPDATE movimientos_tienda SET saldo_resultante = $1 WHERE id = $2`, [running, m.id]);
-    }
-    await client.query('COMMIT');
-    await registrarHistorial(req.user.empresa_id, req.user.id, 'Eliminar movimiento', 'Movimiento eliminado de tienda');
-    broadcast({ scope: 'tienda', empresaId: req.user.empresa_id, by: req.user.nombre, excludeClientId: clientIdOf(req) });
-    res.json({ balance: running });
-  } catch (e) {
-    await client.query('ROLLBACK');
-    console.error(e);
-    res.status(500).json({ error: 'Error al eliminar el movimiento' });
-  } finally {
-    client.release();
-  }
+  const empresaId = req.user.empresa_id;
+  const balance = await enTransaccion(pool, async (client) => {
+    await bloquearTienda(client, empresaId);
+    await client.query('DELETE FROM movimientos_tienda WHERE id = $1 AND empresa_id = $2', [req.params.movId, empresaId]);
+    await recalcularTienda(client, empresaId);
+    return saldoTienda(client, empresaId);
+  });
+  await registrarHistorial(empresaId, req.user.id, 'Eliminar movimiento', 'Movimiento eliminado de tienda');
+  broadcast({ scope: 'tienda', empresaId, by: req.user.nombre, excludeClientId: clientIdOf(req) });
+  res.json({ balance });
 });
 
 module.exports = router;
