@@ -29,10 +29,12 @@ router.get('/', async (req, res) => {
            COALESCE((
              SELECT m.saldo_resultante FROM movimientos_cuentas m
              WHERE m.cuenta_id = c.id ORDER BY m.fecha DESC, m.id DESC LIMIT 1
-           ), 0) AS balance
+           ), 0) AS balance,
+           -- Última actividad: el movimiento más reciente o, si no tiene, la fecha en que se creó.
+           COALESCE((SELECT MAX(m.fecha) FROM movimientos_cuentas m WHERE m.cuenta_id = c.id), c.fecha_creacion) AS ultima_actividad
     FROM cuentas c
     WHERE c.empresa_id = $1
-    ORDER BY c.nombre ASC
+    ORDER BY ultima_actividad DESC, c.nombre ASC
   `, [req.user.empresa_id]);
   res.json(rows);
 });

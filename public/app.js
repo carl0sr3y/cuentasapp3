@@ -9,8 +9,6 @@ const ICONS = {
   trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
   pdf: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
   search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
-  star: `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
-  starOutline: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
   check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
   back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`,
   arrowDown: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>`,
@@ -355,6 +353,17 @@ function fmtDateLabel(iso) {
 function fmtTime(iso) { return new Date(iso).toLocaleTimeString('es-GT', { hour: 'numeric', minute: '2-digit' }); }
 function fmtDateShort(iso) { return new Date(iso).toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
 function fmtDateTimeShort(iso) { return new Date(iso).toLocaleString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+// Fecha corta al estilo de los chats: hora si fue hoy, "Ayer", día de la semana o fecha.
+function fmtActividad(iso) {
+  if (!iso) return '';
+  const d = new Date(iso), hoy = new Date();
+  const dias = Math.round((new Date(hoy.toDateString()) - new Date(d.toDateString())) / 86400000);
+  if (dias <= 0) return fmtTime(iso);
+  if (dias === 1) return 'Ayer';
+  if (dias < 7) return d.toLocaleDateString('es-GT', { weekday: 'long' }).replace(/^./, x => x.toUpperCase());
+  return d.toLocaleDateString('es-GT', { day: 'numeric', month: 'short', ...(d.getFullYear() !== hoy.getFullYear() ? { year: 'numeric' } : {}) }).replace('.', '');
+}
+const tiempoActividad = c => new Date(c.ultima_actividad || c.fecha_creacion || 0).getTime();
 function initialOf(name) { return (name || '?').trim().charAt(0).toUpperCase(); }
 function toast(msg) {
   const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
@@ -806,7 +815,6 @@ function renderDeudas() {
   el.dataset.tipo = tipoCuentas;
   el.innerHTML = `
     ${resumenHtml()}
-    <div id="favSection"></div>
     <div class="section-title cuentas-head">
       <span>Tus cuentas <span class="count" id="accountsCount">(${cuentasVisibles().length})</span></span>
       <div class="mini-acciones">
@@ -836,44 +844,27 @@ function rangoCoincidencia(nombre, q) {
 }
 function renderAccountsListOnly() {
   const lista = cuentasVisibles();
-  const favoritos = lista.filter(c => c.favorito);
   const q = esTabCuentas() ? sinAcentos(searchQuery.trim()) : '';
   const filtered = q ? lista.filter(c => rangoCoincidencia(c.nombre, q) >= 0) : lista;
-  // Mientras se busca una cuenta se ocultan saldo, favoritos y encabezado: los resultados suben arriba.
+  // Mientras se busca una cuenta se ocultan el resumen y el encabezado: los resultados suben arriba.
   const vista = document.getElementById('deudasView');
   const yaBuscaba = vista.classList.contains('buscando');
   vista.classList.toggle('buscando', !!q);
   if (q && !yaBuscaba) window.scrollTo({ top: 0 });
-  // Buscando: primero lo que mejor coincide; sin buscar: orden alfabético.
+  // Buscando: primero lo que mejor coincide. Sin buscar: como en los chats, arriba la cuenta
+  // con el movimiento más reciente (o la recién creada).
   const sorted = [...filtered].sort((a, b) =>
-    (q ? rangoCoincidencia(a.nombre, q) - rangoCoincidencia(b.nombre, q) : 0) || a.nombre.localeCompare(b.nombre, 'es'));
-  const groups = {};
-  sorted.forEach(c => { const L = initialOf(c.nombre); (groups[L] = groups[L] || []).push(c); });
-  const letters = Object.keys(groups).sort();
-
-  document.getElementById('favSection').innerHTML = favoritos.length ? `
-    <div class="section-title">Clientes favoritos</div>
-    <div class="fav-row">${favoritos.map(c => `
-      <div class="fav-chip" data-open="${c.id}">
-        <div class="circ">${initialOf(c.nombre)}</div>
-        <div class="info"><div class="name">${escapeHtml(c.nombre)}</div><div class="bal ${claseSaldo(c.balance, c.tipo)}">${saldoHtml(c.balance)}</div></div>
-      </div>`).join('')}</div>` : '';
+    (q ? rangoCoincidencia(a.nombre, q) - rangoCoincidencia(b.nombre, q) : tiempoActividad(b) - tiempoActividad(a))
+    || a.nombre.localeCompare(b.nombre, 'es'));
 
   document.getElementById('accountsCount').textContent = `(${lista.length})`;
 
   const wrap = document.getElementById('accountListWrap');
   wrap.innerHTML = sorted.length === 0 ? `
     <div class="empty-state">${ICONS.inbox}<p>${lista.length === 0 ? TEXTOS_TIPO[tipoCuentas].vacio : 'No se encontraron cuentas con ese nombre.'}</p></div>
-  ` : q ? `
-    <div class="letter-group">${sorted.map(c => accountCardHtml(c)).join('')}</div>
-  ` : letters.map(L => `
-    <div class="letter-group">
-      <div class="letter-head">${L}</div>
-      ${groups[L].map(c => accountCardHtml(c)).join('')}
-    </div>
-  `).join('');
-
-  document.querySelectorAll('#favSection .fav-chip').forEach(f => f.onclick = () => openAccountDetail(f.dataset.open));
+  ` : `
+    <div class="letter-group lista-actividad">${sorted.map(c => accountCardHtml(c)).join('')}</div>
+  `;
   bindAccountCardEvents(wrap);
   renderSelectBar();
 }
@@ -887,28 +878,15 @@ function accountCardHtml(c) {
         <div class="acc-name">${escapeHtml(c.nombre)}</div>
         <div class="acc-balance ${claseSaldo(c.balance, c.tipo)}">${saldoHtml(c.balance)}</div>
       </div>
-      ${!selectMode ? `<button class="star-btn ${c.favorito ? 'fav' : ''}" data-star="${c.id}">${c.favorito ? ICONS.star : ICONS.starOutline}</button>` : ''}
+      ${!selectMode ? `<div class="acc-actividad">${fmtActividad(c.ultima_actividad)}</div>` : ''}
     </div>`;
 }
 function bindAccountCardEvents(el) {
   el.querySelectorAll('.account-card').forEach(card => {
     const id = card.dataset.id;
     card.addEventListener('click', (e) => {
-      if (e.target.closest('[data-star]') || e.target.closest('[data-check]')) return;
+      if (e.target.closest('[data-check]')) return;
       if (selectMode) toggleSelect(id); else openAccountDetail(id);
-    });
-  });
-  el.querySelectorAll('[data-star]').forEach(b => {
-    b.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const id = b.dataset.star;
-      const c = CUENTAS.find(x => String(x.id) === id);
-      try {
-        const updated = await api(`/cuentas/${id}`, { method: 'PATCH', body: { favorito: !c.favorito } });
-        c.favorito = updated.favorito;
-        renderDeudas();
-        if (animOn()) document.querySelectorAll(`[data-star="${id}"]`).forEach(x => x.classList.add('pop'));
-      } catch (e) { toast('No se pudo actualizar el favorito'); }
     });
   });
   el.querySelectorAll('[data-check]').forEach(b => {
@@ -968,8 +946,10 @@ function openCreateAccountModal() {
     if (!nombre) return;
     try {
       const cuenta = await api('/cuentas', { method: 'POST', body: { nombre, tipo: tipoCuentas } });
-      CUENTAS.push(cuenta);
+      CUENTAS.push({ ...cuenta, ultima_actividad: cuenta.fecha_creacion });
       closeModal(); renderDeudas(); toast('Cuenta creada');
+      // Se entra directo a la cuenta nueva, lista para registrar su primer movimiento.
+      openAccountDetail(cuenta.id);
     } catch (e) { toast('No se pudo crear la cuenta'); }
   };
   document.getElementById('confirmCreateAcc').onclick = submit;
@@ -1124,7 +1104,7 @@ function openMovModal(tipo, cuentaId) {
       currentAccountDetail.movimientos.push(movimiento);
       currentAccountDetail.balance = balance;
       const listItem = CUENTAS.find(c => c.id === cuentaId || String(c.id) === String(cuentaId));
-      if (listItem) listItem.balance = balance;
+      if (listItem) { listItem.balance = balance; listItem.ultima_actividad = movimiento.fecha; }
       closeModal();
       renderAccountDetailPage();
       renderDeudas();
@@ -1138,8 +1118,7 @@ function confirmDeleteMovCuenta(cuentaId, movId) {
     try {
       await api(`/cuentas/${cuentaId}/movimientos/${movId}`, { method: 'DELETE' });
       currentAccountDetail = await api(`/cuentas/${cuentaId}`);
-      const listItem = CUENTAS.find(c => String(c.id) === String(cuentaId));
-      if (listItem) listItem.balance = currentAccountDetail.balance;
+      CUENTAS = await api('/cuentas'); // saldo y última actividad recalculados
       renderAccountDetailPage();
       renderDeudas();
       toast('Movimiento eliminado');
@@ -1788,12 +1767,12 @@ function abrirOpcionesPdf() {
   });
 }
 function pdfTablaCuentas(doc, cuentas, tipo, startY) {
-  const rows = cuentas.map(c => [c.nombre, c.favorito ? 'Sí' : 'No', saldoTexto(c.balance, tipo)]);
+  const rows = cuentas.map(c => [c.nombre, saldoTexto(c.balance, tipo)]);
   if (!rows.length) {
     doc.setFontSize(10); doc.setTextColor(140, 140, 140); doc.text('Sin cuentas registradas.', 14, startY + 4);
     doc.setTextColor(30, 30, 30); return startY + 10;
   }
-  doc.autoTable({ startY, head: [[TEXTOS_TIPO[tipo].pdfQuien, 'Favorito', 'Saldo']], body: rows, styles: { fontSize: 9 }, headStyles: { fillColor: [40, 40, 40] } });
+  doc.autoTable({ startY, head: [[TEXTOS_TIPO[tipo].pdfQuien, 'Saldo']], body: rows, styles: { fontSize: 9 }, headStyles: { fillColor: [40, 40, 40] } });
   return doc.lastAutoTable.finalY;
 }
 function pdfPaginasCuentas(doc, cuentas, tipo, prefijo) {
