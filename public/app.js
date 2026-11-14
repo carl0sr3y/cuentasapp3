@@ -277,6 +277,43 @@ window.addEventListener('online', () => {
 });
 
 /* ============================================================
+   ANIMACIONES (se apagan solas si el usuario las desactiva o el equipo es modesto: ver tema.js)
+   ============================================================ */
+function animOn() { return !!(window.CuentasTema && window.CuentasTema.animacionesActivas()); }
+// Marca un instante de "llegada a una pantalla" para que la entrada escalonada se vea solo entonces.
+let _entradaT = null;
+function animarEntrada() {
+  if (!animOn()) return;
+  document.body.classList.add('animar-entrada');
+  clearTimeout(_entradaT);
+  _entradaT = setTimeout(() => document.body.classList.remove('animar-entrada'), 900);
+}
+// Saldos que "cuentan" desde el valor anterior hasta el nuevo.
+const saldosMostrados = new Map();
+function animarSaldos(root = document) {
+  root.querySelectorAll('.balance-amount[data-saldo]').forEach(el => {
+    const clave = el.dataset.clave, nuevo = Number(el.dataset.saldo);
+    const previo = saldosMostrados.has(clave) ? saldosMostrados.get(clave) : 0;
+    saldosMostrados.set(clave, nuevo);
+    if (!animOn() || previo === nuevo || !isFinite(nuevo)) return;
+    const inicio = performance.now(), dur = 650;
+    const paso = (t) => {
+      const k = Math.min(1, (t - inicio) / dur), suav = 1 - Math.pow(1 - k, 3);
+      el.textContent = money(previo + (nuevo - previo) * suav);
+      if (k < 1 && el.isConnected) requestAnimationFrame(paso);
+    };
+    el.textContent = money(previo);
+    requestAnimationFrame(paso);
+  });
+}
+// Resalta un elemento recién creado (p. ej. el movimiento que se acaba de guardar).
+function resaltar(selector) {
+  if (!animOn()) return;
+  const el = document.querySelector(selector);
+  if (el) { el.classList.remove('nuevo'); void el.offsetWidth; el.classList.add('nuevo'); }
+}
+
+/* ============================================================
    ESTADO
    ============================================================ */
 let AUTH = null;
@@ -492,6 +529,7 @@ async function enterApp() {
   document.getElementById('userLabel').textContent = AUTH.nombre || AUTH.usuario;
   await checkPushStatus();
   renderNotifBtn();
+  animarEntrada();
   renderDeudas();
   renderTienda();
   history.replaceState({ view: 'deudas' }, '', location.href);
@@ -615,10 +653,18 @@ document.getElementById('historialBtn').addEventListener('click', openHistorialP
 document.getElementById('avatarBtn').addEventListener('click', openAccountSettingsPage);
 
 function setTabUI(tab) {
+  const anterior = currentTab;
   currentTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('deudasView').classList.toggle('hidden', tab !== 'deudas');
   document.getElementById('tiendaView').classList.toggle('hidden', tab !== 'tienda');
+  if (anterior !== tab && animOn()) {
+    const vista = document.getElementById(tab === 'tienda' ? 'tiendaView' : 'deudasView');
+    vista.classList.remove('entra-der', 'entra-izq');
+    void vista.offsetWidth; // reinicia la animación
+    vista.classList.add(tab === 'tienda' ? 'entra-der' : 'entra-izq');
+    animarSaldos(vista);
+  }
 }
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -666,7 +712,7 @@ function renderDeudas() {
   el.innerHTML = `
     <div class="balance-block">
       <div class="balance-label">Balance general</div>
-      <div class="balance-amount ${total >= 0 ? 'pos' : 'neg'}">${money(total)}</div>
+      <div class="balance-amount ${total >= 0 ? 'pos' : 'neg'}" data-saldo="${total}" data-clave="general">${money(total)}</div>
     </div>
     <div class="action-row">
       <button class="action-btn" id="btnCrearCuenta">${ICONS.plus}Crear cuenta</button>
@@ -684,6 +730,7 @@ function renderDeudas() {
   document.getElementById('btnPdfGeneral').onclick = generarPdfGeneral;
   document.getElementById('searchAccounts').oninput = (e) => { searchQuery = e.target.value; renderAccountsListOnly(); };
   renderAccountsListOnly();
+  animarSaldos(document.getElementById('deudasView'));
 }
 
 function renderAccountsListOnly() {
@@ -749,6 +796,7 @@ function bindAccountCardEvents(el) {
         const updated = await api(`/cuentas/${id}`, { method: 'PATCH', body: { favorito: !c.favorito } });
         c.favorito = updated.favorito;
         renderDeudas();
+        if (animOn()) document.querySelectorAll(`[data-star="${id}"]`).forEach(x => x.classList.add('pop'));
       } catch (e) { toast('No se pudo actualizar el favorito'); }
     });
   });
@@ -823,6 +871,7 @@ function openCreateAccountModal() {
 async function openAccountDetail(id, opts = {}) {
   try {
     currentAccountDetail = await api(`/cuentas/${id}`);
+    animarEntrada();
     renderAccountDetailPage();
     if (!opts.fromHistory) history.pushState({ view: 'accountDetail', id: String(id) }, '', location.href);
   } catch (e) { toast('No se pudo abrir la cuenta'); }
@@ -845,7 +894,7 @@ function renderAccountDetailPage() {
       <div class="detail-body">
         <div class="balance-block">
           <div class="balance-label">Balance de ${escapeHtml(c.nombre)}</div>
-          <div class="balance-amount ${c.balance >= 0 ? 'pos' : 'neg'}">${money(c.balance)}</div>
+          <div class="balance-amount ${c.balance >= 0 ? 'pos' : 'neg'}" data-saldo="${c.balance}" data-clave="cuenta-${c.id}">${money(c.balance)}</div>
         </div>
         <div class="detail-actions">
           <button class="abono-btn" id="btnAbono">${ICONS.arrowDown} Abono</button>
@@ -871,6 +920,7 @@ function renderAccountDetailPage() {
   document.getElementById('btnCargo').onclick = () => openMovModal('cargo', c.id);
   document.getElementById('btnPdfCuenta').onclick = () => generarPdfCuenta(c);
   bindMovLongPress(document.getElementById('movList'), (movId) => confirmDeleteMovCuenta(c.id, movId));
+  animarSaldos(document.getElementById('pageRoot'));
 }
 function movRowHtml(m) {
   const isIn = m.tipo === 'abono' || m.tipo === 'entrada';
@@ -966,6 +1016,7 @@ function openMovModal(tipo, cuentaId) {
       closeModal();
       renderAccountDetailPage();
       renderDeudas();
+      resaltar(`#pageRoot [data-mov="${movimiento.id}"]`);
       toast(isAbono ? 'Abono registrado' : 'Cargo registrado');
     } catch (e) { toast('No se pudo guardar el movimiento'); }
   };
@@ -998,7 +1049,7 @@ function renderTienda() {
   el.innerHTML = `
     <div class="balance-block">
       <div class="balance-label">Balance de hoy</div>
-      <div class="balance-amount ${balanceHoy >= 0 ? 'pos' : 'neg'}">${money(balanceHoy)}</div>
+      <div class="balance-amount ${balanceHoy >= 0 ? 'pos' : 'neg'}" data-saldo="${balanceHoy}" data-clave="tienda">${money(balanceHoy)}</div>
     </div>
     <div class="action-row two">
       <button class="action-btn success" id="btnEntrada">${ICONS.arrowDown}Entrada</button>
@@ -1025,6 +1076,7 @@ function renderTienda() {
   const listEl = document.getElementById('tiendaMovList');
   bindMovLongPress(listEl, confirmDeleteMovTienda);
   bindPhotoButtons(listEl, movs);
+  animarSaldos(document.getElementById('tiendaView'));
 }
 function compressImage(file, maxWidth = 1000, quality = 0.7) {
   return new Promise((resolve, reject) => {
@@ -1083,9 +1135,10 @@ function openTiendaMovModal(tipo) {
     const monto = parseFloat(document.getElementById('tMovMonto').value);
     if (isNaN(monto) || monto <= 0) return;
     try {
-      await api('/tienda', { method: 'POST', body: { tipo, descripcion, monto, foto: fotoDataUrl } });
+      const { movimiento } = await api('/tienda', { method: 'POST', body: { tipo, descripcion, monto, foto: fotoDataUrl } });
       TIENDA = await api('/tienda');
       closeModal(); renderTienda();
+      resaltar(`#tiendaView [data-mov="${movimiento.id}"]`);
       toast(isEntrada ? 'Entrada registrada' : 'Salida registrada');
     } catch (e) { toast('No se pudo guardar el movimiento'); }
   };
@@ -1201,6 +1254,7 @@ async function openHistorialPage(opts = {}) {
     ]);
   } catch (e) { toast('No se pudo cargar el historial'); }
   if (!opts.fromHistory) history.pushState({ view: 'historial' }, '', location.href);
+  animarEntrada();
   const root = document.getElementById('pageRoot');
   const groups = {};
   hist.forEach(h => { const key = fmtDateShort(h.fecha); (groups[key] = groups[key] || []).push(h); });
@@ -1275,6 +1329,7 @@ async function openAccountSettingsPage(opts = {}) {
   if (me && me.rol === 'admin') {
     try { usuarios = await api('/usuarios'); } catch (e) { usuarios = []; }
   }
+  animarEntrada();
   renderUsersPage(me, usuarios);
   if (!opts.fromHistory) history.pushState({ view: 'users' }, '', location.href);
 }
@@ -1334,6 +1389,18 @@ function renderUsersPage(meParam, usuariosParam) {
             <p class="desc" style="margin-top:6px;">Solo el administrador de tu empresa puede crear usuarios, cambiar contraseñas o correos, y eliminar cuentas.</p>
           `}
 
+          <div class="section-title" style="margin-top:22px;">Apariencia</div>
+          <p class="seg-label">Tema</p>
+          <div class="seg" id="segTema">
+            <button data-v="claro">Claro</button><button data-v="oscuro">Oscuro</button><button data-v="sistema">Del sistema</button>
+          </div>
+          <p class="seg-nota">"Del sistema" cambia solo cuando tu teléfono pasa a modo oscuro.</p>
+          <p class="seg-label">Animaciones</p>
+          <div class="seg" id="segAnim">
+            <button data-v="auto">Automático</button><button data-v="si">Activadas</button><button data-v="no">Desactivadas</button>
+          </div>
+          <p class="seg-nota" id="notaAnim"></p>
+
           <div class="section-title" style="margin-top:22px;">Huella / Face ID</div>
           <p class="desc" style="margin:-6px 0 14px;">Inicia sesión rápido sin escribir tu contraseña, solo en los dispositivos donde la registres aquí.</p>
           <div id="fpDevicesList"></div>
@@ -1358,9 +1425,30 @@ function renderUsersPage(meParam, usuariosParam) {
     }
     document.getElementById('btnAddFingerprint').onclick = openRegisterFingerprintModal;
     loadFingerprintDevices();
+    bindApariencia();
   };
   if (meParam) render(meParam, usuariosParam);
   else api('/usuarios/me').then(r => render(r.usuario, null)).catch(() => toast('No se pudo cargar tu información'));
+}
+// Selector de tema y animaciones (se guarda en este dispositivo; ver public/tema.js).
+function bindApariencia() {
+  const T = window.CuentasTema;
+  if (!T) return;
+  const pintar = () => {
+    document.querySelectorAll('#segTema button').forEach(b => b.classList.toggle('on', b.dataset.v === T.tema()));
+    document.querySelectorAll('#segAnim button').forEach(b => b.classList.toggle('on', b.dataset.v === T.animaciones()));
+    const nota = document.getElementById('notaAnim');
+    if (nota) {
+      nota.textContent = T.animaciones() === 'auto'
+        ? (T.animacionesActivas()
+          ? 'Automático: activadas en este dispositivo. Se apagan solas en equipos con pocos recursos.'
+          : 'Automático: desactivadas en este dispositivo para que vaya más fluido.')
+        : 'Desactívalas si la app se siente lenta en este teléfono.';
+    }
+  };
+  document.querySelectorAll('#segTema button').forEach(b => b.addEventListener('click', () => { T.setTema(b.dataset.v); pintar(); }));
+  document.querySelectorAll('#segAnim button').forEach(b => b.addEventListener('click', () => { T.setAnimaciones(b.dataset.v); pintar(); }));
+  pintar();
 }
 function openLogoutConfirm() {
   showModal(`
@@ -1509,7 +1597,13 @@ function showModal(innerHtml, { center = false } = {}) {
   root.querySelector('#overlay').addEventListener('click', (e) => { if (e.target.id === 'overlay') closeModal(); });
   root.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModal));
 }
-function closeModal() { document.getElementById('modalRoot').innerHTML = ''; }
+function closeModal() {
+  const root = document.getElementById('modalRoot');
+  const overlay = root.querySelector('.modal-overlay');
+  if (!overlay || !animOn()) { root.innerHTML = ''; return; }
+  overlay.classList.add('cerrando');
+  setTimeout(() => { if (root.contains(overlay)) root.innerHTML = ''; }, 170);
+}
 function openConfirmModal(title, desc, onConfirm) {
   showModal(`
     <h3>${title}</h3>
