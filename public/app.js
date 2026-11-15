@@ -843,7 +843,7 @@ function accountCardHtml(c) {
   return `
     <div class="account-card ${selectMode ? 'selectable' : ''}" data-id="${c.id}">
       ${selectMode ? `<div class="select-check ${checked ? 'checked' : ''}" data-check="${c.id}">${checked ? ICONS.check : ''}</div>` : ''}
-      <div class="acc-circ">${initialOf(c.nombre)}</div>
+      <div class="acc-circ">${escapeHtml(initialOf(c.nombre))}</div>
       <div class="acc-info">
         <div class="acc-name">${escapeHtml(c.nombre)}</div>
         <div class="acc-balance ${claseSaldo(c.balance, c.tipo)}">${saldoHtml(c.balance)}</div>
@@ -1420,7 +1420,7 @@ function renderUsersPage(meParam, usuariosParam) {
           <div class="section-title">Tu cuenta</div>
           <div class="user-card" style="flex-direction:column;align-items:stretch;">
             <div style="display:flex;align-items:center;gap:12px;">
-              <div class="acc-circ">${initialOf(me.nombre)}</div>
+              <div class="acc-circ">${escapeHtml(initialOf(me.nombre))}</div>
               <div class="info">
                 <div class="name">${escapeHtml(me.nombre)} <span class="rol-chip ${claseRol(me)}">${etiquetaRol(me)}</span></div>
                 <div class="handle">${escapeHtml(EMPRESA ? idAcceso(me.usuario, EMPRESA.codigo) : me.usuario)}${me.email ? ' · ' + escapeHtml(me.email) : ''}</div>
@@ -1454,7 +1454,7 @@ function renderUsersPage(meParam, usuariosParam) {
               otros.map(u => `
                 <div class="user-card" style="flex-direction:column;align-items:stretch;">
                   <div style="display:flex;align-items:center;gap:12px;">
-                    <div class="acc-circ">${initialOf(u.nombre)}</div>
+                    <div class="acc-circ">${escapeHtml(initialOf(u.nombre))}</div>
                     <div class="info">
                       <div class="name">${escapeHtml(u.nombre)} <span class="rol-chip ${claseRol(u)}">${etiquetaRol(u)}</span></div>
                       <div class="handle">${escapeHtml(EMPRESA ? idAcceso(u.usuario, EMPRESA.codigo) : u.usuario)}${u.email ? ' · ' + escapeHtml(u.email) : ''}</div>

@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs');
 const { pool } = require('../db/pool');
 const totp = require('../lib/totp');
 const limites = require('../lib/rateLimits');
-const { texto, textoOpcional, paramId } = require('../lib/validate');
+const { texto, textoOpcional, paramId, usuarioValido } = require('../lib/validate');
 const { compararContrasena, generarContrasenaTemporal } = require('../lib/passwords');
 const { generarCodigoUnico } = require('../lib/empresas');
 const { requirePlataforma, exigirCabecera, emitirCookie, borrarCookie, registrarBitacora } = require('../middleware/plataforma');
@@ -107,7 +107,7 @@ router.post('/empresas', async (req, res) => {
   const body = req.body || {};
   const nombreEmpresa = texto(body.nombreEmpresa, 100);
   const nombre = texto(body.nombre, 100);
-  const usuario = texto(body.usuario, 60);
+  const usuario = usuarioValido(body.usuario);
   const email = textoOpcional(body.email, 254);
   if (!nombreEmpresa || !nombre || !usuario || email === null) {
     return res.status(400).json({ error: 'Completa el nombre de la empresa, el nombre y el usuario del administrador' });

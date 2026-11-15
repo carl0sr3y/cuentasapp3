@@ -41,9 +41,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Política de contenido (CSP) en MODO OBSERVACIÓN para la app de empresas: no bloquea nada,
-// solo informa en los logs lo que bloquearía. Cuando los logs confirmen que no hay avisos
-// legítimos, se cambia a Content-Security-Policy para que sí bloquee.
+// Política de contenido (CSP) de la app de empresas. Por defecto en MODO OBSERVACIÓN: no bloquea
+// nada, solo informa en los logs ("CSP (modo observación)") lo que bloquearía. Con la variable
+// CSP_MODO=bloquear en Railway pasa a bloquear de verdad (lo recomendado una vez revisados los logs);
+// si algo fallara, basta con quitar la variable para volver a observación, sin tocar código.
 const CSP_APP = [
   "default-src 'self'",
   "script-src 'self' https://cdnjs.cloudflare.com",
@@ -58,9 +59,10 @@ const CSP_APP = [
   "form-action 'self'",
   'report-uri /csp-report',
 ].join('; ');
+const CSP_BLOQUEA = process.env.CSP_MODO === 'bloquear';
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/') && !req.path.startsWith('/plataforma')) {
-    res.set('Content-Security-Policy-Report-Only', CSP_APP);
+    res.set(CSP_BLOQUEA ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only', CSP_APP);
   }
   next();
 });
@@ -74,7 +76,7 @@ app.post('/csp-report', limites.cspReport,
     const clave = directiva + ' ' + bloqueado;
     if (!avisosCsp.has(clave) && avisosCsp.size < 200) { // cada aviso distinto se registra una sola vez
       avisosCsp.add(clave);
-      console.warn(`CSP (modo observación) bloquearía: ${directiva} → ${bloqueado}`);
+      console.warn(CSP_BLOQUEA ? `CSP bloqueó: ${directiva} → ${bloqueado}` : `CSP (modo observación) bloquearía: ${directiva} → ${bloqueado}`);
     }
     res.status(204).end();
   });

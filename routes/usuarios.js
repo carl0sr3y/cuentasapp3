@@ -4,7 +4,7 @@ const { pool } = require('../db/pool');
 const { requireAuth, requireAdmin, setAuthCookie } = require('../middleware/auth');
 const { broadcast } = require('../lib/realtime');
 
-const { texto, paramId } = require('../lib/validate');
+const { texto, paramId, usuarioValido } = require('../lib/validate');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -44,7 +44,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const body = req.body || {};
   const nombre = texto(body.nombre, 100);
-  const usuario = texto(body.usuario, 60);
+  const usuario = usuarioValido(body.usuario);
   const email = texto(body.email, 254);
   const contrasena = typeof body.contrasena === 'string' && body.contrasena.length <= 200 ? body.contrasena : null;
   const rol = body.rol === undefined ? 'usuario' : body.rol;
@@ -76,9 +76,9 @@ router.patch('/:id/nombre', async (req, res) => {
   const { rows: [yo] } = await pool.query('SELECT es_principal FROM usuarios WHERE id = $1', [req.user.id]);
   if (!yo || !yo.es_principal) return res.status(403).json({ error: 'Solo el administrador principal puede cambiar nombres.' });
   const nombre = texto((req.body || {}).nombre, 100);
-  const usuario = texto((req.body || {}).usuario, 60);
-  if (!nombre || !usuario) return res.status(400).json({ error: 'Escribe el nombre' });
-  if (!/^[a-z0-9._-]+$/.test(usuario)) return res.status(400).json({ error: 'Usuario inválido' });
+  const usuario = usuarioValido((req.body || {}).usuario);
+  if (!nombre) return res.status(400).json({ error: 'Escribe el nombre' });
+  if (!usuario) return res.status(400).json({ error: 'Usuario inválido' });
   const targetId = Number(req.params.id);
   const { rows: [antes] } = await pool.query('SELECT id, nombre, usuario FROM usuarios WHERE id = $1 AND empresa_id = $2', [targetId, req.user.empresa_id]);
   if (!antes) return res.status(404).json({ error: 'Usuario no encontrado' });
