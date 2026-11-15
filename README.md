@@ -9,6 +9,7 @@ Aplicación web para administrar cuentas de clientes (deudores) y los movimiento
 | `DATABASE_URL` | La crea Railway solo al agregar el plugin de PostgreSQL |
 | `JWT_SECRET` | **Obligatoria.** Cadena aleatoria de 64+ caracteres para firmar las sesiones. Sin ella la app no arranca en producción |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Notificaciones push (genera con `npx web-push generate-vapid-keys`) |
+| `CSP_MODO` | Opcional. `bloquear` = la política de contenido (CSP) de la app bloquea de verdad. Sin la variable queda en modo observación (solo avisa en los logs). Si algo dejara de funcionar, quitarla vuelve al modo observación |
 
 ## Cómo desplegar
 
