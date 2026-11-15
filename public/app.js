@@ -1400,7 +1400,8 @@ function renderUsersPage(meParam, usuariosParam) {
   const render = (me, usuarios) => {
     const esAdmin = me.rol === 'admin';
     const otros = (usuarios || []).filter(u => u.id !== me.id);
-    const etiquetaRol = u => u.es_principal ? 'admin principal' : (u.rol === 'admin' ? 'admin' : '');
+    const etiquetaRol = u => u.es_principal ? 'admin principal' : (u.rol === 'admin' ? 'admin' : 'usuario');
+    const claseRol = u => u.es_principal ? 'principal' : (u.rol === 'admin' ? '' : 'usuario');
     root.innerHTML = `
       <div class="page-slide" id="usersPage">
         <div class="page-header">
@@ -1414,7 +1415,7 @@ function renderUsersPage(meParam, usuariosParam) {
             <div style="display:flex;align-items:center;gap:12px;">
               <div class="acc-circ">${initialOf(me.nombre)}</div>
               <div class="info">
-                <div class="name">${escapeHtml(me.nombre)} ${esAdmin ? `· <span style="color:var(--accent);">${etiquetaRol(me)}</span>` : ''}</div>
+                <div class="name">${escapeHtml(me.nombre)} <span class="rol-chip ${claseRol(me)}">${etiquetaRol(me)}</span></div>
                 <div class="handle">${escapeHtml(EMPRESA ? idAcceso(me.usuario, EMPRESA.codigo) : me.usuario)}${me.email ? ' · ' + escapeHtml(me.email) : ''}</div>
               </div>
             </div>
@@ -1447,7 +1448,7 @@ function renderUsersPage(meParam, usuariosParam) {
                   <div style="display:flex;align-items:center;gap:12px;">
                     <div class="acc-circ">${initialOf(u.nombre)}</div>
                     <div class="info">
-                      <div class="name">${escapeHtml(u.nombre)}${etiquetaRol(u) ? ` <span class="rol-chip ${u.es_principal ? 'principal' : ''}">${etiquetaRol(u)}</span>` : ''}</div>
+                      <div class="name">${escapeHtml(u.nombre)} <span class="rol-chip ${claseRol(u)}">${etiquetaRol(u)}</span></div>
                       <div class="handle">${escapeHtml(EMPRESA ? idAcceso(u.usuario, EMPRESA.codigo) : u.usuario)}${u.email ? ' · ' + escapeHtml(u.email) : ''}</div>
                     </div>
                   </div>

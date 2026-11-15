@@ -738,3 +738,4 @@ header.topbar{gap:10px;}
 #segRol{background:var(--surface-2);}
 #segRol button{background:transparent;box-shadow:none;}
 #segRol button.on{background:var(--accent);color:var(--on-accent);box-shadow:var(--shadow);}
+.rol-chip.usuario{background:var(--surface-2);color:var(--text-dim);}
