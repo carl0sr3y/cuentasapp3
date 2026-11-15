@@ -739,3 +739,49 @@ header.topbar{gap:10px;}
 #segRol button{background:transparent;box-shadow:none;}
 #segRol button.on{background:var(--accent);color:var(--on-accent);box-shadow:var(--shadow);}
 .rol-chip.usuario{background:var(--surface-2);color:var(--text-dim);}
+
+/* ============================================================
+   MUÑEQUITO (public/muneco.js): decorativo, nunca recibe toques.
+   Encima de las tarjetas (z 30) y debajo de la barra superior (40), detalle (50) y ventanas (60).
+   ============================================================ */
+.muneco-capa{position:fixed;inset:0;pointer-events:none;z-index:30;}
+.muneco-cuerda{position:fixed;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;}
+.muneco-cuerda path{stroke:#B7791F;stroke-width:1.6;stroke-linecap:round;}
+.muneco-cuerda circle{stroke:#B7791F;stroke-width:1.4;}
+.muneco{position:fixed;left:0;top:0;width:28px;height:36px;pointer-events:none;will-change:transform;color:var(--text);display:none;}
+.muneco .m-svg{display:block;overflow:visible;}
+.muneco.izq .m-svg{transform:scaleX(-1);}
+.muneco line{stroke:currentColor;stroke-width:2;stroke-linecap:round;}
+.muneco .m-trazo{stroke-width:1.2;}
+.muneco .m-cabeza{fill:#FFD58A;stroke:currentColor;stroke-width:1.3;}
+.muneco .m-ala{fill:rgba(160,200,255,.55);stroke:currentColor;stroke-width:.6;}
+.muneco .m-bi,.muneco .m-bd,.muneco .m-pi,.muneco .m-pd,.muneco .m-todo{transform-box:view-box;}
+.muneco .m-bi{transform-origin:10px 19px;} .muneco .m-bd{transform-origin:18px 19px;}
+.muneco .m-pi{transform-origin:12px 27px;} .muneco .m-pd{transform-origin:16px 27px;}
+.muneco .m-todo{transform-origin:14px 36px;}
+
+@keyframes m-paso{0%,100%{transform:rotate(22deg)}50%{transform:rotate(-22deg)}}
+@keyframes m-respira{0%,100%{transform:translateY(0)}50%{transform:translateY(.8px) scaleY(.98)}}
+@keyframes m-mano{from{transform:rotate(-155deg)}to{transform:rotate(-115deg)}}
+@keyframes m-trepa-i{from{transform:rotate(165deg)}to{transform:rotate(195deg)}}
+@keyframes m-trepa-d{from{transform:rotate(-195deg)}to{transform:rotate(-165deg)}}
+@keyframes m-colgar{0%,100%{transform:rotate(8deg)}50%{transform:rotate(-8deg)}}
+@keyframes m-gira{from{transform:rotate(-140deg)}to{transform:rotate(-220deg)}}
+@keyframes m-ala{0%,100%{opacity:.9}50%{opacity:.35}}
+
+.m-camina .m-pi{animation:m-paso .45s linear infinite;}
+.m-camina .m-pd{animation:m-paso .45s linear infinite reverse;}
+.m-camina .m-bi{animation:m-paso .45s linear infinite reverse;}
+.m-camina .m-bd{animation:m-paso .45s linear infinite;}
+.m-quieto .m-todo,.m-saluda .m-todo{animation:m-respira 1.8s ease-in-out infinite;}
+.m-saluda .m-bd{animation:m-mano .35s ease-in-out infinite alternate;}
+.m-sentado .m-todo{transform:translateY(5px);}
+.m-sentado .m-pi{transform:rotate(-75deg);} .m-sentado .m-pd{transform:rotate(-85deg);}
+.m-lanza .m-bd{animation:m-gira .28s linear infinite;}
+.m-lanza .m-ala{animation:m-ala .3s linear infinite;}
+.m-trepa .m-bi{animation:m-trepa-i .32s ease-in-out infinite alternate;}
+.m-trepa .m-bd{animation:m-trepa-d .32s ease-in-out infinite alternate;}
+.m-trepa .m-pi,.m-trepa .m-pd{animation:m-colgar .7s ease-in-out infinite;}
+.m-salta .m-bi{transform:rotate(150deg);} .m-salta .m-bd{transform:rotate(-150deg);}
+.m-salta .m-pi{transform:rotate(30deg);} .m-salta .m-pd{transform:rotate(-30deg);}
+.m-salta .m-ala{animation:m-ala .15s linear infinite;}

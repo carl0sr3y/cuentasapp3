@@ -1487,6 +1487,11 @@ function renderUsersPage(meParam, usuariosParam) {
             <button data-v="auto">Automático</button><button data-v="si">Activadas</button><button data-v="no">Desactivadas</button>
           </div>
           <p class="seg-nota" id="notaAnim"></p>
+          <p class="seg-label">Muñequito</p>
+          <div class="seg" id="segMuneco">
+            <button data-v="si">Activado</button><button data-v="no">Desactivado</button>
+          </div>
+          <p class="seg-nota" id="notaMuneco"></p>
 
           <div class="section-title" style="margin-top:22px;">Huella / Face ID</div>
           <p class="desc" style="margin:-6px 0 14px;">Inicia sesión rápido sin escribir tu contraseña, solo en los dispositivos donde la registres aquí.</p>
@@ -1554,8 +1559,20 @@ function bindApariencia() {
         : 'Desactívalas si la app se siente lenta en este teléfono.';
     }
   };
+  // Muñequito que juega sobre las cuentas (public/muneco.js); se guarda en este dispositivo.
+  const M = window.KaabMuneco;
+  const pintarMuneco = () => {
+    if (!M) return;
+    document.querySelectorAll('#segMuneco button').forEach(b => b.classList.toggle('on', (b.dataset.v === 'si') === M.activo()));
+    const n = document.getElementById('notaMuneco');
+    if (n) n.textContent = !M.activo() ? 'Desactivado en este dispositivo.'
+      : (T.animacionesActivas() ? 'Un pequeño amigo que pasea y trepa por tus cuentas. No estorba: tocar una cuenta siempre la abre.'
+        : 'Activado, pero no aparece porque las animaciones están apagadas en este dispositivo.');
+  };
+  document.querySelectorAll('#segMuneco button').forEach(b => b.addEventListener('click', () => { M && M.setActivo(b.dataset.v === 'si'); pintarMuneco(); }));
+  pintarMuneco();
   document.querySelectorAll('#segTema button').forEach(b => b.addEventListener('click', () => { T.setTema(b.dataset.v); pintar(); }));
-  document.querySelectorAll('#segAnim button').forEach(b => b.addEventListener('click', () => { T.setAnimaciones(b.dataset.v); pintar(); }));
+  document.querySelectorAll('#segAnim button').forEach(b => b.addEventListener('click', () => { T.setAnimaciones(b.dataset.v); pintar(); pintarMuneco(); }));
   pintar();
 }
 function openLogoutConfirm() {
