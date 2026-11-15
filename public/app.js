@@ -240,6 +240,13 @@ async function handleRealtimeRefresh({ scope, id, by }) {
       if (currentTab === 'tienda') renderTienda();
     } else if (scope === 'usuarios') {
       if (document.getElementById('usersPage')) renderUsersPage();
+      // Por si el admin principal me cambió el nombre: se actualiza arriba sin cerrar sesión.
+      const { usuario: yo } = await api('/usuarios/me');
+      if (yo && AUTH && (yo.nombre !== AUTH.nombre || yo.usuario !== AUTH.usuario)) {
+        AUTH.nombre = yo.nombre; AUTH.usuario = yo.usuario;
+        document.getElementById('avatarInitial').textContent = initialOf(yo.nombre);
+        document.getElementById('userLabel').textContent = yo.nombre;
+      }
     }
     if (by) toast('Actualizado por ' + by);
   } catch (e) { /* si falla el refresco silencioso, se intentará en el próximo evento */ }
@@ -1420,6 +1427,7 @@ function renderUsersPage(meParam, usuariosParam) {
               </div>
             </div>
             <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
+              ${me.es_principal ? `<button class="link-btn" id="btnChangeOwnName">Cambiar nombre</button>` : ''}
               ${esAdmin ? `
                 <button class="link-btn" id="btnChangeOwnPass">Cambiar contraseña</button>
                 <button class="link-btn" id="btnChangeOwnEmail">${me.email ? 'Cambiar correo' : 'Agregar correo'}</button>
@@ -1455,6 +1463,7 @@ function renderUsersPage(meParam, usuariosParam) {
                   ${u.es_principal ? `
                   <p class="handle" style="margin:10px 0 0;">Es quien creó la empresa: no se puede eliminar, y solo él puede cambiar su contraseña y su correo.</p>` : `
                   <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
+                    ${me.es_principal ? `<button class="link-btn" data-rename="${u.id}" data-name="${escapeHtml(u.nombre)}" data-usuario="${escapeHtml(u.usuario)}">Cambiar nombre</button>` : ''}
                     <button class="link-btn" data-changepass="${u.id}" data-name="${escapeHtml(u.nombre)}">Cambiar contraseña</button>
                     <button class="link-btn" data-changeemail="${u.id}" data-email="${u.email ? escapeHtml(u.email) : ''}">${u.email ? 'Cambiar correo' : 'Agregar correo'}</button>
                     <button class="link-btn" data-deleteuser="${u.id}" data-name="${escapeHtml(u.nombre)}" style="color:var(--red);">Eliminar</button>
@@ -1490,6 +1499,12 @@ function renderUsersPage(meParam, usuariosParam) {
     if (esAdmin) {
       document.getElementById('btnChangeOwnPass').onclick = () => openChangePasswordModal(me.id, me.nombre, true);
       document.getElementById('btnChangeOwnEmail').onclick = () => openChangeEmailModal(me.id, me.email);
+      if (me.es_principal) {
+        document.getElementById('btnChangeOwnName').onclick = () => openRenameModal(me.id, me.nombre, me.usuario, true);
+        root.querySelectorAll('[data-rename]').forEach(b => {
+          b.addEventListener('click', () => openRenameModal(b.dataset.rename, b.dataset.name, b.dataset.usuario, false));
+        });
+      }
       document.getElementById('btnAddUser').onclick = openCreateUserModal;
       root.querySelectorAll('[data-changepass]').forEach(b => {
         b.addEventListener('click', () => openChangePasswordModal(b.dataset.changepass, b.dataset.name, false));
@@ -1584,6 +1599,50 @@ function loadFingerprintDevices() {
       });
     });
   }).catch(() => { wrap.innerHTML = ''; });
+}
+// Cambiar nombre (solo el admin principal). El usuario para entrar se vuelve a formar con el nombre.
+// No cierra la sesión de nadie.
+function openRenameModal(userId, nombreActual, usuarioActual, esPropio) {
+  showModal(`
+    <h3>Cambiar nombre</h3>
+    <p class="desc">${esPropio ? 'Tu sesión' : 'Su sesión'} no se cierra. El usuario para entrar cambia junto con el nombre.</p>
+    <div class="field"><label>Nombre</label><input id="renameNombre" type="text" maxlength="100" value="${escapeHtml(nombreActual)}">
+      <p class="field-hint" id="renameVista"></p></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" data-close>Cancelar</button>
+      <button class="btn-confirm" id="confirmRename">Guardar</button>
+    </div>
+    <p class="login-error" id="renameErr"></p>
+  `);
+  const input = document.getElementById('renameNombre');
+  const vista = document.getElementById('renameVista');
+  const acc = u => EMPRESA ? idAcceso(u, EMPRESA.codigo) : u;
+  const pintar = () => {
+    const u = usuarioDesdeNombre(input.value);
+    vista.innerHTML = !u ? 'El nombre debe tener letras o números.'
+      : u === usuarioActual ? `Seguirá entrando con: <b>${escapeHtml(acc(u))}</b>`
+      : `Antes entraba con ${escapeHtml(acc(usuarioActual))}. Desde ahora entrará con: <b>${escapeHtml(acc(u))}</b>`;
+  };
+  input.addEventListener('input', pintar);
+  pintar();
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+  document.getElementById('confirmRename').onclick = async () => {
+    const nombre = input.value.trim();
+    const usuario = usuarioDesdeNombre(nombre);
+    const err = document.getElementById('renameErr');
+    if (!nombre || !usuario) { err.textContent = 'Escribe un nombre con letras o números.'; return; }
+    try {
+      const u = await api(`/usuarios/${userId}/nombre`, { method: 'PATCH', body: { nombre, usuario } });
+      if (esPropio && AUTH) {
+        AUTH.nombre = u.nombre; AUTH.usuario = u.usuario;
+        document.getElementById('avatarInitial').textContent = initialOf(u.nombre);
+        document.getElementById('userLabel').textContent = u.nombre;
+      }
+      closeModal();
+      renderUsersPage();
+      toast(u.usuario !== usuarioActual ? `Listo. Ahora entra con ${acc(u.usuario)}` : 'Nombre actualizado');
+    } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo cambiar el nombre.'; }
+  };
 }
 function openChangeEmailModal(userId, currentEmail) {
   showModal(`

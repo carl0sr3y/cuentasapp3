@@ -69,6 +69,31 @@ router.post('/', async (req, res) => {
   res.json(rows[0]);
 });
 
+// Cambia el nombre (y con él, el usuario para entrar) de cualquier persona de la empresa.
+// Solo lo puede hacer el administrador principal. NO cierra sesiones: la sesión se identifica por el
+// id interno y la versión de sesión, que no cambian; la huella tampoco se ve afectada.
+router.patch('/:id/nombre', async (req, res) => {
+  const { rows: [yo] } = await pool.query('SELECT es_principal FROM usuarios WHERE id = $1', [req.user.id]);
+  if (!yo || !yo.es_principal) return res.status(403).json({ error: 'Solo el administrador principal puede cambiar nombres.' });
+  const nombre = texto((req.body || {}).nombre, 100);
+  const usuario = texto((req.body || {}).usuario, 60);
+  if (!nombre || !usuario) return res.status(400).json({ error: 'Escribe el nombre' });
+  if (!/^[a-z0-9._-]+$/.test(usuario)) return res.status(400).json({ error: 'Usuario inválido' });
+  const targetId = Number(req.params.id);
+  const { rows: [antes] } = await pool.query('SELECT id, nombre, usuario FROM usuarios WHERE id = $1 AND empresa_id = $2', [targetId, req.user.empresa_id]);
+  if (!antes) return res.status(404).json({ error: 'Usuario no encontrado' });
+  const { rows: choque } = await pool.query(
+    'SELECT id FROM usuarios WHERE empresa_id = $1 AND usuario = $2 AND id != $3', [req.user.empresa_id, usuario, targetId]);
+  if (choque[0]) return res.status(409).json({ error: `Ya hay alguien con el usuario "${usuario}". Agrega el apellido u otra palabra para distinguirlo.` });
+  const { rows: [u] } = await pool.query(
+    'UPDATE usuarios SET nombre = $1, usuario = $2 WHERE id = $3 AND empresa_id = $4 RETURNING id, nombre, usuario, email, rol, es_principal',
+    [nombre, usuario, targetId, req.user.empresa_id]);
+  await registrarHistorial(req.user.empresa_id, req.user.id, 'Cambiar nombre',
+    `"${antes.nombre}" (${antes.usuario}) ahora es "${u.nombre}" (${u.usuario})`);
+  broadcast({ scope: 'usuarios', empresaId: req.user.empresa_id, excludeClientId: req.headers['x-client-id'] });
+  res.json(u);
+});
+
 // Cambia el correo de cualquier usuario de mi empresa (o el mío propio).
 router.patch('/:id/email', async (req, res) => {
   const email = texto((req.body || {}).email, 254);
