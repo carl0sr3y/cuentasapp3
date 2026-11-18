@@ -821,3 +821,12 @@ body:has(.select-bar) .tabbar{display:none;}
 .resumen-hoja .fila b{font-variant-numeric:tabular-nums;font-weight:800;}
 .resumen-hoja .fila.neto{border-bottom:none;font-weight:800;}
 .resumen-nota{font-size:13.5px;color:var(--text-dim);margin:2px 0 0;}
+/* Botones de la cabecera a la altura del total: Eliminar (solo ícono, estrecho) en medio y Crear al borde derecho */
+.total-head{align-items:center;}
+.total-head .mini-acciones{gap:12px;padding-bottom:0;align-items:center;}
+.total-head .mini-btn{height:46px;border-radius:14px;font-size:16.5px;}
+.total-head .mini-btn svg{width:19px;height:19px;}
+.total-head .mini-btn.principal{padding:0 18px;background:var(--accent);color:var(--on-accent);border:none;box-shadow:var(--shadow);}
+.total-head .mini-btn.principal svg{color:var(--on-accent) !important;}
+#deudasView[data-tipo="pagar"] .total-head .mini-btn.principal{background:var(--pagar);}
+.total-head .mini-btn.solo-icono{width:40px;padding:0;justify-content:center;}

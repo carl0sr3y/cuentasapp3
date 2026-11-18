@@ -430,8 +430,8 @@ function cabeceraCuentasHtml() {
         <span class="total-sub" id="accountsCount">${textoCuentas(lista.length)}</span>
       </button>
       <div class="mini-acciones">
-        <button class="mini-btn" id="btnCrearCuenta" type="button">${ICONS.plus}<span>Crear</span></button>
-        ${esAdminActual() ? `<button class="mini-btn danger" id="btnEliminarCuentas" type="button">${ICONS.trash}<span>Eliminar</span></button>` : ''}
+        ${esAdminActual() ? `<button class="mini-btn danger solo-icono" id="btnEliminarCuentas" type="button" aria-label="Eliminar cuentas" title="Eliminar cuentas">${ICONS.trash}</button>` : ''}
+        <button class="mini-btn principal" id="btnCrearCuenta" type="button">${ICONS.plus}<span>Crear</span></button>
       </div>
     </div>`;
 }
