@@ -670,34 +670,87 @@ function claveParaEnvio(claveVentana, datos) {
   const p = leerPendientes().find(x => x.firma === f);
   return p ? p.clave : claveVentana;
 }
-function anotarEnDuda(clave, datos, etiqueta) {
+// rehacer: lo justo para volver a abrir la ventana ya llenada (sin la foto). estado 'no' = el servidor
+// confirmó que NO se guardó: la nota se queda como recordatorio hasta que se registre de nuevo o se cierre.
+function anotarEnDuda(clave, datos, etiqueta, rehacer) {
   const lista = leerPendientes().filter(x => x.clave !== clave);
-  lista.push({ clave, firma: firmaEnvio(datos), etiqueta, usuario: AUTH && AUTH.id, t: Date.now() });
+  lista.push({ clave, firma: firmaEnvio(datos), etiqueta, usuario: AUTH && AUTH.id, t: Date.now(), rehacer });
   guardarPendientes(lista);
 }
-function quitarEnDuda(clave) { guardarPendientes(leerPendientes().filter(x => x.clave !== clave)); }
+function quitarEnDuda(clave) {
+  if (!clave) return;
+  guardarPendientes(leerPendientes().filter(x => x.clave !== clave));
+  mostrarPanelPendientes();
+}
 // ¿El error deja en duda si se guardó? (sin respuesta o fallo del servidor; un rechazo por datos, no)
 function errorEnDuda(estado) { return estado.codigo === 0 || estado.codigo >= 500; }
 const MSG_EN_DUDA = 'No se pudo confirmar si se guardó. Cuando vuelva la conexión te aviso si quedó guardado.';
 let revisandoEnDuda = false;
 async function revisarEnviosEnDuda() {
   if (!AUTH || revisandoEnDuda) return;
-  const mias = leerPendientes().filter(x => x.usuario === AUTH.id);
-  if (!mias.length) return;
+  const enDuda = leerPendientes().filter(x => x.usuario === AUTH.id && x.estado !== 'no');
+  if (!enDuda.length) { mostrarPanelPendientes(); return; }
   revisandoEnDuda = true;
   try {
-    const { guardadas } = await api('/envios/estado', { method: 'POST', silencioso: true, body: { claves: mias.map(x => x.clave) } });
-    const si = mias.filter(x => guardadas.includes(x.clave));
-    const no = mias.filter(x => !guardadas.includes(x.clave));
-    // Ya se sabe qué pasó con todas: se borran sus notas (las de otros usuarios del teléfono se quedan).
-    const aclaradas = new Set(mias.map(x => x.clave));
-    guardarPendientes(leerPendientes().filter(x => !aclaradas.has(x.clave)));
-    const partes = [];
-    if (si.length) partes.push('✓ Sí se guardó: ' + si.map(x => x.etiqueta).join('; ') + '.');
-    if (no.length) partes.push('No se guardó: ' + no.map(x => x.etiqueta).join('; ') + '. Puedes registrarlo de nuevo.');
-    if (partes.length) avisoLargo(partes.join(' '));
+    const { guardadas } = await api('/envios/estado', { method: 'POST', silencioso: true, body: { claves: enDuda.map(x => x.clave) } });
+    const si = enDuda.filter(x => guardadas.includes(x.clave));
+    // Las que sí se guardaron: nota borrada. Las que no: quedan como recordatorio (estado 'no').
+    const siSet = new Set(si.map(x => x.clave)), noSet = new Set(enDuda.filter(x => !siSet.has(x.clave)).map(x => x.clave));
+    guardarPendientes(leerPendientes().filter(x => !siSet.has(x.clave)).map(x => noSet.has(x.clave) ? { ...x, estado: 'no' } : x));
+    const textoSi = si.length ? '✓ Sí se guardó: ' + si.map(x => x.etiqueta).join('; ') + '.' : '';
+    if (!mostrarPanelPendientes(textoSi) && textoSi) avisoLargo(textoSi);
   } catch (e) { /* se vuelve a revisar en la próxima reconexión */ }
   finally { revisandoEnDuda = false; }
+}
+// Aviso fijo con lo que NO se guardó: se queda hasta registrarlo de nuevo o cerrarlo (×).
+// Devuelve true si quedó visible.
+function mostrarPanelPendientes(textoSi) {
+  document.querySelectorAll('.pendientes-panel').forEach(e => e.remove());
+  if (!AUTH) return false;
+  const no = leerPendientes().filter(x => x.usuario === AUTH.id && x.estado === 'no');
+  if (!no.length) return false;
+  const panel = document.createElement('div');
+  panel.className = 'pendientes-panel';
+  panel.setAttribute('role', 'alert');
+  panel.innerHTML = `
+    <div class="pp-cab"><b>${no.length === 1 ? 'Un registro no se guardó' : no.length + ' registros no se guardaron'}</b>
+      <button class="pp-cerrar" type="button" aria-label="Cerrar aviso">×</button></div>
+    ${textoSi ? `<p class="pp-ok">${escapeHtml(textoSi)}</p>` : ''}
+    <ul class="pp-lista">${no.map(x => `
+      <li><span>${escapeHtml(x.etiqueta.charAt(0).toUpperCase() + x.etiqueta.slice(1))}</span>
+        ${x.rehacer ? `<button class="pp-rehacer" type="button" data-clave="${escapeHtml(x.clave)}">Registrar de nuevo</button>` : ''}</li>`).join('')}
+    </ul>
+    <p class="pp-nota">Se abre la ventana ya llenada: revisa y toca Guardar.${no.some(x => x.rehacer && x.rehacer.clase === 'tienda') ? ' Si tenía foto, vuelve a tomarla.' : ''}</p>`;
+  document.body.appendChild(panel);
+  panel.querySelector('.pp-cerrar').onclick = () => {
+    const quitar = new Set(no.map(x => x.clave));
+    guardarPendientes(leerPendientes().filter(x => !quitar.has(x.clave)));
+    panel.remove();
+  };
+  panel.querySelectorAll('.pp-rehacer').forEach(b => b.onclick = () => rehacerEnvio(b.dataset.clave));
+  return true;
+}
+// Abre la ventana del registro que no se guardó, ya llenada. La nota se borra al guardarlo.
+async function rehacerEnvio(clave) {
+  const n = leerPendientes().find(x => x.clave === clave);
+  if (!n || !n.rehacer) return;
+  const r = n.rehacer, prellenado = { desc: r.desc, monto: r.monto, notaClave: clave };
+  if (r.clase === 'cuenta') {
+    if (!CUENTAS.some(c => String(c.id) === String(r.cuentaId))) { toast('Esa cuenta ya no existe.'); quitarEnDuda(clave); return; }
+    const cuenta = CUENTAS.find(c => String(c.id) === String(r.cuentaId));
+    if (!document.getElementById('detailPage') || !currentAccountDetail || String(currentAccountDetail.id) !== String(r.cuentaId)) {
+      if (esTabCuentas() && (cuenta.tipo || 'cobrar') !== tipoCuentas) setTabUI(cuenta.tipo || 'cobrar');
+      await openAccountDetail(cuenta.id);
+    }
+    openMovModal(r.tipo, cuenta.id, prellenado);
+  } else if (r.clase === 'tienda') {
+    if (!document.getElementById('pageRoot').firstElementChild) setTabUI('tienda');
+    openTiendaMovModal(r.tipo, prellenado);
+  } else if (r.clase === 'crearCuenta') {
+    if (!document.getElementById('pageRoot').firstElementChild) setTabUI(r.tipoCuenta);
+    tipoCuentas = r.tipoCuenta;
+    openCreateAccountModal({ nombre: r.nombre, notaClave: clave });
+  }
 }
 // Aviso que se queda más tiempo (para mensajes importantes).
 function avisoLargo(msg) {
@@ -785,6 +838,7 @@ async function doLogoutCleanup() {
   if (ws) { try { ws.close(); } catch (e) {} ws = null; }
   wsConnected = false; updateSyncDot();
   ocultarAvisoSinConexion();
+  document.querySelectorAll('.pendientes-panel').forEach(e => e.remove());
   document.getElementById('pageRoot').innerHTML = '';
   document.getElementById('modalRoot').innerHTML = '';
   document.getElementById('mainScreen').classList.add('hidden');
@@ -1065,7 +1119,7 @@ function renderSelectBar() {
       });
   };
 }
-function openCreateAccountModal() {
+function openCreateAccountModal(prellenado = null) {
   showModal(`
     <h3>Nueva cuenta ${tipoCuentas === 'pagar' ? 'por pagar' : 'por cobrar'}</h3>
     <p class="desc">${TEXTOS_TIPO[tipoCuentas].nuevaDesc}</p>
@@ -1076,6 +1130,7 @@ function openCreateAccountModal() {
     </div>
   `);
   const input = document.getElementById('newAccName');
+  if (prellenado) input.value = prellenado.nombre || '';
   setTimeout(() => input.focus(), 50);
   const clave = nuevaClaveEnvio();
   const botonC = document.getElementById('confirmCreateAcc');
@@ -1087,7 +1142,7 @@ function openCreateAccountModal() {
     const estado = {};
     try {
       const cuenta = await api('/cuentas', { method: 'POST', estado, body: { nombre, tipo: tipoCuentas, clave: claveUsada } });
-      quitarEnDuda(claveUsada);
+      quitarEnDuda(claveUsada); if (prellenado) quitarEnDuda(prellenado.notaClave);
       if (!CUENTAS.some(c => c.id === cuenta.id)) CUENTAS.push({ ...cuenta, ultima_actividad: cuenta.fecha_creacion });
       closeModal(); renderDeudas(); toast('Cuenta creada');
       // Se entra directo a la cuenta nueva, lista para registrar su primer movimiento.
@@ -1095,7 +1150,7 @@ function openCreateAccountModal() {
       if (cuenta.repetido) avisoLargo('Esa cuenta ya se había creado: la conexión se cortó antes de confirmarlo. No se duplicó.');
     } catch (e) {
       if (errorEnDuda(estado)) {
-        anotarEnDuda(claveUsada, datos, `cuenta "${nombre}"`);
+        anotarEnDuda(claveUsada, datos, `cuenta "${nombre}"`, { clase: 'crearCuenta', tipoCuenta: tipoCuentas, nombre });
         avisoLargo(MSG_EN_DUDA);
       } else toast(typeof e === 'string' && e !== 'Error de red' ? e : 'No se pudo crear la cuenta');
     }
@@ -1285,7 +1340,7 @@ function bindMovLongPress(container, onDelete) {
     row.addEventListener('touchend', cancel); row.addEventListener('touchmove', cancel);
   });
 }
-function openMovModal(tipo, cuentaId) {
+function openMovModal(tipo, cuentaId, prellenado = null) {
   const isAbono = tipo === 'abono';
   showModal(`
     <h3>${isAbono ? 'Nuevo abono' : 'Nuevo cargo'}</h3>
@@ -1297,6 +1352,7 @@ function openMovModal(tipo, cuentaId) {
       <button class="btn-confirm" id="confirmMov">Guardar</button>
     </div>
   `);
+  if (prellenado) { document.getElementById('movDesc').value = prellenado.desc || ''; document.getElementById('movMonto').value = prellenado.monto || ''; }
   setTimeout(() => document.getElementById('movDesc').focus(), 50);
   const clave = nuevaClaveEnvio();
   const boton = document.getElementById('confirmMov');
@@ -1309,7 +1365,7 @@ function openMovModal(tipo, cuentaId) {
     const estado = {};
     try {
       const { movimiento, balance, repetido } = await api(`/cuentas/${cuentaId}/movimientos`, { method: 'POST', estado, body: { tipo, descripcion: desc, monto, clave: claveUsada } });
-      quitarEnDuda(claveUsada);
+      quitarEnDuda(claveUsada); if (prellenado) quitarEnDuda(prellenado.notaClave);
       if (!currentAccountDetail.movimientos.some(m => m.id === movimiento.id)) currentAccountDetail.movimientos.push(movimiento);
       currentAccountDetail.balance = balance;
       const listItem = CUENTAS.find(c => c.id === cuentaId || String(c.id) === String(cuentaId));
@@ -1323,7 +1379,8 @@ function openMovModal(tipo, cuentaId) {
     } catch (e) {
       if (errorEnDuda(estado)) {
         const nombre = (currentAccountDetail && currentAccountDetail.nombre) || 'la cuenta';
-        anotarEnDuda(claveUsada, datos, `${isAbono ? 'abono' : 'cargo'} de ${money(monto)}${desc ? ' "' + desc + '"' : ''} en ${nombre}`);
+        anotarEnDuda(claveUsada, datos, `${isAbono ? 'abono' : 'cargo'} de ${money(monto)}${desc ? ' "' + desc + '"' : ''} en ${nombre}`,
+          { clase: 'cuenta', cuentaId, tipo, desc, monto });
         avisoLargo(MSG_EN_DUDA);
       } else toast(typeof e === 'string' && e !== 'Error de red' ? e : 'No se pudo guardar el movimiento');
     }
@@ -1524,7 +1581,7 @@ function editarRecorte(img) {
     };
   });
 }
-function openTiendaMovModal(tipo) {
+function openTiendaMovModal(tipo, prellenado = null) {
   const isEntrada = tipo === 'entrada';
   let fotoDataUrl = null;
   showModal(`
@@ -1543,6 +1600,7 @@ function openTiendaMovModal(tipo) {
       <button class="btn-confirm" id="confirmTMov">Guardar</button>
     </div>
   `);
+  if (prellenado) { document.getElementById('tMovDesc').value = prellenado.desc || ''; document.getElementById('tMovMonto').value = prellenado.monto || ''; }
   setTimeout(() => document.getElementById('tMovDesc').focus(), 50);
   document.getElementById('btnTomarFoto').onclick = () => document.getElementById('tMovFotoInput').click();
   document.getElementById('tMovFotoInput').addEventListener('change', async (e) => {
@@ -1571,7 +1629,7 @@ function openTiendaMovModal(tipo) {
     const estado = {};
     try {
       const { movimiento, repetido } = await api('/tienda', { method: 'POST', estado, body: { tipo, descripcion, monto, foto: fotoDataUrl, clave: claveUsada } });
-      quitarEnDuda(claveUsada);
+      quitarEnDuda(claveUsada); if (prellenado) quitarEnDuda(prellenado.notaClave);
       TIENDA = await api('/tienda');
       closeModal(); renderTienda();
       resaltar(`#tiendaView [data-mov="${movimiento.id}"]`);
@@ -1579,7 +1637,8 @@ function openTiendaMovModal(tipo) {
       else toast(isEntrada ? 'Entrada registrada' : 'Salida registrada');
     } catch (e) {
       if (errorEnDuda(estado)) {
-        anotarEnDuda(claveUsada, datos, `${isEntrada ? 'entrada' : 'salida'} de tienda de ${money(monto)}${descripcion ? ' "' + descripcion + '"' : ''}`);
+        anotarEnDuda(claveUsada, datos, `${isEntrada ? 'entrada' : 'salida'} de tienda de ${money(monto)}${descripcion ? ' "' + descripcion + '"' : ''}`,
+          { clase: 'tienda', tipo, desc: descripcion, monto });
         avisoLargo(MSG_EN_DUDA);
       } else toast(typeof e === 'string' && e !== 'Error de red' ? e : 'No se pudo guardar el movimiento');
     }

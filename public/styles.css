@@ -864,3 +864,16 @@ body:has(.select-bar) .tabbar{display:none;}
 .carga-estado .btn-secondary{display:inline-flex;width:auto;padding:12px 20px;}
 /* Aviso "Sin conexión": línea de reintento automático */
 #offlineBanner .offline-auto{font-size:14px;color:var(--text-faint);margin:-6px 0 18px;}
+
+/* Aviso fijo de registros que no se guardaron (mostrarPanelPendientes). Encima del detalle (50), debajo de las ventanas (60). */
+.pendientes-panel{position:fixed;left:0;right:0;margin:0 auto;bottom:calc(92px + env(safe-area-inset-bottom));width:calc(100% - 24px);max-width:560px;z-index:55;
+  background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--red);border-radius:16px;padding:12px 14px;box-shadow:var(--shadow-lg);}
+.pp-cab{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.pp-cab b{font-size:15.5px;color:var(--text);}
+.pp-cerrar{width:32px;height:32px;border-radius:10px;font-size:22px;line-height:1;color:var(--text-dim);background:var(--surface-2);flex:none;}
+.pp-ok{margin:6px 0 0;font-size:13.5px;color:var(--green);}
+.pp-lista{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;max-height:40vh;overflow:auto;}
+.pp-lista li{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;color:var(--text);}
+.pp-lista li span{min-width:0;}
+.pp-rehacer{flex:none;padding:8px 12px;border-radius:10px;background:var(--accent);color:var(--on-accent);font-size:13.5px;font-weight:700;}
+.pp-nota{margin:8px 0 0;font-size:12.5px;color:var(--text-faint);}
