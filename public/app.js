@@ -653,15 +653,14 @@ function nuevaClaveEnvio() {
 // Si al guardar no llegó respuesta (o el servidor falló), no se sabe si se guardó. La app anota ese
 // intento (en este teléfono, solo la nota: no el dato). Si luego, en OTRA ventana, se registra
 // exactamente lo mismo, se reusa su marca: si ya estaba guardado no se duplica. Y cuando vuelve la
-// conexión, se pregunta al servidor qué pasó y se avisa. Las notas vencen a las 6 horas.
+// conexión, se pregunta al servidor qué pasó y se avisa. La nota existe SOLO mientras no se sabe qué
+// pasó: no vence con el tiempo (aunque pasen días sin conexión) y se borra en cuanto el servidor
+// confirma "sí se guardó" o "no se guardó", o cuando se vuelve a enviar y el servidor responde.
 const CLAVE_PENDIENTES = 'kaab_envios_en_duda';
 function leerPendientes() {
-  try {
-    const ahora = Date.now();
-    return JSON.parse(localStorage.getItem(CLAVE_PENDIENTES) || '[]').filter(x => ahora - x.t < 6 * 3600 * 1000);
-  } catch (e) { return []; }
+  try { return JSON.parse(localStorage.getItem(CLAVE_PENDIENTES) || '[]'); } catch (e) { return []; }
 }
-function guardarPendientes(lista) { try { localStorage.setItem(CLAVE_PENDIENTES, JSON.stringify(lista.slice(-20))); } catch (e) {} }
+function guardarPendientes(lista) { try { localStorage.setItem(CLAVE_PENDIENTES, JSON.stringify(lista.slice(-50))); } catch (e) {} }
 function firmaEnvio(d) {
   return JSON.stringify([AUTH && AUTH.id, d.ruta, String(d.texto || '').trim().toLowerCase(), Number(d.monto || 0).toFixed(2)]);
 }
@@ -689,9 +688,10 @@ async function revisarEnviosEnDuda() {
   try {
     const { guardadas } = await api('/envios/estado', { method: 'POST', silencioso: true, body: { claves: mias.map(x => x.clave) } });
     const si = mias.filter(x => guardadas.includes(x.clave));
-    const no = mias.filter(x => !guardadas.includes(x.clave) && !x.avisado);
-    if (si.length) guardarPendientes(leerPendientes().filter(x => !guardadas.includes(x.clave)));
-    if (no.length) guardarPendientes(leerPendientes().map(x => no.some(n => n.clave === x.clave) ? { ...x, avisado: true } : x));
+    const no = mias.filter(x => !guardadas.includes(x.clave));
+    // Ya se sabe qué pasó con todas: se borran sus notas (las de otros usuarios del teléfono se quedan).
+    const aclaradas = new Set(mias.map(x => x.clave));
+    guardarPendientes(leerPendientes().filter(x => !aclaradas.has(x.clave)));
     const partes = [];
     if (si.length) partes.push('✓ Sí se guardó: ' + si.map(x => x.etiqueta).join('; ') + '.');
     if (no.length) partes.push('No se guardó: ' + no.map(x => x.etiqueta).join('; ') + '. Puedes registrarlo de nuevo.');
