@@ -3,7 +3,7 @@ const { pool } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { broadcast } = require('../lib/realtime');
 const { sendPushToOthers } = require('../lib/push');
-const { textoOpcional, montoValido, paramId } = require('../lib/validate');
+const { textoOpcional, montoValido, paramId, claveEnvio } = require('../lib/validate');
 const { validarFoto } = require('../lib/fotos');
 const { enTransaccion, bloquearTienda, saldoTienda, recalcularTienda } = require('../lib/saldos');
 
@@ -53,19 +53,31 @@ router.post('/', async (req, res) => {
   if (errorFoto) return res.status(400).json({ error: errorFoto });
   const montoFinal = tipo === 'entrada' ? montoNum : -montoNum;
   const empresaId = req.user.empresa_id;
+  const clave = claveEnvio((req.body || {}).clave);
+  if (clave === false) return res.status(400).json({ error: 'Datos inválidos' });
 
   // Con la tienda bloqueada: saldo = suma real + este movimiento. La fecha se toma DESPUÉS del
   // bloqueo (clock_timestamp) para que el orden por fecha coincida con el orden de registro.
-  const { mov, saldoResultante } = await enTransaccion(pool, async (client) => {
+  const { mov, saldoResultante, repetido } = await enTransaccion(pool, async (client) => {
     await bloquearTienda(client, empresaId);
+    if (clave) {
+      // ¿Ya llegó este mismo envío? (con la tienda bloqueada, dos envíos iguales no pueden cruzarse)
+      const { rows: ya } = await client.query(
+        `SELECT m.id, m.tipo, m.descripcion, m.monto, m.saldo_resultante, m.fecha, (m.foto IS NOT NULL) AS tiene_foto, u.nombre AS usuario
+         FROM movimientos_tienda m LEFT JOIN usuarios u ON u.id = m.usuario_id
+         WHERE m.empresa_id = $1 AND m.clave_envio = $2`, [empresaId, clave]);
+      if (ya[0]) return { mov: ya[0], saldoResultante: await saldoTienda(client, empresaId), repetido: true };
+    }
     const saldo = (await saldoTienda(client, empresaId)) + montoFinal;
     const { rows } = await client.query(
-      `INSERT INTO movimientos_tienda (empresa_id, usuario_id, tipo, descripcion, monto, saldo_resultante, foto, fecha)
-       VALUES ($1,$2,$3,$4,$5,$6,$7, clock_timestamp()) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha, (foto IS NOT NULL) AS tiene_foto`,
-      [empresaId, req.user.id, tipo, descripcion, montoFinal, saldo, foto]
+      `INSERT INTO movimientos_tienda (empresa_id, usuario_id, tipo, descripcion, monto, saldo_resultante, foto, fecha, clave_envio)
+       VALUES ($1,$2,$3,$4,$5,$6,$7, clock_timestamp(), $8) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha, (foto IS NOT NULL) AS tiene_foto`,
+      [empresaId, req.user.id, tipo, descripcion, montoFinal, saldo, foto, clave || null]
     );
     return { mov: { ...rows[0], usuario: req.user.nombre }, saldoResultante: Number(rows[0].saldo_resultante) };
   });
+  // Reintento de un envío ya guardado: se responde igual, sin repetir historial, avisos ni notificaciones.
+  if (repetido) return res.json({ movimiento: mov, balance: saldoResultante, repetido: true });
 
   await registrarHistorial(
     empresaId, req.user.id,

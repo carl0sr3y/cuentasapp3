@@ -637,6 +637,22 @@ async function enterApp() {
   conLimite(checkPushStatus(), 4000).then(renderNotifBtn, renderNotifBtn);
   if (await cargarDatosIniciales()) checkPendingTiendaBackup();
 }
+// Marca de envío: una por cada ventana de registro abierta (ver db/schema.sql, clave_envio).
+// Reintentar en la MISMA ventana reusa la marca → el servidor no lo guarda dos veces.
+// Abrir otra ventana crea una marca nueva → dos registros iguales hechos a propósito se guardan los dos.
+function nuevaClaveEnvio() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  const b = new Uint8Array(16); crypto.getRandomValues(b);
+  return Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+}
+// Ejecuta el guardado con el botón desactivado (evita el doble toque) y lo reactiva si falla.
+async function conBotonOcupado(boton, tarea) {
+  if (!boton || boton.disabled) return;
+  const texto = boton.textContent;
+  boton.disabled = true; boton.textContent = 'Guardando…';
+  try { await tarea(); }
+  finally { if (boton.isConnected) { boton.disabled = false; boton.textContent = texto; } }
+}
 function conLimite(promesa, ms) { return Promise.race([promesa, new Promise((_, no) => setTimeout(() => no(new Error('tiempo')), ms))]); }
 function mostrarCargando(error) {
   const html = error
@@ -1000,18 +1016,20 @@ function openCreateAccountModal() {
   `);
   const input = document.getElementById('newAccName');
   setTimeout(() => input.focus(), 50);
-  const submit = async () => {
+  const clave = nuevaClaveEnvio();
+  const botonC = document.getElementById('confirmCreateAcc');
+  const submit = () => conBotonOcupado(botonC, async () => {
     const nombre = input.value.trim();
     if (!nombre) return;
     try {
-      const cuenta = await api('/cuentas', { method: 'POST', body: { nombre, tipo: tipoCuentas } });
-      CUENTAS.push({ ...cuenta, ultima_actividad: cuenta.fecha_creacion });
+      const cuenta = await api('/cuentas', { method: 'POST', body: { nombre, tipo: tipoCuentas, clave } });
+      if (!CUENTAS.some(c => c.id === cuenta.id)) CUENTAS.push({ ...cuenta, ultima_actividad: cuenta.fecha_creacion });
       closeModal(); renderDeudas(); toast('Cuenta creada');
       // Se entra directo a la cuenta nueva, lista para registrar su primer movimiento.
       openAccountDetail(cuenta.id);
     } catch (e) { toast('No se pudo crear la cuenta'); }
-  };
-  document.getElementById('confirmCreateAcc').onclick = submit;
+  });
+  botonC.onclick = submit;
   input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
 }
 
@@ -1209,13 +1227,15 @@ function openMovModal(tipo, cuentaId) {
     </div>
   `);
   setTimeout(() => document.getElementById('movDesc').focus(), 50);
-  document.getElementById('confirmMov').onclick = async () => {
+  const clave = nuevaClaveEnvio();
+  const boton = document.getElementById('confirmMov');
+  boton.onclick = () => conBotonOcupado(boton, async () => {
     const desc = document.getElementById('movDesc').value.trim();
     let monto = parseFloat(document.getElementById('movMonto').value);
     if (isNaN(monto) || monto <= 0) return;
     try {
-      const { movimiento, balance } = await api(`/cuentas/${cuentaId}/movimientos`, { method: 'POST', body: { tipo, descripcion: desc, monto } });
-      currentAccountDetail.movimientos.push(movimiento);
+      const { movimiento, balance } = await api(`/cuentas/${cuentaId}/movimientos`, { method: 'POST', body: { tipo, descripcion: desc, monto, clave } });
+      if (!currentAccountDetail.movimientos.some(m => m.id === movimiento.id)) currentAccountDetail.movimientos.push(movimiento);
       currentAccountDetail.balance = balance;
       const listItem = CUENTAS.find(c => c.id === cuentaId || String(c.id) === String(cuentaId));
       if (listItem) { listItem.balance = balance; listItem.ultima_actividad = movimiento.fecha; }
@@ -1225,7 +1245,7 @@ function openMovModal(tipo, cuentaId) {
       resaltar(`#pageRoot [data-mov="${movimiento.id}"]`);
       toast(isAbono ? 'Abono registrado' : 'Cargo registrado');
     } catch (e) { toast('No se pudo guardar el movimiento'); }
-  };
+  });
 }
 function confirmDeleteMovCuenta(cuentaId, movId) {
   openConfirmModal('¿Eliminar este movimiento?', 'Esta acción no se puede deshacer y recalculará los saldos posteriores.', async () => {
@@ -1458,18 +1478,20 @@ function openTiendaMovModal(tipo) {
       document.getElementById('btnQuitarFoto').onclick = () => { fotoDataUrl = null; document.getElementById('fotoPreviewWrap').innerHTML = ''; };
     } catch (err) { toast('No se pudo procesar la foto'); }
   });
-  document.getElementById('confirmTMov').onclick = async () => {
+  const clave = nuevaClaveEnvio();
+  const botonT = document.getElementById('confirmTMov');
+  botonT.onclick = () => conBotonOcupado(botonT, async () => {
     const descripcion = document.getElementById('tMovDesc').value.trim();
     const monto = parseFloat(document.getElementById('tMovMonto').value);
     if (isNaN(monto) || monto <= 0) return;
     try {
-      const { movimiento } = await api('/tienda', { method: 'POST', body: { tipo, descripcion, monto, foto: fotoDataUrl } });
+      const { movimiento } = await api('/tienda', { method: 'POST', body: { tipo, descripcion, monto, foto: fotoDataUrl, clave } });
       TIENDA = await api('/tienda');
       closeModal(); renderTienda();
       resaltar(`#tiendaView [data-mov="${movimiento.id}"]`);
       toast(isEntrada ? 'Entrada registrada' : 'Salida registrada');
     } catch (e) { toast('No se pudo guardar el movimiento'); }
-  };
+  });
 }
 function confirmDeleteMovTienda(movId) {
   openConfirmModal('¿Eliminar este movimiento?', 'Esta acción no se puede deshacer y recalculará los saldos posteriores.', async () => {

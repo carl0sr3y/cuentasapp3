@@ -272,3 +272,16 @@ BEGIN
     ALTER TABLE usuarios ADD CONSTRAINT usuarios_principal_admin_check CHECK (NOT es_principal OR rol = 'admin');
   END IF;
 END $$;
+
+-- ============================================================
+-- Marca de envío (clave_envio): la app genera una marca única cada vez que se abre la ventana para
+-- registrar algo. Si el mismo envío llega dos veces (doble toque, o reintento tras "No se pudo
+-- guardar" cuando en realidad sí se guardó), se guarda UNA sola vez. Dos registros iguales hechos
+-- a propósito (ventanas distintas) tienen marcas distintas y se guardan los dos.
+-- ============================================================
+ALTER TABLE movimientos_cuentas ADD COLUMN IF NOT EXISTS clave_envio TEXT;
+ALTER TABLE movimientos_tienda ADD COLUMN IF NOT EXISTS clave_envio TEXT;
+ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS clave_envio TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_movcuentas_clave ON movimientos_cuentas(cuenta_id, clave_envio) WHERE clave_envio IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_movtienda_clave ON movimientos_tienda(empresa_id, clave_envio) WHERE clave_envio IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_cuentas_clave ON cuentas(empresa_id, clave_envio) WHERE clave_envio IS NOT NULL;

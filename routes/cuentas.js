@@ -3,7 +3,7 @@ const { pool } = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { broadcast } = require('../lib/realtime');
 const { sendPushToOthers } = require('../lib/push');
-const { texto, textoOpcional, idValido, montoValido, paramId } = require('../lib/validate');
+const { texto, textoOpcional, idValido, montoValido, paramId, claveEnvio } = require('../lib/validate');
 const { enTransaccion, bloquearCuenta, saldoCuenta, recalcularCuentas } = require('../lib/saldos');
 
 const router = express.Router();
@@ -44,10 +44,23 @@ router.post('/', async (req, res) => {
   if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio (máximo 120 caracteres)' });
   const tipoCuenta = (req.body || {}).tipo === undefined ? 'cobrar' : (req.body || {}).tipo;
   if (!['cobrar', 'pagar'].includes(tipoCuenta)) return res.status(400).json({ error: 'Tipo de cuenta inválido' });
+  const clave = claveEnvio((req.body || {}).clave);
+  if (clave === false) return res.status(400).json({ error: 'Datos inválidos' });
   const { rows } = await pool.query(
-    `INSERT INTO cuentas (empresa_id, usuario_id, nombre, tipo) VALUES ($1,$2,$3,$4) RETURNING id, nombre, tipo, favorito, fecha_creacion`,
-    [req.user.empresa_id, req.user.id, nombre, tipoCuenta]
+    `INSERT INTO cuentas (empresa_id, usuario_id, nombre, tipo, clave_envio) VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (empresa_id, clave_envio) WHERE clave_envio IS NOT NULL DO NOTHING
+     RETURNING id, nombre, tipo, favorito, fecha_creacion`,
+    [req.user.empresa_id, req.user.id, nombre, tipoCuenta, clave || null]
   );
+  if (!rows[0]) {
+    // Este mismo envío ya se había guardado (reintento): se devuelve la cuenta creada la primera vez.
+    const { rows: ya } = await pool.query(
+      `SELECT id, nombre, tipo, favorito, fecha_creacion FROM cuentas WHERE empresa_id = $1 AND clave_envio = $2`,
+      [req.user.empresa_id, clave]);
+    if (!ya[0]) return res.status(409).json({ error: 'No se pudo crear la cuenta' });
+    const { rows: [s] } = await pool.query('SELECT COALESCE(SUM(monto),0) AS s FROM movimientos_cuentas WHERE cuenta_id = $1', [ya[0].id]);
+    return res.json({ ...ya[0], balance: Number(s.s), repetido: true });
+  }
   const cuenta = { ...rows[0], balance: 0 };
   await registrarHistorial(req.user.empresa_id, req.user.id, 'Crear cuenta',
     `Cuenta "${cuenta.nombre}" creada (${tipoCuenta === 'pagar' ? 'por pagar' : 'por cobrar'})`, { referencia_id: cuenta.id });
@@ -109,22 +122,34 @@ router.post('/:id/movimientos', async (req, res) => {
   const descripcion = textoOpcional((req.body || {}).descripcion, 300);
   if (descripcion === null) return res.status(400).json({ error: 'Descripción inválida (máximo 300 caracteres)' });
   const montoFinal = tipo === 'abono' ? montoNum : -montoNum;
+  const clave = claveEnvio((req.body || {}).clave);
+  if (clave === false) return res.status(400).json({ error: 'Datos inválidos' });
 
   // Con la cuenta bloqueada: saldo = suma real + este movimiento. La fecha se toma DESPUÉS del
   // bloqueo (clock_timestamp) para que el orden por fecha coincida con el orden de registro.
   const resultado = await enTransaccion(pool, async (client) => {
     const cuenta = await bloquearCuenta(client, req.params.id, req.user.empresa_id);
     if (!cuenta) return null;
+    if (clave) {
+      // ¿Ya llegó este mismo envío? (con la cuenta bloqueada, dos envíos iguales no pueden cruzarse)
+      const { rows: ya } = await client.query(
+        `SELECT m.id, m.tipo, m.descripcion, m.monto, m.saldo_resultante, m.fecha, u.nombre AS usuario
+         FROM movimientos_cuentas m LEFT JOIN usuarios u ON u.id = m.usuario_id
+         WHERE m.cuenta_id = $1 AND m.clave_envio = $2`, [cuenta.id, clave]);
+      if (ya[0]) return { cuenta, mov: ya[0], saldoResultante: await saldoCuenta(client, cuenta.id), repetido: true };
+    }
     const saldo = (await saldoCuenta(client, cuenta.id)) + montoFinal;
     const { rows } = await client.query(
-      `INSERT INTO movimientos_cuentas (cuenta_id, usuario_id, tipo, descripcion, monto, saldo_resultante, fecha)
-       VALUES ($1,$2,$3,$4,$5,$6, clock_timestamp()) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha`,
-      [cuenta.id, req.user.id, tipo, descripcion, montoFinal, saldo]
+      `INSERT INTO movimientos_cuentas (cuenta_id, usuario_id, tipo, descripcion, monto, saldo_resultante, fecha, clave_envio)
+       VALUES ($1,$2,$3,$4,$5,$6, clock_timestamp(), $7) RETURNING id, tipo, descripcion, monto, saldo_resultante, fecha`,
+      [cuenta.id, req.user.id, tipo, descripcion, montoFinal, saldo, clave || null]
     );
     return { cuenta, mov: { ...rows[0], usuario: req.user.nombre }, saldoResultante: Number(rows[0].saldo_resultante) };
   });
   if (!resultado) return res.status(404).json({ error: 'Cuenta no encontrada' });
   const { mov, saldoResultante } = resultado;
+  // Reintento de un envío ya guardado: se responde igual, sin repetir historial, avisos ni notificaciones.
+  if (resultado.repetido) return res.json({ movimiento: mov, balance: saldoResultante, repetido: true });
   const nombreCuenta = resultado.cuenta.nombre;
   await registrarHistorial(
     req.user.empresa_id, req.user.id,
