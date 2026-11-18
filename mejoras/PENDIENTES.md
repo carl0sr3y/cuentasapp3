@@ -9,9 +9,14 @@ sin decidirlo antes. Al terminar una mejora, se marca con `[x]` en su archivo y 
 |-------|--------------|-------------------|
 | [Rendimiento y costos](RENDIMIENTO.md) | Que el servidor gaste menos en Railway y la app vaya más rápida | 🔴 Respaldo mensual de tienda sin cargar fotos en memoria |
 | [Seguridad](SEGURIDAD.md) | Lo que quedó pendiente de la auditoría y nuevas protecciones | 🔴 Activar la protección CSP y probarla en iPhone |
-| [Simplificar](SIMPLIFICAR.md) | Ordenar el código para que sea más fácil y seguro de cambiar | 🔴 Guardar las pruebas automáticas dentro del proyecto |
+| [Simplificar](SIMPLIFICAR.md) | Ordenar el código para que sea más fácil y seguro de cambiar | Quitar código sin uso · rehacer pruebas perdidas |
 | [Movimientos tienda](TIENDA.md) | Ideas para mejorar la pestaña de tienda | Ver los meses anteriores dentro de la app |
 | [Animación](ANIMACION.md) | Ideas para que la app se sienta más viva | Confirmación visual al guardar |
+
+## Pruebas automáticas
+
+Antes de un `git push` grande: `bash pruebas/correr.sh` (la carpeta `pruebas/` solo existe en tu
+computadora; no se sube). Instrucciones en `pruebas/LEEME.md`.
 
 ## Tareas tuyas (no requieren código)
 

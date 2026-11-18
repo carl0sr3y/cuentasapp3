@@ -11,7 +11,8 @@ lo que ve el usuario; reducen el riesgo de errores en cambios futuros.
 
 | # | Mejora | Prioridad | Estado |
 |---|--------|-----------|--------|
-| 1 | Guardar las pruebas automáticas dentro del proyecto | 🔴 Alta | [ ] Pendiente |
+| 1 | Guardar las pruebas automáticas dentro del proyecto | 🔴 Alta | [x] Hecho el 18/11/2026 (local, no se sube) |
+| 1b | Volver a escribir las pruebas que se perdieron | 🟡 Media | [ ] Pendiente |
 | 2 | Quitar código y estilos que ya no se usan | 🟡 Media | [ ] Pendiente |
 | 3 | Unificar la lógica repetida de las ventanas de registro | 🟡 Media | [ ] Pendiente |
 | 4 | Dividir `app.js` en varias partes | 🟡 Media | [ ] Pendiente |
@@ -28,6 +29,19 @@ que se ha borrado varias veces con los reinicios del equipo, y cada vez hubo que
 todas, siempre sobre una base de datos limpia.
 **Beneficio:** antes de cada `git push` se puede comprobar en minutos que nada se rompió. Es la base
 para hacer el resto de mejoras con tranquilidad.
+
+**Hecho (18/11/2026):** quedaron en la carpeta `pruebas/`, que **solo existe en tu computadora** (está
+excluida de Git por seguridad, igual que la auditoría). Se corren todas con `bash pruebas/correr.sh`,
+cada una sobre una base de datos limpia. Instrucciones en `pruebas/LEEME.md`. Se guardaron 10 pruebas
+(conexión, pantalla vacía, duplicados, envíos en duda, aviso "no se guardó", ventanas protegidas,
+recorte, detección, fotos difíciles y huella), y las 10 pasan.
+
+### 1b. Volver a escribir las pruebas que se perdieron 🟡
+
+Antes de guardarlas, los reinicios del equipo borraron varias pruebas: menú flotante, total en la
+cabecera, roles y admin principal, cambiar nombre, crear usuario y empresa, inicio con `usuario@empresa`,
+ojito de contraseña, eliminar empresa, muñequito, orden por actividad y colores de saldos. Conviene
+rehacerlas poco a poco (sobre todo roles y eliminar empresa, que son de seguridad).
 
 ## 2. Quitar código y estilos que ya no se usan 🟡
 
