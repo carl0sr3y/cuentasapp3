@@ -1214,7 +1214,7 @@ function renderTiendaListOnly() {
 const FOTO_LADO_MAX = 2000;
 const FOTO_MAX_CARACTERES = 1100000;
 function redimensionarFoto(img, ladoMax) {
-  const w0 = img.naturalWidth, h0 = img.naturalHeight;
+  const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height; // <img> o <canvas>
   const escala = Math.min(1, ladoMax / Math.max(w0, h0));
   const w = Math.max(1, Math.round(w0 * escala)), h = Math.max(1, Math.round(h0 * escala));
   let fuente = img, fw = w0, fh = h0;
@@ -1234,27 +1234,107 @@ function redimensionarFoto(img, ladoMax) {
   ctx.drawImage(fuente, 0, 0, w, h);
   return canvas;
 }
-function compressImage(file) {
+function cargarImagen(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      try {
-        let lado = FOTO_LADO_MAX;
-        for (let intento = 0; intento < 6; intento++) {
-          const canvas = redimensionarFoto(img, lado);
-          for (const calidad of [0.85, 0.78, 0.7]) {
-            const data = canvas.toDataURL('image/jpeg', calidad);
-            if (data.length <= FOTO_MAX_CARACTERES) return resolve(data);
-          }
-          lado = Math.round(lado * 0.8);
-        }
-        reject(new Error('La foto es demasiado grande'));
-      } catch (e) { reject(e); }
-    };
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen')); };
     img.src = url;
+  });
+}
+// Convierte una foto (<img> o <canvas>) en JPEG nítido sin pasar de ~1 MB.
+function codificarFoto(fuente) {
+  let lado = FOTO_LADO_MAX;
+  for (let intento = 0; intento < 6; intento++) {
+    const canvas = redimensionarFoto(fuente, lado);
+    for (const calidad of [0.85, 0.78, 0.7]) {
+      const data = canvas.toDataURL('image/jpeg', calidad);
+      if (data.length <= FOTO_MAX_CARACTERES) return data;
+    }
+    lado = Math.round(lado * 0.8);
+  }
+  throw new Error('La foto es demasiado grande');
+}
+async function compressImage(file) { return codificarFoto(await cargarImagen(file)); }
+
+// Editor de recorte (public/recorte.js hace la detección y el enderezado, todo en el teléfono).
+// Muestra la foto con las 4 esquinas detectadas para corregirlas con el dedo.
+// Devuelve: un <canvas> con la factura recortada, la foto completa (<img>) o null si se cancela.
+function editarRecorte(img) {
+  return new Promise(resolve => {
+    const R = window.KaabRecorte;
+    const W = img.naturalWidth, H = img.naturalHeight;
+    let esquinas = null;
+    try { esquinas = R ? R.detectar(img) : null; } catch (e) { esquinas = null; }
+    const encontrada = !!esquinas;
+    if (!esquinas) { const m = 0.04; esquinas = [{ x: W * m, y: H * m }, { x: W * (1 - m), y: H * m }, { x: W * (1 - m), y: H * (1 - m) }, { x: W * m, y: H * (1 - m) }]; }
+    const v = document.createElement('div');
+    v.className = 'recorte-editor';
+    v.setAttribute('role', 'dialog'); v.setAttribute('aria-modal', 'true'); v.setAttribute('aria-label', 'Recortar factura');
+    v.innerHTML = `
+      <div class="visor-barra"><span class="visor-titulo">Ajusta la factura</span><button class="visor-btn visor-cerrar" type="button" aria-label="Cancelar">×</button></div>
+      <p class="recorte-msg ${encontrada ? '' : 'aviso'}">${encontrada ? 'Encontré la factura. Si alguna esquina quedó mal, arrástrala.' : 'No encontré bien la factura: arrastra las 4 esquinas a sus bordes.'}</p>
+      <div class="recorte-area"><div class="recorte-lienzo">
+        <canvas class="recorte-foto"></canvas>
+        <svg class="recorte-svg"><path class="recorte-sombra" fill-rule="evenodd"></path><polygon class="recorte-borde"></polygon></svg>
+        ${[0, 1, 2, 3].map(i => `<div class="recorte-punto" data-i="${i}" role="slider" aria-label="Esquina ${i + 1}"></div>`).join('')}
+      </div></div>
+      <div class="recorte-acciones">
+        <button class="btn-cancel" id="recorteCompleta" type="button">Usar foto completa</button>
+        <button class="btn-confirm" id="recorteOk" type="button">Recortar</button>
+      </div>`;
+    document.body.appendChild(v);
+    const area = v.querySelector('.recorte-area'), lienzo = v.querySelector('.recorte-lienzo');
+    const foto = v.querySelector('.recorte-foto'), svg = v.querySelector('.recorte-svg');
+    const sombra = v.querySelector('.recorte-sombra'), borde = v.querySelector('.recorte-borde');
+    const puntos = [...v.querySelectorAll('.recorte-punto')];
+    let s = 1;
+    const pintar = () => {
+      const p = esquinas.map(e => `${(e.x * s).toFixed(1)},${(e.y * s).toFixed(1)}`);
+      borde.setAttribute('points', p.join(' '));
+      sombra.setAttribute('d', `M0 0H${W * s}V${H * s}H0Z M${p.join(' L')} Z`);
+      puntos.forEach((el, i) => { el.style.left = (esquinas[i].x * s) + 'px'; el.style.top = (esquinas[i].y * s) + 'px'; });
+    };
+    const acomodar = () => { // la foto completa cabe en el área
+      const r = area.getBoundingClientRect();
+      s = Math.min((r.width - 24) / W, (r.height - 24) / H);
+      const dw = Math.round(W * s), dh = Math.round(H * s), dpr = Math.min(2, window.devicePixelRatio || 1);
+      lienzo.style.width = dw + 'px'; lienzo.style.height = dh + 'px';
+      foto.width = Math.round(dw * dpr); foto.height = Math.round(dh * dpr);
+      foto.style.width = dw + 'px'; foto.style.height = dh + 'px';
+      foto.getContext('2d').drawImage(redimensionarFoto(img, Math.max(foto.width, foto.height)), 0, 0, foto.width, foto.height);
+      svg.setAttribute('viewBox', `0 0 ${dw} ${dh}`);
+      pintar();
+    };
+    acomodar();
+    window.addEventListener('resize', acomodar);
+    // Arrastrar esquinas
+    puntos.forEach((el, i) => {
+      el.addEventListener('pointerdown', e => {
+        e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('activo');
+        const mover = ev => {
+          const r = lienzo.getBoundingClientRect();
+          esquinas[i] = { x: Math.min(W, Math.max(0, (ev.clientX - r.left) / s)), y: Math.min(H, Math.max(0, (ev.clientY - r.top) / s)) };
+          pintar();
+        };
+        const soltar = () => { el.classList.remove('activo'); el.removeEventListener('pointermove', mover); el.removeEventListener('pointerup', soltar); el.removeEventListener('pointercancel', soltar); };
+        el.addEventListener('pointermove', mover); el.addEventListener('pointerup', soltar); el.addEventListener('pointercancel', soltar);
+      });
+    });
+    const terminar = res => { window.removeEventListener('resize', acomodar); v.remove(); resolve(res); };
+    v.querySelector('.visor-cerrar').onclick = () => terminar(null);
+    v.querySelector('#recorteCompleta').onclick = () => terminar(img);
+    v.querySelector('#recorteOk').onclick = () => {
+      const q = R.ordenar(esquinas);
+      const area2 = Math.abs(q.reduce((acc, a, i) => { const b = q[(i + 1) % 4]; return acc + a.x * b.y - b.x * a.y; }, 0)) / 2;
+      if (area2 < W * H * 0.02) { toast('El recorte es demasiado pequeño. Separa más las esquinas.'); return; }
+      const btn = v.querySelector('#recorteOk'); btn.disabled = true; btn.textContent = 'Recortando…';
+      setTimeout(() => { // deja que se vea "Recortando…" antes del cálculo
+        try { terminar(R.enderezar(img, q, FOTO_LADO_MAX, redimensionarFoto)); }
+        catch (e) { btn.disabled = false; btn.textContent = 'Recortar'; toast('No se pudo recortar. Usa la foto completa.'); }
+      }, 30);
+    };
   });
 }
 function openTiendaMovModal(tipo) {
@@ -1281,8 +1361,12 @@ function openTiendaMovModal(tipo) {
   document.getElementById('tMovFotoInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    e.target.value = ''; // para poder elegir la misma foto otra vez
     try {
-      fotoDataUrl = await compressImage(file);
+      const img = await cargarImagen(file);
+      const fuente = await editarRecorte(img); // recortar la factura (o usar la foto completa)
+      if (!fuente) return;
+      fotoDataUrl = codificarFoto(fuente);
       document.getElementById('fotoPreviewWrap').innerHTML = `
         <div class="photo-preview"><span id="fotoPreviewImg"></span><button type="button" class="remove-photo" id="btnQuitarFoto">${ICONS.trash}</button></div>`;
       document.getElementById('fotoPreviewImg').replaceWith(crearImgFoto(fotoDataUrl));
