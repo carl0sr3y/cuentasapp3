@@ -14,6 +14,7 @@ const { limpiarHistorialRodante, crearBackupGeneral, crearBackupTienda } = requi
 
 const authRoutes = require('./routes/auth');
 const usuariosRoutes = require('./routes/usuarios');
+const enviosRoutes = require('./routes/envios');
 const cuentasRoutes = require('./routes/cuentas');
 const tiendaRoutes = require('./routes/tienda');
 const historialRoutes = require('./routes/historial');
@@ -107,6 +108,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/cuentas', cuentasRoutes);
 app.use('/api/tienda', tiendaRoutes);
+app.use('/api/envios', enviosRoutes);
 app.use('/api/historial', historialRoutes);
 app.use('/api/reportes', reportesRoutes);
 app.use('/api/backups', backupsRoutes);
