@@ -10,7 +10,7 @@ const { pool, migrate } = require('./db/pool');
 const { COOKIE_NAME, verifyToken } = require('./middleware/auth');
 const realtime = require('./lib/realtime');
 const limites = require('./lib/rateLimits');
-const { limpiarHistorialRodante, crearBackupGeneral, crearBackupTienda } = require('./jobs/backup');
+const { limpiarHistorialRodante, crearBackupGeneral, asegurarRespaldosTienda } = require('./jobs/backup');
 
 const authRoutes = require('./routes/auth');
 const usuariosRoutes = require('./routes/usuarios');
@@ -192,11 +192,14 @@ async function start() {
     crearBackupGeneral().catch(e => console.error('Error creando backup general:', e.message));
   }, { timezone: 'America/Guatemala' });
 
-  // Backup de tienda (con fotos y resumen): el día 1 de cada mes a las 00:05,
-  // archiva el mes que acaba de terminar y lo borra de la tabla en vivo. Guarda 2 meses.
-  cron.schedule('5 0 1 * *', () => {
-    crearBackupTienda().catch(e => console.error('Error creando backup de tienda:', e.message));
+  // Respaldos de tienda (con fotos y resumen): cada día a las 00:01 se revisan. El día 1 crea el del
+  // mes que terminó; además rehace los desactualizados, quita de la pestaña los meses que ya no se ven
+  // y borra los de más de 5 meses ya descargados. Ver jobs/backup.js y mejoras/TIENDA.md #9.
+  cron.schedule('1 0 * * *', () => {
+    asegurarRespaldosTienda().catch(e => console.error('Error con los respaldos de tienda:', e.message));
   }, { timezone: 'America/Guatemala' });
+  // También al arrancar, por si el servidor estaba apagado a esa hora.
+  asegurarRespaldosTienda().catch(e => console.error('Error con los respaldos de tienda:', e.message));
 
   server.listen(PORT, () => console.log(`Kaab escuchando en el puerto ${PORT}`));
 }

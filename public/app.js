@@ -346,6 +346,7 @@ document.addEventListener('visibilitychange', async () => {
     if (!status.user) { await doLogoutCleanup(); return; }
     AUTH = status.user;
     refrescarTodo();
+    revisarAvisosRespaldos(); // al volver de la descarga, o si la app quedó abierta y pasó el día 1
   } catch (e) { /* sin conexión: ya se muestra el aviso correspondiente */ }
 });
 window.addEventListener('online', () => {
@@ -664,7 +665,7 @@ async function enterApp() {
   connectWS();
   startIdleWatcher();
   conLimite(checkPushStatus(), 4000).then(renderNotifBtn, renderNotifBtn);
-  if (await cargarDatosIniciales()) { checkPendingTiendaBackup(); restaurarBorrador(); }
+  if (await cargarDatosIniciales()) { avisoRespaldoCerrado = false; checkPendingTiendaBackup().then(revisarAvisosRespaldos); restaurarBorrador(); }
 }
 // Marca de envío: una por cada ventana de registro abierta (ver db/schema.sql, clave_envio).
 // Reintentar en la MISMA ventana reusa la marca → el servidor no lo guarda dos veces.
@@ -864,6 +865,7 @@ async function doLogoutCleanup() {
   wsConnected = false; updateSyncDot();
   ocultarAvisoSinConexion();
   document.querySelectorAll('.pendientes-panel').forEach(e => e.remove());
+  const avisoResp = document.getElementById('avisoRespaldo'); if (avisoResp) avisoResp.remove();
   document.getElementById('pageRoot').innerHTML = '';
   document.getElementById('modalRoot').innerHTML = '';
   document.getElementById('mainScreen').classList.add('hidden');
@@ -880,6 +882,50 @@ async function checkPendingTiendaBackup() {
     await api(`/backups/tienda/${pending.id}/mark-downloaded`, { method: 'POST' });
     toast(`Se descargó el backup de tienda: ${pending.nombre}`);
   } catch (e) { /* silencioso */ }
+}
+
+// ---- Respaldos de tienda por borrarse (mejoras/TIENDA.md #9), solo para administradores ----
+// - El respaldo que se borra el día 1 del mes que viene y nadie ha descargado: aviso grande, se puede cerrar.
+// - Si ya pasó su fecha y nadie lo descargó: no se borra y la app queda bloqueada hasta descargarlo.
+// Va en su propia capa (no en modalRoot) para no chocar con otras ventanas, como el borrador recuperado.
+const NOMBRES_MES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function fmtFechaLarga(iso) { const [a, m, d] = String(iso).split('-').map(Number); return `${d} de ${NOMBRES_MES[m - 1]}${a !== new Date().getFullYear() ? ' de ' + a : ''}`; }
+let avisoRespaldoCerrado = false; // el aviso sin bloqueo se cierra hasta la próxima vez que entres
+async function revisarAvisosRespaldos() {
+  if (!esAdminActual()) return;
+  let av;
+  try { av = await api('/backups/tienda/avisos', { silencioso: true }); } catch (e) { return; }
+  const capa = document.getElementById('avisoRespaldo');
+  const b = av.vencidos[0] || (!avisoRespaldoCerrado && av.porBorrar[0]);
+  if (!b) { if (capa) capa.remove(); return; }
+  const bloquea = !!av.vencidos[0];
+  const div = capa || document.createElement('div');
+  div.id = 'avisoRespaldo';
+  div.className = 'modal-overlay center aviso-respaldo';
+  const html = `<div class="modal-card">
+      <h3>${bloquea ? 'Descarga el respaldo para seguir' : 'Descarga este respaldo'}</h3>
+      <p class="desc">${bloquea
+        ? `El respaldo de tienda de <strong>${escapeHtml(b.nombre)}</strong> ya cumplió 5 meses y debía borrarse, pero nadie lo ha descargado. Descárgalo para seguir usando la app; después se borrará.`
+        : `El respaldo de tienda de <strong>${escapeHtml(b.nombre)}</strong> se borrará para siempre el <strong>${fmtFechaLarga(b.se_borra)}</strong>. Descárgalo y guárdalo antes de esa fecha.`}</p>
+      <div class="modal-actions">
+        ${bloquea ? '' : '<button class="btn-cancel" id="avisoRespaldoLuego">Más tarde</button>'}
+        <button class="btn-confirm" id="avisoRespaldoBajar">Descargar</button>
+      </div>
+    </div>`;
+  if (div.dataset.respaldo === `${b.id}-${bloquea}`) return; // ya se muestra este mismo aviso: no se redibuja
+  div.dataset.respaldo = `${b.id}-${bloquea}`;
+  div.innerHTML = html;
+  if (!capa) document.body.appendChild(div);
+  const luego = div.querySelector('#avisoRespaldoLuego');
+  if (luego) luego.onclick = () => { avisoRespaldoCerrado = true; div.remove(); };
+  div.querySelector('#avisoRespaldoBajar').onclick = () => {
+    window.location.href = `/api/backups/tienda/${b.id}/download`;
+    if (!bloquea) { avisoRespaldoCerrado = true; div.remove(); }
+    // Se vuelve a revisar: el servidor lo marca como descargado cuando terminó de enviarlo.
+    let intentos = 0;
+    const revisar = () => { intentos++; revisarAvisosRespaldos().then(() => { if (bloquea && document.getElementById('avisoRespaldo') && intentos < 8) setTimeout(revisar, 2500); }); };
+    setTimeout(revisar, 2500);
+  };
 }
 
 /* ============================================================
@@ -1511,7 +1557,7 @@ function renderTienda() {
     </div>
     <button class="pdf-btn" id="btnFactura">${ICONS.receipt} Generar factura</button>
     <button class="pdf-btn" id="btnPdfTienda">${ICONS.pdf} Generar PDF de movimientos</button>
-    ${movs.length ? `<div class="swipe-hint">Mantén presionado un movimiento para eliminarlo</div>` : ''}
+    ${movs.length ? `<div class="swipe-hint">Mantén presionado un movimiento para eliminarlo (solo los del último mes)</div>` : ''}
     <div id="tiendaMovList"></div>
   `;
   document.getElementById('btnEntrada').onclick = () => openTiendaMovModal('entrada');
@@ -1847,13 +1893,19 @@ function openTiendaMovModal(tipo, prellenado = null) {
   });
 }
 function confirmDeleteMovTienda(movId) {
+  // Solo se pueden borrar los del último mes (el servidor manda "editable"; también lo revisa al borrar).
+  const mov = TIENDA.movimientos.find(m => String(m.id) === String(movId));
+  if (mov && mov.editable === false) { toast('Este movimiento tiene más de un mes: ya no se puede eliminar.'); return; }
   openConfirmModal('¿Eliminar este movimiento?', 'Esta acción no se puede deshacer y recalculará los saldos posteriores.', async () => {
     try {
       await api(`/tienda/${movId}`, { method: 'DELETE' });
       TIENDA = await api('/tienda');
       renderTienda();
       toast('Movimiento eliminado');
-    } catch (e) { toast('No se pudo eliminar el movimiento'); }
+    } catch (e) {
+      toast(typeof e === 'string' && e !== 'Error de red' ? e : 'No se pudo eliminar el movimiento');
+      if (typeof e === 'string' && /ya no se puede|ya no existe/.test(e)) refrescarTiendaPronto();
+    }
   });
 }
 
@@ -1993,7 +2045,7 @@ async function openHistorialPage(opts = {}) {
           backups.map(b => backupRowHtml(b, 'general')).join('')
         }
         <div class="section-title" style="margin-top:22px;">Copias de seguridad de tienda</div>
-        <p class="desc" style="margin:-6px 0 14px;">Se genera una a fin de cada mes, con las fotos de facturas y un resumen. Se conservan los últimos 2 meses y también las que aún no hayas descargado (hasta 12).</p>
+        <p class="desc" style="margin:-6px 0 14px;">Se genera una el día 1 de cada mes con el mes que terminó, con las fotos de facturas y un resumen. Se conservan los últimos 5 meses; antes de borrar una te avisamos para que la descargues.</p>
         ${backupsTienda.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Todavía no se ha generado ninguna copia de tienda.</p></div>` :
           backupsTienda.map(b => backupRowHtml(b, 'tienda')).join('')
         }` : ''}
@@ -2004,6 +2056,7 @@ async function openHistorialPage(opts = {}) {
     btn.addEventListener('click', () => {
       const url = btn.dataset.scope === 'tienda' ? `/api/backups/tienda/${btn.dataset.download}/download` : `/api/backups/${btn.dataset.download}/download`;
       window.location.href = url;
+      if (btn.dataset.scope === 'tienda') setTimeout(revisarAvisosRespaldos, 4000);
     });
   });
 }
@@ -2013,7 +2066,7 @@ function backupRowHtml(b, scope) {
     <div class="backup-row">
       <div class="backup-info">
         <div class="backup-date">${escapeHtml(b.nombre || fmtDateTimeShort(b.fecha_creacion))}</div>
-        <div class="backup-meta">${kb} KB</div>
+        <div class="backup-meta">${kb} KB${b.vencido ? ' · <strong class="backup-aviso">Descárgala ya: debía borrarse</strong>' : b.por_borrar ? ` · <strong class="backup-aviso">Se borra el ${fmtFechaLarga(b.se_borra)}: descárgala</strong>` : ''}</div>
       </div>
       <button class="backup-dl" data-download="${b.id}" data-scope="${scope}" title="Descargar">${ICONS.download}</button>
     </div>`;

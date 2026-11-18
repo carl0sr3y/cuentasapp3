@@ -49,6 +49,10 @@ en uso real. Desplegada en **Railway** (servicio Node + PostgreSQL); cada `git p
 - Las ventanas de registro con datos no se cierran con "atrás" ni tocando fuera; borrador en `localStorage`
   que se recupera si el teléfono reinicia la app.
 - Cierre de sesión por inactividad: **15 minutos**.
+- Tienda (`lib/plazosTienda.js`, hora de Guatemala): se ven **2 meses** (desde el mismo día de hace 2
+  meses), solo se borran los del **último mes**, el saldo **empieza de cero cada mes**. Respaldo por mes
+  (día 1, 00:01) que se rehace si se borra algo de ese mes; se guardan **5 meses** y no se borra uno sin
+  descargar (aviso al admin el mes anterior, bloqueo del admin si ya venció).
 
 ## Pruebas
 

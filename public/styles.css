@@ -881,3 +881,7 @@ body:has(.select-bar) .tabbar{display:none;}
 /* Aviso dentro de una ventana recuperada tras un reinicio de la app */
 .recuperado-nota{margin:-4px 0 12px;padding:10px 12px;border-radius:12px;background:var(--accent-bg);color:var(--accent);font-size:14px;font-weight:600;line-height:1.4;}
 .ver-mas{margin:6px 0 4px;justify-content:center;}
+
+/* Aviso de respaldo de tienda por borrarse (encima de todo; si bloquea, no tiene "Más tarde") */
+.modal-overlay.aviso-respaldo{z-index:80;}
+.backup-aviso{color:var(--red);font-weight:600;}

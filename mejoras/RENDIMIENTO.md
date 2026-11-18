@@ -31,12 +31,14 @@ midió, qué se propone y qué riesgo tiene. Al terminar una, se marca con `[x]`
 
 ## 1. Respaldo mensual de Movimientos tienda sin cargar las fotos en memoria 🔴
 
-**Qué es:** el día 1 de cada mes, a las 00:05, el servidor toma todos los movimientos de tienda del mes
-que terminó (con sus fotos de factura), los guarda en un respaldo que el admin puede descargar y los
-quita de la lista en vivo (`jobs/backup.js` → `crearBackupTienda`).
+**Qué es:** el día 1 de cada mes, a las 00:01, el servidor arma el respaldo del mes que terminó (con sus
+fotos de factura) para que el admin lo descargue (`jobs/backup.js` → `guardarRespaldoMes`). Desde la
+mejora 9 de [Tienda](TIENDA.md) los movimientos siguen en la pestaña 2 meses, y el respaldo **se rehace**
+si se borra un movimiento de ese mes.
 
-**Problema:** arma todo el respaldo **de una sola vez en la memoria** del servidor, con todas las fotos.
-Al descargarlo pasa lo mismo (`routes/backups.js` → `/tienda/:id/download`).
+**Problema:** arma todo el respaldo **de una sola vez en la memoria** del servidor, con todas las fotos
+(y ahora también cada vez que se rehace). Al descargarlo pasa lo mismo (`routes/backups.js` →
+`/tienda/:id/download`).
 
 **Medición:**
 
@@ -50,8 +52,9 @@ Con un mes de mucho uso (por ejemplo 500 fotos) pasaría de **1.5 GB**: el servi
 medianoche y ese respaldo perderse.
 
 **Propuesta:**
-1. Crear el respaldo **dentro de Postgres**: mover los movimientos del mes a una tabla de archivo en
-   un solo paso seguro (transacción), sin traer las fotos al servidor.
+1. Armar el respaldo **dentro de Postgres** (copiar los movimientos del mes a una tabla de archivo en
+   un solo paso seguro), sin traer las fotos al servidor. Respetar las reglas de la mejora 9 de
+   [Tienda](TIENDA.md): el mes sigue en la pestaña y el respaldo se rehace si se borra algo.
 2. **Descargar por partes** (de 20 en 20 movimientos). El archivo que recibe el admin sigue siendo el
    mismo JSON de siempre.
 3. Los respaldos que ya existen se convierten solos al formato nuevo al arrancar el servidor, uno por

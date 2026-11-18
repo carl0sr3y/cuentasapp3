@@ -6,6 +6,8 @@ const { sendPushToOthers } = require('../lib/push');
 const { textoOpcional, montoValido, paramId, claveEnvio } = require('../lib/validate');
 const { validarFoto } = require('../lib/fotos');
 const { enTransaccion, bloquearTienda, saldoTienda, recalcularTienda } = require('../lib/saldos');
+const P = require('../lib/plazosTienda');
+const { guardarRespaldoMes } = require('../jobs/backup');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -22,17 +24,20 @@ async function registrarHistorial(empresaId, usuarioId, accion, detalle, extra =
   );
 }
 
+// Se ven los movimientos desde el mismo día de hace 2 meses; "editable" dice si todavía se puede
+// borrar (último mes). El saldo empieza de cero cada mes. Ver lib/plazosTienda.js.
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(
     // Sin la foto: solo si tiene una. Antes cada carga (y cada refresco en tiempo real de cada
     // dispositivo) descargaba TODAS las fotos del mes: megas de tráfico pagado (auditoría V8).
-    `SELECT m.id, m.tipo, m.descripcion, m.monto, m.saldo_resultante, m.fecha, (m.foto IS NOT NULL) AS tiene_foto, u.nombre AS usuario
+    `SELECT m.id, m.tipo, m.descripcion, m.monto, m.saldo_resultante, m.fecha, (m.foto IS NOT NULL) AS tiene_foto, u.nombre AS usuario,
+            (${P.editable('m')}) AS editable
      FROM movimientos_tienda m LEFT JOIN usuarios u ON u.id = m.usuario_id
-     WHERE m.empresa_id = $1
+     WHERE m.empresa_id = $1 AND ${P.visible('m')}
      ORDER BY m.fecha ASC, m.id ASC`,
     [req.user.empresa_id]
   );
-  const balance = rows.length ? Number(rows[rows.length - 1].saldo_resultante) : 0;
+  const balance = await saldoTienda(pool, req.user.empresa_id);
   const { rows: hoyRows } = await pool.query(
     `SELECT COALESCE(SUM(monto),0) AS total FROM movimientos_tienda
      WHERE empresa_id = $1 AND (fecha AT TIME ZONE 'America/Guatemala')::date = (now() AT TIME ZONE 'America/Guatemala')::date`,
@@ -106,17 +111,35 @@ router.get('/:movId/foto', async (req, res) => {
   res.json({ foto: rows[0].foto });
 });
 
+// Solo se pueden borrar los movimientos del último mes (hoy 18 nov → desde el 19 oct), para todos.
+// Si el movimiento es de un mes que ya tiene respaldo, el respaldo se rehace solo.
 router.delete('/:movId', async (req, res) => {
   const empresaId = req.user.empresa_id;
-  const balance = await enTransaccion(pool, async (client) => {
+  const r = await enTransaccion(pool, async (client) => {
     await bloquearTienda(client, empresaId);
+    const { rows: [mov] } = await client.query(
+      `SELECT id, (${P.editable('')}) AS editable, to_char(${P.mes('')}, 'YYYY-MM-DD') AS mes,
+              ${P.mes('')} < ${P.MES_ACTUAL} AS mes_pasado
+       FROM movimientos_tienda WHERE id = $1 AND empresa_id = $2`, [req.params.movId, empresaId]);
+    if (!mov) return { status: 404, error: 'Este movimiento ya no existe' };
+    if (!mov.editable) return { status: 403, error: 'Este movimiento tiene más de un mes: ya no se puede eliminar.' };
     await client.query('DELETE FROM movimientos_tienda WHERE id = $1 AND empresa_id = $2', [req.params.movId, empresaId]);
     await recalcularTienda(client, empresaId);
-    return saldoTienda(client, empresaId);
+    let mesRespaldo = null;
+    if (mov.mes_pasado) {
+      const u = await client.query('UPDATE backups_tienda SET desactualizado = true WHERE empresa_id = $1 AND mes = $2::date', [empresaId, mov.mes]);
+      if (u.rowCount) mesRespaldo = mov.mes;
+    }
+    return { balance: await saldoTienda(client, empresaId), mesRespaldo };
   });
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  if (r.mesRespaldo) {
+    // Si falla aquí, queda marcado y se rehace en la revisión de la noche o al descargarlo.
+    guardarRespaldoMes(empresaId, r.mesRespaldo).catch(e => console.error('Error rehaciendo respaldo de tienda:', e.message));
+  }
   await registrarHistorial(empresaId, req.user.id, 'Eliminar movimiento', 'Movimiento eliminado de tienda');
   broadcast({ scope: 'tienda', empresaId, by: req.user.nombre, excludeClientId: clientIdOf(req) });
-  res.json({ balance });
+  res.json({ balance: r.balance });
 });
 
 module.exports = router;

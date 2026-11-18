@@ -285,3 +285,17 @@ ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS clave_envio TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_movcuentas_clave ON movimientos_cuentas(cuenta_id, clave_envio) WHERE clave_envio IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_movtienda_clave ON movimientos_tienda(empresa_id, clave_envio) WHERE clave_envio IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_cuentas_clave ON cuentas(empresa_id, clave_envio) WHERE clave_envio IS NOT NULL;
+
+-- Respaldos de tienda por mes (mejoras/TIENDA.md #9): se guarda de qué mes es cada respaldo y si hay
+-- que rehacerlo porque se borró un movimiento de ese mes después de crearlo.
+ALTER TABLE backups_tienda ADD COLUMN IF NOT EXISTS mes DATE;
+ALTER TABLE backups_tienda ADD COLUMN IF NOT EXISTS desactualizado BOOLEAN NOT NULL DEFAULT false;
+-- Respaldos de antes de este cambio: el mes sale del nombre ("Octubre 2026") o, si no se entiende,
+-- del mes anterior a cuando se creó.
+UPDATE backups_tienda SET mes = make_date(split_part(nombre, ' ', 2)::int,
+    array_position(ARRAY['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'], split_part(nombre, ' ', 1)), 1)
+  WHERE mes IS NULL AND nombre ~ '^[A-Za-z]+ [0-9]{4}$'
+    AND array_position(ARRAY['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'], split_part(nombre, ' ', 1)) IS NOT NULL;
+UPDATE backups_tienda SET mes = (date_trunc('month', fecha_creacion AT TIME ZONE 'America/Guatemala') - interval '1 month')::date
+  WHERE mes IS NULL;
+CREATE INDEX IF NOT EXISTS idx_backups_tienda_mes ON backups_tienda(empresa_id, mes);
