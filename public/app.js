@@ -91,21 +91,26 @@ function setFingerprintFlag(v) { try { if (v) localStorage.setItem('cuentasapp_f
 // Solo puede haber UNA petición de huella a la vez: si al abrir la app ya se pidió sola y la persona
 // toca el botón, una segunda petición cancelaba la primera (y a veces las dos). Ahora el toque no
 // lanza otra: solo recuerda que ya está esperando la huella.
-let huellaEnCurso = false, huellaDesde = 0, huellaIntento = 0;
+// Además: tocar la pantalla mientras el teléfono abre SU ventana de huella puede cerrarla (el sistema lo
+// toma como "tocó afuera"). Si la persona tocó el botón con una petición en curso y justo después se
+// cancela, se vuelve a pedir la huella sola, UNA vez. Si la cancela a propósito (sin tocar), no se insiste.
+let huellaEnCurso = false, huellaDesde = 0, huellaIntento = 0, huellaToque = 0;
 function pintarEsperaHuella(esperando) {
   const btn = document.getElementById('fpCircle'), hint = document.querySelector('.fp-hint');
   if (btn) btn.classList.toggle('scanning', esperando);
   if (hint) hint.textContent = esperando ? 'Pon tu dedo en el lector…' : 'Toca para usar la huella';
 }
-async function loginWithFingerprint({ auto = false } = {}) {
+async function loginWithFingerprint({ auto = false, reintento = false } = {}) {
   if (!fingerprintSupported()) { toast('Este navegador no soporta huella/Face ID'); return; }
   const aviso = document.getElementById('fpMsg');
   // (si una petición quedó colgada más de un minuto, se permite empezar otra)
   if (huellaEnCurso && Date.now() - huellaDesde < 60000) {
+    huellaToque = Date.now(); // tocó el botón con la huella ya en camino
     if (aviso) { aviso.textContent = 'Ya te estoy pidiendo la huella: pon tu dedo en el lector.'; aviso.classList.add('info'); }
     return;
   }
-  huellaEnCurso = true; huellaDesde = Date.now();
+  huellaEnCurso = true; huellaDesde = Date.now(); huellaToque = 0;
+  let volverAPedir = false;
   if (aviso) aviso.classList.remove('info');
   const miIntento = ++huellaIntento;
   if (aviso) aviso.textContent = '';
@@ -139,14 +144,18 @@ async function loginWithFingerprint({ auto = false } = {}) {
     try { localStorage.setItem('cuentasapp_fp_credid', cred.id); setFingerprintFlag(true); } catch (e) {}
     enterApp();
   } catch (e) {
-    if (auto) return; // intento automático: sin mensajes, la persona puede tocar el botón
     const cancelado = e && e.name === 'NotAllowedError';
+    // Se canceló justo después de que la persona tocara el botón: casi seguro fue ese toque el que cerró
+    // la ventana de huella del teléfono. Se vuelve a pedir (una sola vez).
+    if (cancelado && !reintento && huellaToque && Date.now() - huellaToque < 5000) { volverAPedir = true; return; }
+    if (auto) return; // intento automático: sin mensajes, la persona puede tocar el botón
     const msg = document.getElementById('fpMsg');
     if (msg) msg.classList.remove('info');
     if (msg) msg.textContent = cancelado ? 'Se canceló. Toca la huella para intentarlo de nuevo.' : 'No se pudo leer la huella. Inténtalo de nuevo o entra con tu contraseña.';
     else toast(cancelado ? 'Se canceló el inicio con huella' : 'No se pudo iniciar sesión con huella');
   } finally {
     if (miIntento === huellaIntento) { huellaEnCurso = false; pintarEsperaHuella(false); } // una petición vieja que termina tarde no apaga la nueva
+    if (volverAPedir) { huellaToque = 0; setTimeout(() => loginWithFingerprint({ reintento: true }), 150); }
   }
 }
 function openRegisterFingerprintModal() {
