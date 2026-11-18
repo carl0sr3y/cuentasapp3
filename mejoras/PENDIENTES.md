@@ -24,7 +24,11 @@ computadora; no se sube). Instrucciones en `pruebas/LEEME.md`.
 - [ ] **Activar `CSP_MODO=bloquear`** en Railway → servicio de la app → Variables, y probar la app en el
       iPhone (entrar, ver cuentas, registrar un movimiento, generar un PDF, entrar con huella). Si algo
       falla, borrar la variable. Detalle en [Seguridad](SEGURIDAD.md).
-- [ ] **Pedir a los usuarios** que reportaron el problema de la huella que prueben la versión nueva.
+- [ ] **Pedir a los usuarios** que reportaron el problema de la huella que prueben la versión nueva
+      (incluye el caso de tocar el botón mientras la huella ya se está pidiendo).
+- [ ] **Confirmar con los usuarios** que al agregar una salida con foto ya no se cierra la ventana. Si ven
+      seguido "Recuperamos lo que estabas escribiendo…", conviene hacer la cámara dentro de la app
+      ([Movimientos tienda](TIENDA.md) #5).
 - [ ] **Revisar de vez en cuando Railway → Logs** buscando "Foto no procesada". Si aparece, compartir
       esa línea para saber la causa exacta.
 - [ ] **Revisar Railway → Usage** y compartir cuánto cuesta cada servicio (la app y Postgres) para
