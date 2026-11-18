@@ -102,10 +102,11 @@ async function loginWithFingerprint({ auto = false } = {}) {
   const aviso = document.getElementById('fpMsg');
   // (si una petición quedó colgada más de un minuto, se permite empezar otra)
   if (huellaEnCurso && Date.now() - huellaDesde < 60000) {
-    if (aviso) aviso.textContent = 'Ya te estoy pidiendo la huella: pon tu dedo en el lector.';
+    if (aviso) { aviso.textContent = 'Ya te estoy pidiendo la huella: pon tu dedo en el lector.'; aviso.classList.add('info'); }
     return;
   }
   huellaEnCurso = true; huellaDesde = Date.now();
+  if (aviso) aviso.classList.remove('info');
   const miIntento = ++huellaIntento;
   if (aviso) aviso.textContent = '';
   pintarEsperaHuella(true);
@@ -141,6 +142,7 @@ async function loginWithFingerprint({ auto = false } = {}) {
     if (auto) return; // intento automático: sin mensajes, la persona puede tocar el botón
     const cancelado = e && e.name === 'NotAllowedError';
     const msg = document.getElementById('fpMsg');
+    if (msg) msg.classList.remove('info');
     if (msg) msg.textContent = cancelado ? 'Se canceló. Toca la huella para intentarlo de nuevo.' : 'No se pudo leer la huella. Inténtalo de nuevo o entra con tu contraseña.';
     else toast(cancelado ? 'Se canceló el inicio con huella' : 'No se pudo iniciar sesión con huella');
   } finally {
