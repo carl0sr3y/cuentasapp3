@@ -10,7 +10,7 @@ const { pool, migrate } = require('./db/pool');
 const { COOKIE_NAME, verifyToken } = require('./middleware/auth');
 const realtime = require('./lib/realtime');
 const limites = require('./lib/rateLimits');
-const { limpiarHistorialRodante, crearBackupGeneral, asegurarRespaldosTienda } = require('./jobs/backup');
+const { limpiarHistorialRodante, crearBackupGeneral, asegurarRespaldosTienda, convertirRespaldosViejos } = require('./jobs/backup');
 
 const authRoutes = require('./routes/auth');
 const usuariosRoutes = require('./routes/usuarios');
@@ -198,8 +198,12 @@ async function start() {
   cron.schedule('1 0 * * *', () => {
     asegurarRespaldosTienda().catch(e => console.error('Error con los respaldos de tienda:', e.message));
   }, { timezone: 'America/Guatemala' });
-  // También al arrancar, por si el servidor estaba apagado a esa hora.
-  asegurarRespaldosTienda().catch(e => console.error('Error con los respaldos de tienda:', e.message));
+  // También al arrancar, por si el servidor estaba apagado a esa hora. Antes, los respaldos viejos
+  // (todo el mes en un solo bloque) se pasan al formato por partes, uno por uno.
+  convertirRespaldosViejos()
+    .catch(e => console.error('Error convirtiendo respaldos de tienda:', e.message))
+    .then(() => asegurarRespaldosTienda())
+    .catch(e => console.error('Error con los respaldos de tienda:', e.message));
 
   server.listen(PORT, () => console.log(`Kaab escuchando en el puerto ${PORT}`));
 }

@@ -21,7 +21,7 @@ midió, qué se propone y qué riesgo tiene. Al terminar una, se marca con `[x]`
 
 | # | Mejora | Prioridad | Estado |
 |---|--------|-----------|--------|
-| 1 | Respaldo mensual de tienda sin cargar las fotos en memoria | 🔴 Alta (puede tumbar el servidor) | [ ] Pendiente |
+| 1 | Respaldo mensual de tienda sin cargar las fotos en memoria | 🔴 Alta (puede tumbar el servidor) | [x] Hecho (commit "Respaldos de tienda por partes…") |
 | 2 | Comprimir lo que envía el servidor | 🟡 Media | [ ] Pendiente |
 | 3 | Fotos como imagen normal y guardadas en caché | 🟡 Media | [ ] Pendiente |
 | 4 | Quitar la revisión de todas las fotos en cada arranque | 🟢 Baja | [ ] Pendiente |
@@ -63,6 +63,20 @@ medianoche y ese respaldo perderse.
 **Beneficio:** la memoria queda estable sin importar cuántas fotos haya en el mes.
 **Riesgo:** toca los respaldos. Hay que probarlo con respaldos del formato viejo y del nuevo antes de
 subirlo.
+
+**✅ Hecho el 18/11/2026.** Medido después del cambio (prueba `respaldo-partes`):
+
+| | Antes | Después |
+|---|---|---|
+| Memoria al armar el respaldo | +380 MB con 117 fotos | casi nada, aunque sean 500 fotos |
+| Memoria al descargarlo | crecía con cada foto | ~+150 MB de memoria de trabajo, igual con 100, 500 o 1,000 fotos |
+| Límite de fotos por mes | ~700 (ya no se podía armar) | sin límite práctico (probado con 1,000: archivo de 652 MB) |
+
+Cómo quedó: tabla `backups_tienda_movs` (un movimiento por fila; `backups_tienda.data` guarda solo el
+encabezado), armado con un solo `INSERT … SELECT` dentro de Postgres (`jobs/backup.js` →
+`guardarRespaldoMes`), descarga de 20 en 20 (`routes/backups.js`) y conversión de los respaldos viejos al
+arrancar (`convertirRespaldosViejos`). El archivo descargado tiene el mismo contenido que antes
+(comprobado comparando ambos).
 
 ---
 

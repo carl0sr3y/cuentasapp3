@@ -71,6 +71,18 @@ router.post('/tienda/:id/mark-downloaded', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Descarga del respaldo de tienda. El archivo es el mismo JSON de siempre (empresa, mes, resumen y
+// la lista de movimientos con sus fotos), pero se envía POR PARTES: de 20 en 20 movimientos, así el
+// servidor nunca tiene todas las fotos del mes en memoria (mejoras/RENDIMIENTO.md #1).
+// Solo cuenta como descargado si el archivo se envió completo y el respaldo no cambió mientras tanto.
+const TRAMO_DESCARGA = 20;
+// Igual que JSON.stringify(mov, null, 2) dentro de la lista (sangría de 4), sin copiar la foto otra vez.
+function movimientoComoTexto(mov) {
+  const lineas = Object.keys(mov).map(k => `      ${JSON.stringify(k)}: ${JSON.stringify(mov[k])}`);
+  return `{\n${lineas.join(',\n')}\n    }`;
+}
+const COLUMNAS_MOV = `mov_id AS id, usuario_id, tipo, descripcion, monto, saldo_resultante, fecha, foto, empresa_id, clave_envio, usuario`;
+
 router.get('/tienda/:id/download', async (req, res) => {
   const empresaId = req.user.empresa_id;
   const { rows: [b0] } = await pool.query(
@@ -79,21 +91,62 @@ router.get('/tienda/:id/download', async (req, res) => {
   );
   if (!b0) return res.status(404).json({ error: 'Copia no encontrada' });
   if (b0.desactualizado) await guardarRespaldoMes(empresaId, b0.mes); // se borró algo de ese mes: se rehace antes
-  const { rows } = await pool.query(
-    'SELECT data, nombre FROM backups_tienda WHERE id = $1 AND empresa_id = $2',
+  const { rows: [b] } = await pool.query(
+    `SELECT nombre, en_partes, version, CASE WHEN en_partes THEN data ELSE NULL END AS encabezado
+     FROM backups_tienda WHERE id = $1 AND empresa_id = $2`,
     [req.params.id, empresaId]
   );
-  const backup = rows[0];
-  if (!backup) return res.status(404).json({ error: 'Copia no encontrada' });
-  const nombreArchivo = (backup.nombre || 'tienda').replace(/[^\w\-]+/g, '-');
+  if (!b) return res.status(404).json({ error: 'Copia no encontrada' });
+  const nombreArchivo = (b.nombre || 'tienda').replace(/[^\w\-]+/g, '-');
   res.setHeader('Content-Disposition', `attachment; filename="kaab-tienda-${nombreArchivo}.json"`);
   res.setHeader('Content-Type', 'application/json');
-  // Se marca como descargado solo cuando el archivo terminó de enviarse completo.
   res.on('finish', () => {
-    pool.query('UPDATE backups_tienda SET descargado = true WHERE id = $1 AND empresa_id = $2 AND NOT desactualizado', [req.params.id, empresaId])
+    pool.query('UPDATE backups_tienda SET descargado = true WHERE id = $1 AND empresa_id = $2 AND NOT desactualizado AND version = $3',
+      [req.params.id, empresaId, b.version])
       .catch(e => console.error('Error marcando respaldo descargado:', e.message));
   });
-  res.send(JSON.stringify(backup.data, null, 2));
+
+  if (!b.en_partes) {
+    // Respaldo viejo que todavía no se pudo convertir: se envía como antes, de una vez.
+    const { rows: [v] } = await pool.query('SELECT data FROM backups_tienda WHERE id = $1 AND empresa_id = $2', [req.params.id, empresaId]);
+    return res.send(JSON.stringify(v.data, null, 2));
+  }
+
+  // Mismo formato que JSON.stringify(respaldo, null, 2): se arma el encabezado con un marcador en el
+  // lugar de la lista y cada movimiento se escribe con la sangría que le toca.
+  const MARCA = '__MOVIMIENTOS__';
+  const [inicio, fin] = JSON.stringify({ ...b.encabezado, movimientos: [MARCA] }, null, 2).split(`"${MARCA}"`);
+  const cortado = () => res.destroyed || res.writableEnded;
+  const escribir = (texto) => new Promise((ok) => {
+    if (res.write(texto)) return ok();
+    const seguir = () => { res.off('drain', seguir); res.off('close', seguir); ok(); };
+    res.on('drain', seguir); res.on('close', seguir);
+  });
+  try {
+    await escribir(inicio);
+    let ultimo = 0, primero = true;
+    for (;;) {
+      if (cortado()) return; // el teléfono cerró la conexión: no se sigue leyendo
+      const { rows } = await pool.query(
+        `SELECT orden, ${COLUMNAS_MOV} FROM backups_tienda_movs WHERE backup_id = $1 AND orden > $2 ORDER BY orden LIMIT $3`,
+        [req.params.id, ultimo, TRAMO_DESCARGA]
+      );
+      if (!rows.length) break;
+      ultimo = rows[rows.length - 1].orden;
+      // Uno por uno y sin copias extra de la foto (es lo que más pesa).
+      for (let i = 0; i < rows.length; i++) {
+        const { orden, ...mov } = rows[i];
+        rows[i] = null; // se suelta en cuanto se envía
+        await escribir((primero ? '' : ',\n    ') + movimientoComoTexto(mov));
+        primero = false;
+        if (cortado()) return;
+      }
+    }
+    res.end(fin);
+  } catch (e) {
+    console.error('Error enviando respaldo de tienda:', e.message);
+    res.destroy(e); // corta la descarga: el archivo incompleto no cuenta como descargado
+  }
 });
 
 module.exports = router;

@@ -299,3 +299,28 @@ UPDATE backups_tienda SET mes = make_date(split_part(nombre, ' ', 2)::int,
 UPDATE backups_tienda SET mes = (date_trunc('month', fecha_creacion AT TIME ZONE 'America/Guatemala') - interval '1 month')::date
   WHERE mes IS NULL;
 CREATE INDEX IF NOT EXISTS idx_backups_tienda_mes ON backups_tienda(empresa_id, mes);
+
+-- Respaldos de tienda "por partes" (mejoras/RENDIMIENTO.md #1): cada movimiento del respaldo es una fila,
+-- así el servidor nunca tiene que juntar todas las fotos del mes en memoria (ni al armarlo ni al
+-- descargarlo). backups_tienda.data guarda solo el encabezado (empresa, mes, resumen).
+-- Columnas = las de movimientos_tienda + nombre del usuario, para que el archivo descargado sea igual.
+CREATE TABLE IF NOT EXISTS backups_tienda_movs (
+  id SERIAL PRIMARY KEY,
+  backup_id INTEGER NOT NULL REFERENCES backups_tienda(id) ON DELETE CASCADE,
+  orden INTEGER NOT NULL,
+  mov_id INTEGER NOT NULL,
+  empresa_id INTEGER,
+  usuario_id INTEGER,
+  tipo TEXT,
+  descripcion TEXT,
+  monto NUMERIC(12,2),
+  saldo_resultante NUMERIC(12,2),
+  fecha TIMESTAMPTZ,
+  foto TEXT,
+  clave_envio TEXT,
+  usuario TEXT,
+  UNIQUE (backup_id, orden)
+);
+ALTER TABLE backups_tienda ADD COLUMN IF NOT EXISTS en_partes BOOLEAN NOT NULL DEFAULT false;
+-- Cambia cada vez que el respaldo se rehace: una descarga que se cruzó con un cambio no cuenta como descargada.
+ALTER TABLE backups_tienda ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 0;

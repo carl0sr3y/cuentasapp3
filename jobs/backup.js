@@ -81,43 +81,94 @@ function nombreDeMes(mesIso) { // '2026-10-01' → 'Octubre 2026'
 
 // Arma (o rehace) el respaldo de un mes con la tienda bloqueada: así nadie borra un movimiento
 // mientras se arma y el respaldo queda exactamente igual a lo que hay en la base.
+// Todo ocurre DENTRO de Postgres (mejoras/RENDIMIENTO.md #1): las fotos se copian de una tabla a otra
+// sin pasar por el servidor, así la memoria no crece aunque el mes tenga miles de fotos.
 async function guardarRespaldoMes(empresaId, mesIso) {
   await enTransaccion(pool, async (client) => {
     await bloquearTienda(client, empresaId);
     const { rows: [empresa] } = await client.query('SELECT nombre FROM empresas WHERE id = $1', [empresaId]);
     if (!empresa) return;
-    const { rows: movs } = await client.query(
-      `SELECT m.*, u.nombre AS usuario FROM movimientos_tienda m
-       LEFT JOIN usuarios u ON u.id = m.usuario_id
-       WHERE m.empresa_id = $1 AND ${P.mes('m')} = $2::date ORDER BY m.fecha ASC, m.id ASC`,
-      [empresaId, mesIso]
-    );
-    const totalEntradas = movs.filter(m => m.tipo === 'entrada').reduce((s, m) => s + Number(m.monto), 0);
-    const totalSalidas = movs.filter(m => m.tipo === 'salida').reduce((s, m) => s + Math.abs(Number(m.monto)), 0);
-    const resumen = {
-      total_movimientos: movs.length,
-      total_entradas: totalEntradas,
-      total_salidas: totalSalidas,
-      balance_neto: totalEntradas - totalSalidas,
-      facturas_adjuntas: movs.filter(m => m.foto).length,
-    };
     const nombre = nombreDeMes(mesIso);
-    const json = JSON.stringify({ generado_en: new Date().toISOString(), empresa: empresa.nombre, mes: nombre, resumen, movimientos: movs });
-    const sizeBytes = Buffer.byteLength(json, 'utf8');
-    // Si ya existía (se rehace por un borrado), se marca como no descargado: la copia que el admin
-    // bajó antes ya no coincide.
-    const { rowCount } = await client.query(
-      `UPDATE backups_tienda SET data = $3, size_bytes = $4, nombre = $5, desactualizado = false, descargado = false
-       WHERE empresa_id = $1 AND mes = $2::date`,
-      [empresaId, mesIso, json, sizeBytes, nombre]
-    );
-    if (!rowCount) {
-      await client.query(
-        `INSERT INTO backups_tienda (empresa_id, nombre, data, size_bytes, mes) VALUES ($1,$2,$3,$4,$5::date)`,
-        [empresaId, nombre, json, sizeBytes, mesIso]
-      );
+    // La fila del respaldo (se crea si no existía). Si ya existía, se vacía su contenido para rehacerlo.
+    let { rows: [b] } = await client.query(
+      'SELECT id FROM backups_tienda WHERE empresa_id = $1 AND mes = $2::date ORDER BY id LIMIT 1', [empresaId, mesIso]);
+    if (b) {
+      await client.query('DELETE FROM backups_tienda_movs WHERE backup_id = $1', [b.id]);
+    } else {
+      ({ rows: [b] } = await client.query(
+        `INSERT INTO backups_tienda (empresa_id, nombre, data, size_bytes, mes, en_partes) VALUES ($1,$2,'{}',0,$3::date,true) RETURNING id`,
+        [empresaId, nombre, mesIso]));
     }
+    const copia = await client.query(`
+      INSERT INTO backups_tienda_movs (backup_id, orden, mov_id, empresa_id, usuario_id, tipo, descripcion, monto,
+                                       saldo_resultante, fecha, foto, clave_envio, usuario)
+      SELECT $3, row_number() OVER (ORDER BY m.fecha, m.id), m.id, m.empresa_id, m.usuario_id, m.tipo, m.descripcion,
+             m.monto, m.saldo_resultante, m.fecha, m.foto, m.clave_envio, u.nombre
+      FROM movimientos_tienda m LEFT JOIN usuarios u ON u.id = m.usuario_id
+      WHERE m.empresa_id = $1 AND ${P.mes('m')} = $2::date`, [empresaId, mesIso, b.id]);
+    // Resumen y tamaño calculados por la base (el tamaño es aproximado: solo se usa para mostrar los KB).
+    const { rows: [r] } = await client.query(`
+      SELECT count(*)::int AS n,
+             COALESCE(SUM(monto) FILTER (WHERE tipo = 'entrada'), 0) AS entradas,
+             COALESCE(SUM(-monto) FILTER (WHERE tipo = 'salida'), 0) AS salidas,
+             count(foto)::int AS fotos,
+             COALESCE(SUM(octet_length(COALESCE(foto, '')) + octet_length(COALESCE(descripcion, '')) + 300), 0)::bigint AS bytes
+      FROM backups_tienda_movs WHERE backup_id = $1`, [b.id]);
+    // Comprobación: el respaldo debe tener tantos movimientos como el mes en la base.
+    if (r.n !== copia.rowCount) throw new Error(`Respaldo ${nombre} (empresa ${empresaId}): ${r.n} de ${copia.rowCount} movimientos`);
+    const totalEntradas = Number(r.entradas), totalSalidas = Number(r.salidas);
+    const encabezado = {
+      generado_en: new Date().toISOString(), empresa: empresa.nombre, mes: nombre,
+      resumen: {
+        total_movimientos: r.n,
+        total_entradas: totalEntradas,
+        total_salidas: totalSalidas,
+        balance_neto: Math.round((totalEntradas - totalSalidas) * 100) / 100,
+        facturas_adjuntas: r.fotos,
+      },
+    };
+    // Si se rehízo (por un borrado), queda como no descargado: la copia que el admin bajó antes ya no coincide.
+    await client.query(
+      `UPDATE backups_tienda SET data = $2, size_bytes = $3, nombre = $4, en_partes = true, desactualizado = false,
+         descargado = false, version = version + 1
+       WHERE id = $1`,
+      [b.id, JSON.stringify(encabezado), Math.min(Number(r.bytes) + 400, 2147483647), nombre]);
   });
+}
+
+// Respaldos de antes de "por partes" (todo el mes en un solo JSON): se pasan al formato nuevo uno por
+// uno, dentro de Postgres. Si alguno falla, se queda como estaba y se sigue descargando a la manera vieja.
+async function convertirRespaldosViejos() {
+  const { rows } = await pool.query('SELECT id, empresa_id, nombre FROM backups_tienda WHERE NOT en_partes ORDER BY id');
+  let bien = 0;
+  for (const v of rows) {
+    try {
+      await enTransaccion(pool, async (client) => {
+        await bloquearTienda(client, v.empresa_id);
+        const { rows: [b] } = await client.query(
+          `SELECT en_partes, jsonb_typeof(data->'movimientos') AS tipo, jsonb_array_length(CASE WHEN jsonb_typeof(data->'movimientos') = 'array' THEN data->'movimientos' ELSE '[]' END) AS n
+           FROM backups_tienda WHERE id = $1 FOR UPDATE`, [v.id]);
+        if (!b || b.en_partes) return;
+        if (b.tipo !== 'array') throw new Error('no tiene lista de movimientos');
+        await client.query('DELETE FROM backups_tienda_movs WHERE backup_id = $1', [v.id]);
+        const copia = await client.query(`
+          INSERT INTO backups_tienda_movs (backup_id, orden, mov_id, empresa_id, usuario_id, tipo, descripcion, monto,
+                                           saldo_resultante, fecha, foto, clave_envio, usuario)
+          SELECT b.id, e.n, (e.m->>'id')::int, (e.m->>'empresa_id')::int, (e.m->>'usuario_id')::int, e.m->>'tipo',
+                 e.m->>'descripcion', (e.m->>'monto')::numeric, (e.m->>'saldo_resultante')::numeric,
+                 (e.m->>'fecha')::timestamptz, e.m->>'foto', e.m->>'clave_envio', e.m->>'usuario'
+          FROM backups_tienda b, jsonb_array_elements(b.data->'movimientos') WITH ORDINALITY AS e(m, n)
+          WHERE b.id = $1`, [v.id]);
+        if (copia.rowCount !== b.n) throw new Error(`se copiaron ${copia.rowCount} de ${b.n} movimientos`);
+        await client.query(`UPDATE backups_tienda SET data = data - 'movimientos', en_partes = true WHERE id = $1`, [v.id]);
+      });
+      bien++;
+    } catch (e) {
+      console.error(`Respaldo de tienda "${v.nombre}" (id ${v.id}) no se pudo convertir; se queda como estaba:`, e.message);
+    }
+  }
+  if (bien) console.log(`Respaldos de tienda convertidos al formato por partes: ${bien}.`);
+  return bien;
 }
 
 // Rehace los respaldos marcados como desactualizados (se borró un movimiento de ese mes).
@@ -159,4 +210,4 @@ async function asegurarRespaldosTienda() {
 // Nombre anterior (lo usan las herramientas de prueba).
 const crearBackupTienda = asegurarRespaldosTienda;
 
-module.exports = { limpiarHistorialRodante, crearBackupGeneral, crearBackupTienda, asegurarRespaldosTienda, guardarRespaldoMes, rehacerDesactualizados };
+module.exports = { limpiarHistorialRodante, crearBackupGeneral, crearBackupTienda, asegurarRespaldosTienda, guardarRespaldoMes, rehacerDesactualizados, convertirRespaldosViejos };

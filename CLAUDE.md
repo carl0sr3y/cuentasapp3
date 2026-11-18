@@ -53,6 +53,8 @@ en uso real. Desplegada en **Railway** (servicio Node + PostgreSQL); cada `git p
   meses), solo se borran los del **último mes**, el saldo **empieza de cero cada mes**. Respaldo por mes
   (día 1, 00:01) que se rehace si se borra algo de ese mes; se guardan **5 meses** y no se borra uno sin
   descargar (aviso al admin el mes anterior, bloqueo del admin si ya venció).
+  Los respaldos de tienda se arman dentro de Postgres y se descargan por partes (`backups_tienda_movs`):
+  nunca juntar todas las fotos de un mes en la memoria del servidor.
 
 ## Pruebas
 
