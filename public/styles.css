@@ -862,3 +862,5 @@ body:has(.select-bar) .tabbar{display:none;}
 /* Estado de carga / error al entrar (enterApp) */
 .carga-estado p{margin:0 0 16px;}
 .carga-estado .btn-secondary{display:inline-flex;width:auto;padding:12px 20px;}
+/* Aviso "Sin conexión": línea de reintento automático */
+#offlineBanner .offline-auto{font-size:14px;color:var(--text-faint);margin:-6px 0 18px;}

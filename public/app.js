@@ -176,12 +176,46 @@ function updateSyncDot() {
   dot.classList.add('sync-green');
 }
 
+// Aviso "Sin conexión". Antes solo se quitaba con el evento "online" del teléfono, que no llega
+// cuando lo que falló fue el servidor (y no el wifi/datos): la pantalla se quedaba para siempre.
+// Ahora, mientras se ve, la app prueba sola el servidor (/health) cada pocos segundos y, cuando
+// responde, quita el aviso y recarga los datos (o revisa la sesión si aún no había entrado).
+let recuperarT = null, recuperarIntento = 0, recuperando = false;
+function avisoSinConexionVisible() { return !document.getElementById('offlineBanner').classList.contains('hidden'); }
 function showOfflineBanner(msg) {
   const b = document.getElementById('offlineBanner');
   if (msg) document.getElementById('offlineMsg').textContent = msg;
+  const yaVisible = avisoSinConexionVisible();
   b.classList.remove('hidden');
+  if (!yaVisible) { recuperarIntento = 0; programarRecuperacion(); }
 }
-document.getElementById('reloadBtn').addEventListener('click', () => location.reload());
+function ocultarAvisoSinConexion() {
+  document.getElementById('offlineBanner').classList.add('hidden');
+  clearTimeout(recuperarT); recuperarIntento = 0;
+}
+function programarRecuperacion(ahora) {
+  clearTimeout(recuperarT);
+  const espera = ahora ? 0 : Math.min(15000, Math.round(2000 * Math.pow(1.6, recuperarIntento)));
+  const t = document.getElementById('offlineAuto');
+  if (t) t.textContent = navigator.onLine === false ? 'Esperando a que vuelva el internet…' : 'Reintentando automáticamente…';
+  recuperarT = setTimeout(intentarRecuperar, espera);
+}
+async function intentarRecuperar() {
+  if (!avisoSinConexionVisible() || recuperando) return;
+  recuperando = true;
+  let ok = false;
+  try { const r = await fetch('/health', { cache: 'no-store' }); ok = r.ok; } catch (e) { ok = false; }
+  recuperando = false;
+  if (!ok) { recuperarIntento++; programarRecuperacion(); return; }
+  ocultarAvisoSinConexion();
+  if (AUTH) {
+    if (await cargarDatosIniciales() && currentAccountDetail) refrescarTodo();
+    if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
+  } else if (document.getElementById('mainScreen').classList.contains('hidden')) {
+    initAuth(); // aún no había entrado: revisa si la sesión sigue abierta
+  }
+}
+document.getElementById('reloadBtn').addEventListener('click', () => { recuperarIntento = 0; programarRecuperacion(true); });
 window.addEventListener('offline', () => showOfflineBanner('Perdiste la conexión a internet.'));
 
 async function api(path, opts = {}) {
@@ -219,7 +253,7 @@ let ws = null;
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws?clientId=${CLIENT_ID}`);
-  ws.onopen = () => { wsConnected = true; updateSyncDot(); refrescarTodo(); };
+  ws.onopen = () => { wsConnected = true; updateSyncDot(); if (avisoSinConexionVisible()) intentarRecuperar(); else refrescarTodo(); };
   ws.onclose = () => { wsConnected = false; updateSyncDot(); if (AUTH) setTimeout(() => { if (AUTH && (!ws || ws.readyState === WebSocket.CLOSED)) connectWS(); }, 2000 + Math.random() * 2000); };
   ws.onerror = () => { try { ws.close(); } catch (e) {} };
   ws.onmessage = (ev) => {
@@ -270,6 +304,7 @@ async function refrescarTodo() {
 // Si el teléfono restaura la página "congelada" (bfcache) puede no avisar con visibilitychange.
 window.addEventListener('pageshow', e => { if (e.persisted) document.dispatchEvent(new Event('visibilitychange')); });
 document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && avisoSinConexionVisible()) { recuperarIntento = 0; programarRecuperacion(true); }
   if (document.visibilityState !== 'visible' || !AUTH) return;
   if (Date.now() - lastActivity > IDLE_LIMIT_MS) { lockSession(); return; } // estuvo +5 min sin uso
   if (ws && ws.readyState === WebSocket.CLOSED) connectWS();
@@ -285,8 +320,9 @@ document.addEventListener('visibilitychange', async () => {
   } catch (e) { /* sin conexión: ya se muestra el aviso correspondiente */ }
 });
 window.addEventListener('online', () => {
-  document.getElementById('offlineBanner').classList.add('hidden');
-  if (AUTH) refrescarTodo();
+  // Volvió el internet: se comprueba el servidor antes de quitar el aviso.
+  if (avisoSinConexionVisible()) { recuperarIntento = 0; programarRecuperacion(true); }
+  else if (AUTH) refrescarTodo();
 });
 
 /* ============================================================
@@ -618,7 +654,7 @@ async function cargarDatosIniciales(intento = 0) {
     TIENDA = tienda;
     renderDeudas();
     renderTienda();
-    document.getElementById('offlineBanner').classList.add('hidden');
+    ocultarAvisoSinConexion();
     return true;
   } catch (e) {
     if (!AUTH) return false; // la sesión ya no vale: api() ya llevó al inicio de sesión
@@ -671,7 +707,7 @@ async function doLogoutCleanup() {
   clearTimeout(reintentoCargaT);
   if (ws) { try { ws.close(); } catch (e) {} ws = null; }
   wsConnected = false; updateSyncDot();
-  document.getElementById('offlineBanner').classList.add('hidden');
+  ocultarAvisoSinConexion();
   document.getElementById('pageRoot').innerHTML = '';
   document.getElementById('modalRoot').innerHTML = '';
   document.getElementById('mainScreen').classList.add('hidden');
