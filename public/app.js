@@ -306,7 +306,7 @@ window.addEventListener('pageshow', e => { if (e.persisted) document.dispatchEve
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && avisoSinConexionVisible()) { recuperarIntento = 0; programarRecuperacion(true); }
   if (document.visibilityState !== 'visible' || !AUTH) return;
-  if (Date.now() - lastActivity > IDLE_LIMIT_MS) { lockSession(); return; } // estuvo +5 min sin uso
+  if (Date.now() - lastActivity > IDLE_LIMIT_MS) { lockSession(); return; } // estuvo +15 min sin uso
   if (ws && ws.readyState === WebSocket.CLOSED) connectWS();
   // La app puede "despertar" sin recargar de verdad (el celular la congeló en segundo plano
   // en vez de cerrarla). Antes de refrescar datos, confirmamos que la sesión siga siendo válida
@@ -664,9 +664,9 @@ async function cargarDatosIniciales(intento = 0) {
   }
 }
 /* ============================================================
-   CIERRE POR INACTIVIDAD (5 minutos)
+   CIERRE POR INACTIVIDAD (15 minutos)
    ============================================================ */
-const IDLE_LIMIT_MS = 5 * 60 * 1000;
+const IDLE_LIMIT_MS = 15 * 60 * 1000;
 let lastActivity = Date.now();
 let idleInterval = null;
 function markActivity() { lastActivity = Date.now(); }
