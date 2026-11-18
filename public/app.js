@@ -296,7 +296,7 @@ function animarEntrada() {
 // Saldos que "cuentan" desde el valor anterior hasta el nuevo.
 const saldosMostrados = new Map();
 function animarSaldos(root = document) {
-  root.querySelectorAll('.balance-amount[data-saldo]').forEach(el => {
+  root.querySelectorAll('.balance-amount[data-saldo], .total-monto[data-saldo]').forEach(el => {
     const clave = el.dataset.clave, nuevo = Number(el.dataset.saldo);
     const previo = saldosMostrados.has(clave) ? saldosMostrados.get(clave) : 0;
     saldosMostrados.set(clave, nuevo);
@@ -404,9 +404,9 @@ function totalesCuentas() {
   const teDeben = suma('cobrar'), debes = suma('pagar');
   return { teDeben, debes, neto: Math.round((teDeben - debes) * 100) / 100 };
 }
-// Si un monto no cabe en su columna (p. ej. Q 127,265.50 en un teléfono chico), se achica la letra lo justo.
+// Si el total no cabe junto a los botones (p. ej. Q 377,265.50 en un teléfono chico), se achica la letra lo justo.
 function ajustarMontosResumen() {
-  document.querySelectorAll('.resumen-cols b').forEach(b => {
+  document.querySelectorAll('.total-monto').forEach(b => {
     b.style.fontSize = '';
     if (!b.clientWidth) return; // vista oculta: se ajusta al mostrarse
     let fs = parseFloat(getComputedStyle(b).fontSize);
@@ -415,17 +415,27 @@ function ajustarMontosResumen() {
 }
 window.addEventListener('resize', ajustarMontosResumen);
 function textoNeto(neto) { return (neto > 0 ? '+' : '') + money(neto); }
-function resumenHtml() {
-  const { teDeben, debes, neto } = totalesCuentas();
-  return `<div class="resumen-bar">
-      <div class="resumen-cols">
-        <span class="${tipoCuentas === 'cobrar' ? 'activo' : ''}">Te deben <b class="pos" data-total="cobrar">${money(teDeben)}</b></span>
-        <span class="${tipoCuentas === 'pagar' ? 'activo' : ''}">Debes <b class="neg" data-total="pagar">${money(debes)}</b></span>
-        <span>Neto <b class="${neto > 0 ? 'pos' : neto < 0 ? 'neg' : 'cero'}" data-total="neto">${textoNeto(neto)}</b></span>
+// Cabecera de la lista (opción A): el total de la pestaña abierta ("Te deben" / "Debes") con el número
+// de cuentas, y a la derecha Crear/Eliminar. Al tocar el total se abre el resumen con el neto y los PDF.
+function cabeceraCuentasHtml() {
+  const lista = cuentasVisibles();
+  const deuda = lista.reduce((s, c) => s + deudaDe(c.balance), 0);
+  const d = Math.round(deuda * 100) / 100;
+  const clase = d > 0 ? (tipoCuentas === 'pagar' ? 'neg' : 'pos') : d < 0 ? 'favor' : 'cero';
+  return `
+    <div class="section-title cuentas-head total-head">
+      <button class="total-btn" id="btnResumen" type="button" aria-label="Ver resumen y PDF">
+        <span class="total-etiqueta">${tipoCuentas === 'pagar' ? 'Debes' : 'Te deben'}${d < 0 ? ' · saldo a favor' : ''}</span>
+        <span class="total-fila"><span class="total-monto ${clase}" data-saldo="${Math.abs(d)}" data-clave="total-${tipoCuentas}">${money(Math.abs(d))}</span><span class="total-flecha">›</span></span>
+        <span class="total-sub" id="accountsCount">${textoCuentas(lista.length)}</span>
+      </button>
+      <div class="mini-acciones">
+        <button class="mini-btn" id="btnCrearCuenta" type="button">${ICONS.plus}<span>Crear</span></button>
+        ${esAdminActual() ? `<button class="mini-btn danger" id="btnEliminarCuentas" type="button">${ICONS.trash}<span>Eliminar</span></button>` : ''}
       </div>
-      <button class="resumen-pdf" id="btnPdfGeneral" type="button" aria-label="Generar PDF">${ICONS.pdf}<span>PDF</span></button>
     </div>`;
 }
+function textoCuentas(n) { return n === 1 ? '1 cuenta' : `${n} cuentas`; }
 function escapeHtml(s) {
   return (s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
@@ -784,22 +794,16 @@ function renderDeudas() {
   const el = document.getElementById('deudasView');
   el.dataset.tipo = tipoCuentas;
   el.innerHTML = `
-    ${resumenHtml()}
-    <div class="section-title cuentas-head">
-      <span>Tus cuentas <span class="count" id="accountsCount">(${cuentasVisibles().length})</span></span>
-      <div class="mini-acciones">
-        <button class="mini-btn" id="btnCrearCuenta" type="button">${ICONS.plus}<span>Crear</span></button>
-        ${esAdminActual() ? `<button class="mini-btn danger" id="btnEliminarCuentas" type="button">${ICONS.trash}<span>Eliminar</span></button>` : ''}
-      </div>
-    </div>
+    ${cabeceraCuentasHtml()}
     <div id="accountListWrap"></div>
   `;
 
   document.getElementById('btnCrearCuenta').onclick = openCreateAccountModal;
   if (esAdminActual()) document.getElementById('btnEliminarCuentas').onclick = toggleSelectMode;
-  document.getElementById('btnPdfGeneral').onclick = abrirOpcionesPdf;
+  document.getElementById('btnResumen').onclick = abrirResumen;
   renderAccountsListOnly();
   ajustarMontosResumen();
+  animarSaldos(el);
 }
 
 // Búsqueda sin importar acentos ni mayúsculas ("lopez" encuentra "López").
@@ -827,7 +831,7 @@ function renderAccountsListOnly() {
     (q ? rangoCoincidencia(a.nombre, q) - rangoCoincidencia(b.nombre, q) : tiempoActividad(b) - tiempoActividad(a))
     || a.nombre.localeCompare(b.nombre, 'es'));
 
-  document.getElementById('accountsCount').textContent = `(${lista.length})`;
+  document.getElementById('accountsCount').textContent = textoCuentas(lista.length);
 
   const wrap = document.getElementById('accountListWrap');
   wrap.innerHTML = sorted.length === 0 ? `
@@ -1831,11 +1835,18 @@ function pdfHeader(doc, title) {
   doc.setDrawColor(220, 220, 220); doc.line(14, 28, 196, 28);
 }
 // Ventana con las 3 opciones de PDF de las cuentas.
-function abrirOpcionesPdf() {
+// Resumen: Te deben · Debes · Neto, y debajo los 3 PDF.
+function abrirResumen() {
   const { teDeben, debes, neto } = totalesCuentas();
   showModal(`
-    <h3>Generar PDF</h3>
-    <p class="desc">Elige qué quieres incluir.</p>
+    <h3>Resumen</h3>
+    <div class="resumen-hoja">
+      <div class="fila"><span>Te deben</span><b class="pos">${money(teDeben)}</b></div>
+      <div class="fila"><span>Debes</span><b class="neg">${money(debes)}</b></div>
+      <div class="fila neto"><span>Neto</span><b class="${neto > 0 ? 'pos' : neto < 0 ? 'neg' : 'cero'}">${textoNeto(neto)}</b></div>
+      <p class="resumen-nota">${neto > 0 ? 'Te deben más de lo que debes.' : neto < 0 ? 'Debes más de lo que te deben.' : 'Lo que te deben y lo que debes están parejos.'}</p>
+    </div>
+    <p class="seg-label" style="margin-top:6px;">Generar PDF</p>
     <div class="pdf-opciones">
       <button class="pdf-opcion" data-pdf="cobrar"><span class="pdf-op-icono cobrar">${ICONS.arrowDown}</span>
         <span class="pdf-op-texto"><b>Lo que te deben</b><small>Cuentas por cobrar · <span class="nw">${money(teDeben)}</span></small></span></button>
@@ -1844,7 +1855,7 @@ function abrirOpcionesPdf() {
       <button class="pdf-opcion" data-pdf="todo"><span class="pdf-op-icono todo">${ICONS.pdf}</span>
         <span class="pdf-op-texto"><b>Reporte completo</b><small>Las dos secciones y el neto <span class="nw">(${textoNeto(neto)})</span></small></span></button>
     </div>
-    <div class="modal-actions"><button class="btn-cancel" data-close>Cancelar</button></div>
+    <div class="modal-actions"><button class="btn-cancel" data-close>Cerrar</button></div>
   `);
   document.querySelectorAll('.pdf-opcion').forEach(b => b.onclick = () => {
     closeModal();

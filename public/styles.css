@@ -678,17 +678,6 @@ header.topbar{gap:10px;}
 .favor{color:var(--text-dim);}
 .a-favor{font-family:var(--rounded);font-size:.72em;font-weight:700;color:var(--accent);background:var(--accent-bg);border-radius:6px;padding:1px 6px;margin-left:4px;vertical-align:1px;white-space:nowrap;}
 .balance-nota{font-size:13.5px;font-weight:700;color:var(--accent);margin-top:4px;}
-/* Resumen de arriba (Por cobrar / Por pagar): Te deben · Debes · Neto + botón PDF */
-.resumen-bar{display:flex;align-items:stretch;gap:8px;background:var(--surface);border:1px solid var(--border-soft);border-radius:18px;padding:6px;margin:4px 0 16px;box-shadow:var(--shadow);}
-.resumen-cols{flex:1;min-width:0;display:flex;gap:4px;}
-.resumen-cols span{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:9px 3px;border-radius:13px;font-size:12.5px;font-weight:600;color:var(--text-dim);transition:background .25s;}
-.resumen-cols b{font-size:clamp(12.5px,3.9vw,16px);font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;max-width:100%;overflow:hidden;}
-#deudasView[data-tipo="cobrar"] .resumen-cols span.activo{background:var(--accent-bg);}
-#deudasView[data-tipo="pagar"] .resumen-cols span.activo{background:var(--pagar-bg);}
-.resumen-pdf{flex:none;width:52px;border-radius:13px;background:var(--surface-2);color:var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;font-weight:800;}
-.resumen-pdf svg{width:18px;height:18px;}
-.resumen-pdf:active{transform:scale(.94);}
-#deudasView.buscando .resumen-bar{display:none;}
 /* Ventana de opciones de PDF */
 .pdf-opciones{display:flex;flex-direction:column;gap:8px;margin:4px 0 6px;}
 .pdf-opcion{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px;border-radius:16px;background:var(--surface-alt);border:1px solid var(--border-soft);color:var(--text);}
@@ -814,3 +803,21 @@ body:has(.select-bar) .tabbar{display:none;}
    teléfono "aleja" la página para que quepa y el menú flotante queda medio fuera de la pantalla.
    overflow-x:clip (no hidden) para no romper la barra superior pegajosa (position:sticky). */
 #mainScreen{overflow-x:clip;}
+
+/* Cabecera de la lista (Por cobrar / Por pagar): total de la pestaña + Crear/Eliminar.
+   Al tocar el total se abre el resumen (Te deben · Debes · Neto) con los PDF. */
+.total-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin:2px 0 12px;text-transform:none;letter-spacing:0;}
+.total-btn{display:flex;flex-direction:column;align-items:flex-start;gap:1px;flex:1;min-width:0;text-align:left;padding:4px 6px 4px 2px;margin-left:-2px;border-radius:12px;color:var(--text);}
+.total-btn:active{background:var(--surface-2);}
+.total-etiqueta{font-size:13.5px;font-weight:700;color:var(--text-dim);}
+.total-fila{display:flex;align-items:center;gap:4px;max-width:100%;min-width:0;}
+.total-monto{font-size:27px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;min-width:0;line-height:1.15;}
+.total-flecha{font-size:22px;font-weight:600;color:var(--text-faint);line-height:1;}
+.total-sub{font-size:13px;font-weight:500;color:var(--text-faint);}
+.total-head .mini-acciones{padding-bottom:6px;}
+/* Ventana de resumen */
+.resumen-hoja{margin:2px 0 10px;}
+.resumen-hoja .fila{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--border-soft);font-size:17px;}
+.resumen-hoja .fila b{font-variant-numeric:tabular-nums;font-weight:800;}
+.resumen-hoja .fila.neto{border-bottom:none;font-weight:800;}
+.resumen-nota{font-size:13.5px;color:var(--text-dim);margin:2px 0 0;}
