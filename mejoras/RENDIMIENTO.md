@@ -1,5 +1,7 @@
 # Mejoras de rendimiento y costos (Railway)
 
+← [Volver a pendientes](PENDIENTES.md)
+
 Lista de mejoras pendientes, para hacerlas **una por una**. Cada una dice qué problema resuelve, qué se
 midió, qué se propone y qué riesgo tiene. Al terminar una, se marca con `[x]` y se anota el commit.
 
