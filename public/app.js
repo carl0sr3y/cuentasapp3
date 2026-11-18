@@ -88,12 +88,27 @@ function hasFingerprintFlag() { return localStorage.getItem('cuentasapp_fp') ===
 function setFingerprintFlag(v) { try { if (v) localStorage.setItem('cuentasapp_fp', '1'); else localStorage.removeItem('cuentasapp_fp'); } catch (e) {} }
 // auto = true: lo lanzó la app sola al abrirse. Si el navegador no lo permite sin un toque
 // (Safari en iPhone) o la persona lo cancela, se queda en silencio en la pantalla de huella.
+// Solo puede haber UNA petición de huella a la vez: si al abrir la app ya se pidió sola y la persona
+// toca el botón, una segunda petición cancelaba la primera (y a veces las dos). Ahora el toque no
+// lanza otra: solo recuerda que ya está esperando la huella.
+let huellaEnCurso = false, huellaDesde = 0, huellaIntento = 0;
+function pintarEsperaHuella(esperando) {
+  const btn = document.getElementById('fpCircle'), hint = document.querySelector('.fp-hint');
+  if (btn) btn.classList.toggle('scanning', esperando);
+  if (hint) hint.textContent = esperando ? 'Pon tu dedo en el lector…' : 'Toca para usar la huella';
+}
 async function loginWithFingerprint({ auto = false } = {}) {
   if (!fingerprintSupported()) { toast('Este navegador no soporta huella/Face ID'); return; }
   const aviso = document.getElementById('fpMsg');
-  const btn = document.getElementById('fpCircle');
+  // (si una petición quedó colgada más de un minuto, se permite empezar otra)
+  if (huellaEnCurso && Date.now() - huellaDesde < 60000) {
+    if (aviso) aviso.textContent = 'Ya te estoy pidiendo la huella: pon tu dedo en el lector.';
+    return;
+  }
+  huellaEnCurso = true; huellaDesde = Date.now();
+  const miIntento = ++huellaIntento;
   if (aviso) aviso.textContent = '';
-  if (btn) btn.classList.add('scanning');
+  pintarEsperaHuella(true);
   try {
     const { options, requestId } = await api('/webauthn/login-options');
     const publicKey = prepareRequestOptions(options);
@@ -102,6 +117,7 @@ async function loginWithFingerprint({ auto = false } = {}) {
     let storedCredId = null;
     try { storedCredId = localStorage.getItem('cuentasapp_fp_credid'); } catch (e) {}
     if (storedCredId) publicKey.allowCredentials = [{ id: base64urlToBuffer(storedCredId), type: 'public-key' }];
+    if (!publicKey.timeout) publicKey.timeout = 60000;
     const cred = await navigator.credentials.get({ publicKey });
     const serialized = serializeCredential(cred);
     const res = await fetch('/api/webauthn/login-verify', {
@@ -128,8 +144,7 @@ async function loginWithFingerprint({ auto = false } = {}) {
     if (msg) msg.textContent = cancelado ? 'Se canceló. Toca la huella para intentarlo de nuevo.' : 'No se pudo leer la huella. Inténtalo de nuevo o entra con tu contraseña.';
     else toast(cancelado ? 'Se canceló el inicio con huella' : 'No se pudo iniciar sesión con huella');
   } finally {
-    const b = document.getElementById('fpCircle');
-    if (b) b.classList.remove('scanning');
+    if (miIntento === huellaIntento) { huellaEnCurso = false; pintarEsperaHuella(false); } // una petición vieja que termina tarde no apaga la nueva
   }
 }
 function openRegisterFingerprintModal() {
