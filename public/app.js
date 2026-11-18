@@ -656,7 +656,7 @@ async function enterApp() {
   connectWS();
   startIdleWatcher();
   conLimite(checkPushStatus(), 4000).then(renderNotifBtn, renderNotifBtn);
-  if (await cargarDatosIniciales()) checkPendingTiendaBackup();
+  if (await cargarDatosIniciales()) { checkPendingTiendaBackup(); restaurarBorrador(); }
 }
 // Marca de envío: una por cada ventana de registro abierta (ver db/schema.sql, clave_envio).
 // Reintentar en la MISMA ventana reusa la marca → el servidor no lo guarda dos veces.
@@ -995,12 +995,65 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 /* ============================================================
    NAVEGACIÓN: el botón "atrás" del navegador regresa dentro de la app
    ============================================================ */
+// ---- Protección de las ventanas de registro (salida/entrada de tienda, abono/cargo, crear cuenta) ----
+// Antes, un "atrás" del teléfono (p. ej. al volver de la cámara) cerraba la ventana y regresaba a
+// "Por cobrar" perdiendo lo escrito; y si el teléfono reiniciaba la app por falta de memoria (la cámara
+// usa mucha), también se perdía. Ahora:
+//  - con datos escritos, el "atrás" y el toque fuera de la ventana NO la cierran;
+//  - mientras se escribe, se guarda un borrador en el teléfono; si la app se reinicia, al volver se
+//    reabre la misma ventana ya llenada. El borrador se borra al Guardar o Cancelar (o a los 30 min).
+let formularioActivo = null; // { tieneDatos(), borrador(), estado }
+const CLAVE_BORRADOR = 'kaab_borrador';
+function activarFormulario(f) { formularioActivo = { ...f, estado: history.state }; }
+function guardarBorrador(extra) {
+  if (!formularioActivo || !formularioActivo.borrador || !AUTH) return;
+  const b = formularioActivo.borrador();
+  if (!b) return;
+  const datos = { ...b, ...(extra || {}), usuario: AUTH.id, t: Date.now() };
+  try { localStorage.setItem(CLAVE_BORRADOR, JSON.stringify(datos)); }
+  catch (e) { try { delete datos.foto; localStorage.setItem(CLAVE_BORRADOR, JSON.stringify(datos)); } catch (e2) {} }
+}
+function borrarBorrador() { try { localStorage.removeItem(CLAVE_BORRADOR); } catch (e) {} }
+function leerBorrador() {
+  try {
+    const b = JSON.parse(localStorage.getItem(CLAVE_BORRADOR) || 'null');
+    if (!b || !AUTH || b.usuario !== AUTH.id || Date.now() - b.t > 30 * 60 * 1000) return null;
+    return b;
+  } catch (e) { return null; }
+}
+// Si la app se reinició con una ventana a medio llenar, la vuelve a abrir.
+async function restaurarBorrador() {
+  const b = leerBorrador();
+  if (!b) return;
+  const prellenado = { desc: b.desc, monto: b.monto, foto: b.foto, recuperado: true, camara: b.camara };
+  if (b.clase === 'tienda') {
+    setTabUI('tienda'); history.replaceState({ view: 'tienda' }, '', location.href);
+    openTiendaMovModal(b.tipo, prellenado);
+  } else if (b.clase === 'cuenta') {
+    const c = CUENTAS.find(x => String(x.id) === String(b.cuentaId));
+    if (!c) { borrarBorrador(); return; }
+    setTabUI(c.tipo || 'cobrar'); history.replaceState({ view: c.tipo || 'cobrar' }, '', location.href);
+    await openAccountDetail(c.id);
+    openMovModal(b.tipo, c.id, prellenado);
+  }
+}
+function notaRecuperado(p) {
+  return p && p.recuperado
+    ? `<p class="recuperado-nota">Recuperamos lo que estabas escribiendo (la app se reinició).${p.camara && !p.foto ? ' Vuelve a tomar la foto.' : ''}</p>` : '';
+}
 window.addEventListener('popstate', (e) => {
   if (!AUTH) return;
+  if (formularioActivo && formularioActivo.tieneDatos()) {
+    history.pushState(formularioActivo.estado, '', location.href); // se queda donde estaba
+    toast('Tienes datos sin guardar. Toca Guardar o Cancelar.');
+    return;
+  }
+  formularioActivo = null;
   applyHistoryState(e.state);
 });
 async function applyHistoryState(state) {
   state = state || { view: 'cobrar' };
+  formularioActivo = null;
   document.getElementById('pageRoot').innerHTML = '';
   document.getElementById('modalRoot').innerHTML = '';
   currentAccountDetail = null;
@@ -1148,6 +1201,7 @@ function openCreateAccountModal(prellenado = null) {
   `);
   const input = document.getElementById('newAccName');
   if (prellenado) input.value = prellenado.nombre || '';
+  activarFormulario({ tieneDatos: () => !!(input.isConnected && input.value.trim()) });
   setTimeout(() => input.focus(), 50);
   const clave = nuevaClaveEnvio();
   const botonC = document.getElementById('confirmCreateAcc');
@@ -1361,6 +1415,7 @@ function openMovModal(tipo, cuentaId, prellenado = null) {
   const isAbono = tipo === 'abono';
   showModal(`
     <h3>${isAbono ? 'Nuevo abono' : 'Nuevo cargo'}</h3>
+    ${notaRecuperado(prellenado)}
     <p class="desc">${(() => { const T = TEXTOS_TIPO[(currentAccountDetail && currentAccountDetail.tipo) || 'cobrar']; return isAbono ? T.abonoDesc : T.cargoDesc; })()}</p>
     <div class="field"><label>Descripción</label><input id="movDesc" type="text" placeholder="Ej. Pago quincenal"></div>
     <div class="field"><label>Monto (Q)</label><input id="movMonto" type="number" step="0.01" min="0" placeholder="0.00"></div>
@@ -1370,6 +1425,15 @@ function openMovModal(tipo, cuentaId, prellenado = null) {
     </div>
   `);
   if (prellenado) { document.getElementById('movDesc').value = prellenado.desc || ''; document.getElementById('movMonto').value = prellenado.monto || ''; }
+  activarFormulario({
+    tieneDatos: () => !!(document.getElementById('movDesc') && (document.getElementById('movDesc').value.trim() || document.getElementById('movMonto').value)),
+    borrador: () => {
+      const d = document.getElementById('movDesc'), m = document.getElementById('movMonto');
+      if (!d || (!d.value.trim() && !m.value)) return null;
+      return { clase: 'cuenta', cuentaId, tipo, desc: d.value, monto: m.value };
+    },
+  });
+  ['movDesc', 'movMonto'].forEach(id => document.getElementById(id).addEventListener('input', () => guardarBorrador()));
   setTimeout(() => document.getElementById('movDesc').focus(), 50);
   const clave = nuevaClaveEnvio();
   const boton = document.getElementById('confirmMov');
@@ -1604,6 +1668,7 @@ function openTiendaMovModal(tipo, prellenado = null) {
   showModal(`
     <h3>${isEntrada ? 'Nueva entrada' : 'Nueva salida'}</h3>
     <p class="desc">${isEntrada ? 'Registra dinero que entra a la tienda.' : 'Registra dinero que sale de la tienda.'}</p>
+    ${notaRecuperado(prellenado)}
     <div class="field"><label>Descripción</label><input id="tMovDesc" type="text" placeholder="Ej. Venta del día"></div>
     <div class="field"><label>Monto (Q)</label><input id="tMovMonto" type="number" step="0.01" min="0" placeholder="0.00"></div>
     <div class="photo-field">
@@ -1617,9 +1682,32 @@ function openTiendaMovModal(tipo, prellenado = null) {
       <button class="btn-confirm" id="confirmTMov">Guardar</button>
     </div>
   `);
-  if (prellenado) { document.getElementById('tMovDesc').value = prellenado.desc || ''; document.getElementById('tMovMonto').value = prellenado.monto || ''; }
+  const mostrarFoto = () => {
+    document.getElementById('fotoPreviewWrap').innerHTML = `
+      <div class="photo-preview"><span id="fotoPreviewImg"></span><button type="button" class="remove-photo" id="btnQuitarFoto">${ICONS.trash}</button></div>`;
+    document.getElementById('fotoPreviewImg').replaceWith(crearImgFoto(fotoDataUrl));
+    document.getElementById('btnQuitarFoto').onclick = () => { fotoDataUrl = null; document.getElementById('fotoPreviewWrap').innerHTML = ''; guardarBorrador(); };
+  };
+  if (prellenado) {
+    document.getElementById('tMovDesc').value = prellenado.desc || '';
+    document.getElementById('tMovMonto').value = prellenado.monto || '';
+    if (prellenado.foto && esFotoSegura(prellenado.foto)) { fotoDataUrl = prellenado.foto; mostrarFoto(); }
+  }
+  activarFormulario({
+    tieneDatos: () => !!(document.getElementById('tMovDesc') && (document.getElementById('tMovDesc').value.trim() || document.getElementById('tMovMonto').value || fotoDataUrl || document.querySelector('.recorte-editor'))),
+    borrador: () => {
+      const d = document.getElementById('tMovDesc'), m = document.getElementById('tMovMonto');
+      if (!d) return null;
+      if (!d.value.trim() && !m.value && !fotoDataUrl) return null;
+      return { clase: 'tienda', tipo, desc: d.value, monto: m.value, foto: fotoDataUrl || undefined };
+    },
+  });
+  ['tMovDesc', 'tMovMonto'].forEach(id => document.getElementById(id).addEventListener('input', () => guardarBorrador()));
   setTimeout(() => document.getElementById('tMovDesc').focus(), 50);
-  document.getElementById('btnTomarFoto').onclick = () => document.getElementById('tMovFotoInput').click();
+  document.getElementById('btnTomarFoto').onclick = () => {
+    guardarBorrador({ camara: true }); // por si el teléfono reinicia la app mientras está la cámara
+    document.getElementById('tMovFotoInput').click();
+  };
   document.getElementById('tMovFotoInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1629,10 +1717,9 @@ function openTiendaMovModal(tipo, prellenado = null) {
       const fuente = await editarRecorte(img); // recortar la factura (o usar la foto completa)
       if (!fuente) return;
       fotoDataUrl = codificarFoto(fuente);
-      document.getElementById('fotoPreviewWrap').innerHTML = `
-        <div class="photo-preview"><span id="fotoPreviewImg"></span><button type="button" class="remove-photo" id="btnQuitarFoto">${ICONS.trash}</button></div>`;
-      document.getElementById('fotoPreviewImg').replaceWith(crearImgFoto(fotoDataUrl));
-      document.getElementById('btnQuitarFoto').onclick = () => { fotoDataUrl = null; document.getElementById('fotoPreviewWrap').innerHTML = ''; };
+      if (!document.getElementById('fotoPreviewWrap')) return; // la ventana ya no está
+      mostrarFoto();
+      guardarBorrador();
     } catch (err) { toast('No se pudo procesar la foto'); }
   });
   const clave = nuevaClaveEnvio();
@@ -2245,12 +2332,18 @@ function openCreateUserModal() {
    MODALES GENÉRICOS
    ============================================================ */
 function showModal(innerHtml, { center = false } = {}) {
+  formularioActivo = null;
   const root = document.getElementById('modalRoot');
   root.innerHTML = `<div class="modal-overlay ${center ? 'center' : ''}" id="overlay"><div class="modal-card">${innerHtml}</div></div>`;
-  root.querySelector('#overlay').addEventListener('click', (e) => { if (e.target.id === 'overlay') closeModal(); });
+  root.querySelector('#overlay').addEventListener('click', (e) => {
+    if (e.target.id !== 'overlay') return;
+    if (formularioActivo && formularioActivo.tieneDatos()) return; // con datos escritos, tocar fuera no la cierra
+    closeModal();
+  });
   root.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModal));
 }
 function closeModal() {
+  if (formularioActivo) { formularioActivo = null; borrarBorrador(); } // Guardar o Cancelar: ya no hace falta el borrador
   const root = document.getElementById('modalRoot');
   const overlay = root.querySelector('.modal-overlay');
   if (!overlay || !animOn()) { root.innerHTML = ''; return; }
