@@ -785,3 +785,32 @@ header.topbar{gap:10px;}
 .m-salta .m-bi{transform:rotate(150deg);} .m-salta .m-bd{transform:rotate(-150deg);}
 .m-salta .m-pi{transform:rotate(30deg);} .m-salta .m-pd{transform:rotate(-30deg);}
 .m-salta .m-ala{animation:m-ala .15s linear infinite;}
+
+/* ============================================================
+   MENÚ DE PESTAÑAS FLOTANTE ABAJO (Por cobrar · Por pagar · Movimientos tienda)
+   Por encima del muñequito (30) y debajo de la barra de selección (45), detalle (50) y ventanas (60).
+   ============================================================ */
+.tabbar{
+  position:fixed;left:0;right:0;bottom:calc(12px + env(safe-area-inset-bottom));
+  margin:0 auto;width:calc(100% - 24px);max-width:560px;z-index:41;
+  background:var(--surface);border:1px solid var(--border-soft);border-radius:20px;padding:5px;gap:4px;
+  box-shadow:0 10px 30px rgba(27,33,50,.18),0 2px 6px rgba(27,33,50,.08);
+}
+@media(min-width:640px){.tabbar{margin:0 auto;}}
+.tab-btn{border-radius:15px;padding:11px 4px;}
+.tab-btn.active{box-shadow:none;}
+.tab-btn.active[data-tab="cobrar"]{background:var(--accent-bg);color:var(--accent);}
+.tab-btn.active[data-tab="pagar"]{background:var(--pagar-bg);color:var(--pagar);}
+.tab-btn.active[data-tab="tienda"]{background:var(--tienda-bg);color:var(--tienda);}
+:root[data-tema="oscuro"] .tabbar{box-shadow:0 10px 30px rgba(0,0,0,.5);}
+@media (prefers-color-scheme: dark){:root:not([data-tema="claro"]) .tabbar{box-shadow:0 10px 30px rgba(0,0,0,.5);}}
+/* Espacio al final para que el menú no tape la última cuenta o movimiento */
+#deudasView,#tiendaView{padding-bottom:calc(96px + env(safe-area-inset-bottom));}
+/* Los avisos salen por encima del menú */
+#toast{bottom:calc(88px + env(safe-area-inset-bottom));}
+/* Mientras se eliminan cuentas, la barra Eliminar/Cancelar ocupa ese lugar */
+body:has(.select-bar) .tabbar{display:none;}
+/* La animación al cambiar de pestaña desliza la vista 26px hacia un lado; sin este recorte, Chrome en el
+   teléfono "aleja" la página para que quepa y el menú flotante queda medio fuera de la pantalla.
+   overflow-x:clip (no hidden) para no romper la barra superior pegajosa (position:sticky). */
+#mainScreen{overflow-x:clip;}

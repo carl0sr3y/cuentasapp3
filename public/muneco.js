@@ -75,15 +75,26 @@
     return (barra ? barra.getBoundingClientRect().bottom : 0) + ALTO + 4;
   }
   function tarjeta(id) { return id == null ? null : document.querySelector('#accountListWrap .account-card[data-id="' + id + '"]'); }
-  function visible(r) { return r && r.width > 0 && r.top > techo() && r.top < window.innerHeight - 12; }
+  // Límite de abajo: el menú flotante de pestañas (si se ve) o el borde de la pantalla.
+  function piso() {
+    var menu = document.querySelector('.tabbar');
+    var r = menu ? menu.getBoundingClientRect() : null; // si está oculto, mide 0 de alto
+    return (r && r.height ? r.top : window.innerHeight) - 8;
+  }
+  function visible(r) { return r && r.width > 0 && r.top > techo() && r.top < piso(); }
   function tarjetasVisibles() {
     var out = [];
     var lista = document.querySelectorAll('#accountListWrap .account-card');
-    for (var i = 0; i < lista.length; i++) {
+    for (var i = 1; i < lista.length; i++) { // desde la 2.ª: sobre la 1.ª están los botones Crear/Eliminar
       var r = lista[i].getBoundingClientRect();
       if (visible(r)) out.push({ id: lista[i].dataset.id, r: r });
     }
     return out;
+  }
+  // ¿Es la primera tarjeta de la lista? (encima tiene los botones, no otra tarjeta)
+  function esPrimera(id) {
+    var primera = document.querySelector('#accountListWrap .account-card');
+    return !!primera && primera.dataset.id === String(id);
   }
   // Punto donde se paran los pies: borde superior de la tarjeta, en la fracción f de su ancho.
   function punto(id, f) {
@@ -115,7 +126,8 @@
     if (!vis.length) { s = null; el.style.display = 'none'; return; }
     var c = elegir(vis);
     s = null;
-    nuevo('cae', { id: c.id, f: zona(), dir: Math.random() < 0.5 ? 1 : -1, dur: 650, desdeY: techo() - ALTO - 10, clase: 'salta' });
+    // Cae desde un poco arriba de su tarjeta (no desde lo alto, para no atravesar el resumen y los botones)
+    nuevo('cae', { id: c.id, f: zona(), dir: Math.random() < 0.5 ? 1 : -1, dur: 500, desdeY: Math.max(techo() - ALTO, c.r.top - 70), clase: 'salta' });
   }
 
   function siguiente() {
@@ -161,7 +173,9 @@
     var p = Math.min(1, (ahoraMs - s.t) / s.dur);
     var actual = punto(s.id, s.f);
     // Si su tarjeta desapareció o salió de la pantalla, cae en otra.
-    if (!actual || (!visible(actual.r) && s.modo !== 'trepa' && s.modo !== 'salta')) { aparecer(); return; }
+    // También si su cuenta pasó a ser la primera de la lista (p. ej. tuvo un movimiento y subió).
+    if (!actual || (!visible(actual.r) && s.modo !== 'trepa' && s.modo !== 'salta') ||
+        (esPrimera(s.id) && s.modo !== 'trepa' && s.modo !== 'salta')) { aparecer(); return; }
 
     if (s.modo === 'cae') {
       var dest = punto(s.id, s.f);
