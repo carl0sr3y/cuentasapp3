@@ -201,6 +201,10 @@ async function api(path, opts = {}) {
     }
     let data = null;
     try { data = await res.json(); } catch (e) { /* sin cuerpo JSON */ }
+    if (res.status === 401 && data && data.codigo === 'SESION' && AUTH) {
+      sesionTerminada(/suspendida/i.test(data.error || '') ? data.error : 'Tu sesión se cerró. Vuelve a entrar.');
+      throw 'Sesión cerrada';
+    }
     if (!res.ok) throw (data && data.error) || 'Error de red';
     return data;
   } finally {
@@ -216,7 +220,7 @@ function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws?clientId=${CLIENT_ID}`);
   ws.onopen = () => { wsConnected = true; updateSyncDot(); refrescarTodo(); };
-  ws.onclose = () => { wsConnected = false; updateSyncDot(); setTimeout(connectWS, 2000 + Math.random() * 2000); };
+  ws.onclose = () => { wsConnected = false; updateSyncDot(); if (AUTH) setTimeout(() => { if (AUTH && (!ws || ws.readyState === WebSocket.CLOSED)) connectWS(); }, 2000 + Math.random() * 2000); };
   ws.onerror = () => { try { ws.close(); } catch (e) {} };
   ws.onmessage = (ev) => {
     let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
@@ -263,8 +267,12 @@ async function refrescarTodo() {
     }
   } catch (e) { /* si falla, se reintentará en el próximo evento */ }
 }
+// Si el teléfono restaura la página "congelada" (bfcache) puede no avisar con visibilitychange.
+window.addEventListener('pageshow', e => { if (e.persisted) document.dispatchEvent(new Event('visibilitychange')); });
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible' || !AUTH) return;
+  if (Date.now() - lastActivity > IDLE_LIMIT_MS) { lockSession(); return; } // estuvo +5 min sin uso
+  if (ws && ws.readyState === WebSocket.CLOSED) connectWS();
   // La app puede "despertar" sin recargar de verdad (el celular la congeló en segundo plano
   // en vez de cerrarla). Antes de refrescar datos, confirmamos que la sesión siga siendo válida
   // en el servidor — si ya no lo es (se cerró sola, venció, etc.), regresamos a la pantalla de login
@@ -572,25 +580,52 @@ function renderForcedPasswordChange(codigoEmpresa, usuario, contrasenaActual, me
     } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo actualizar la contraseña.'; }
   };
 }
+// Entra a la app. Antes, si la primera carga de datos fallaba una sola vez (red del teléfono
+// despertando, servidor tardando) o el aviso de notificaciones no respondía, la app quedaba en una
+// pantalla vacía con el punto rojo para siempre. Ahora: se dibuja ya, la carga se reintenta sola,
+// la conexión en tiempo real arranca igual y las notificaciones se revisan aparte.
+let reintentoCargaT = null;
 async function enterApp() {
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('mainScreen').classList.remove('hidden');
-  const [cuentas, tienda] = await Promise.all([api('/cuentas'), api('/tienda')]);
-  CUENTAS = cuentas;
-  TIENDA = tienda;
   document.getElementById('avatarInitial').textContent = initialOf(AUTH.nombre || AUTH.usuario);
   document.getElementById('userLabel').textContent = AUTH.nombre || AUTH.usuario;
-  await checkPushStatus();
-  renderNotifBtn();
+  lastActivity = Date.now();
   animarEntrada();
   tipoCuentas = 'cobrar';
   setTabUI('cobrar'); // siempre se empieza en "Por cobrar"
-  renderDeudas();
-  renderTienda();
   history.replaceState({ view: 'cobrar' }, '', location.href);
+  mostrarCargando();
   connectWS();
-  checkPendingTiendaBackup();
   startIdleWatcher();
+  conLimite(checkPushStatus(), 4000).then(renderNotifBtn, renderNotifBtn);
+  if (await cargarDatosIniciales()) checkPendingTiendaBackup();
+}
+function conLimite(promesa, ms) { return Promise.race([promesa, new Promise((_, no) => setTimeout(() => no(new Error('tiempo')), ms))]); }
+function mostrarCargando(error) {
+  const html = error
+    ? `<div class="empty-state carga-estado">${ICONS.inbox}<p>No se pudieron cargar tus datos.<br>Reintentando…</p><button class="btn-secondary" id="btnReintentarCarga" type="button">Reintentar ahora</button></div>`
+    : `<div class="empty-state carga-estado"><p>Cargando…</p></div>`;
+  document.getElementById('deudasView').innerHTML = html;
+  document.getElementById('tiendaView').innerHTML = html.replace('id="btnReintentarCarga"', 'id="btnReintentarCarga2"');
+  ['btnReintentarCarga', 'btnReintentarCarga2'].forEach(id => { const b = document.getElementById(id); if (b) b.onclick = () => cargarDatosIniciales(); });
+}
+async function cargarDatosIniciales(intento = 0) {
+  clearTimeout(reintentoCargaT);
+  try {
+    const [cuentas, tienda] = await Promise.all([api('/cuentas'), api('/tienda')]);
+    CUENTAS = cuentas;
+    TIENDA = tienda;
+    renderDeudas();
+    renderTienda();
+    document.getElementById('offlineBanner').classList.add('hidden');
+    return true;
+  } catch (e) {
+    if (!AUTH) return false; // la sesión ya no vale: api() ya llevó al inicio de sesión
+    mostrarCargando(true);
+    reintentoCargaT = setTimeout(() => { if (AUTH) cargarDatosIniciales(intento + 1); }, Math.min(15000, 2000 * (intento + 1)));
+    return false;
+  }
 }
 /* ============================================================
    CIERRE POR INACTIVIDAD (5 minutos)
@@ -610,10 +645,21 @@ function startIdleWatcher() {
   }, 15000);
 }
 async function lockSession() {
+  if (!AUTH) return;
   clearInterval(idleInterval);
-  try { await api('/auth/logout', { method: 'POST' }); } catch (e) { /* ignorar */ }
+  // Primero la pantalla (si el teléfono acaba de despertar, la red puede tardar en responder y
+  // no queremos dejar la app a medias); luego se avisa al servidor.
   await doLogoutCleanup();
   toast('Sesión cerrada por inactividad');
+  api('/auth/logout', { method: 'POST' }).catch(() => {});
+}
+// La sesión dejó de ser válida en el servidor (venció, se cerró en otro lado, empresa suspendida…).
+let cerrandoSesion = false;
+async function sesionTerminada(mensaje) {
+  if (cerrandoSesion || !AUTH) return;
+  cerrandoSesion = true;
+  try { clearInterval(idleInterval); clearTimeout(reintentoCargaT); await doLogoutCleanup(); if (mensaje) toast(mensaje); }
+  finally { cerrandoSesion = false; }
 }
 async function logoutManual() {
   try { await api('/auth/logout', { method: 'POST' }); } catch (e) { /* ignorar */ }
@@ -622,7 +668,10 @@ async function logoutManual() {
 async function doLogoutCleanup() {
   AUTH = null;
   EMPRESA = null;
-  if (ws) { try { ws.close(); } catch (e) {} }
+  clearTimeout(reintentoCargaT);
+  if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+  wsConnected = false; updateSyncDot();
+  document.getElementById('offlineBanner').classList.add('hidden');
   document.getElementById('pageRoot').innerHTML = '';
   document.getElementById('modalRoot').innerHTML = '';
   document.getElementById('mainScreen').classList.add('hidden');

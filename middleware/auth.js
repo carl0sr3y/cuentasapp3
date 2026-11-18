@@ -61,11 +61,13 @@ const MSG_SUSPENDIDA = 'Tu empresa está suspendida. Comunícate con el administ
 
 async function requireAuth(req, res, next) {
   const token = req.cookies[COOKIE_NAME];
-  if (!token) return res.status(401).json({ error: 'No autenticado' });
+  // codigo 'SESION': la app sabe que debe volver al inicio de sesión (otros 401, como "tu contraseña
+  // actual no es correcta", no cierran la sesión).
+  if (!token) return res.status(401).json({ error: 'No autenticado', codigo: 'SESION' });
   const { user, motivo } = await sesionVigente(verifyToken(token));
   if (!user) {
     clearAuthCookie(res);
-    return res.status(401).json({ error: motivo === 'suspendida' ? MSG_SUSPENDIDA : 'Sesión inválida o expirada' });
+    return res.status(401).json({ error: motivo === 'suspendida' ? MSG_SUSPENDIDA : 'Sesión inválida o expirada', codigo: 'SESION' });
   }
   req.user = user;
   next();
