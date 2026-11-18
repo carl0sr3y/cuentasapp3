@@ -294,8 +294,7 @@ async function handleRealtimeRefresh({ scope, id, by }) {
         renderAccountDetailPage();
       }
     } else if (scope === 'tienda') {
-      TIENDA = await api('/tienda');
-      if (currentTab === 'tienda') renderTienda();
+      refrescarTiendaPronto();
     } else if (scope === 'usuarios') {
       if (document.getElementById('usersPage')) renderUsersPage();
       // Por si el admin principal me cambió el nombre: se actualiza arriba sin cerrar sesión.
@@ -973,6 +972,10 @@ function setTabUI(tab) {
   document.getElementById('deudasView').classList.toggle('hidden', !esTabCuentas(tab));
   document.getElementById('tiendaView').classList.toggle('hidden', tab !== 'tienda');
   if (anterior !== tab) reiniciarBusqueda();
+  if (tab === 'tienda' && anterior !== tab) {
+    tiendaVisibles = TRAMO_TIENDA;
+    if (tiendaDesactualizada && AUTH) refrescarTiendaPronto(); else if (AUTH) renderTiendaListOnly();
+  }
   // "Por cobrar" y "Por pagar" comparten la misma vista: al cambiar de tipo se vuelve a dibujar.
   if (esTabCuentas(tab) && tipoCuentas !== tab) { tipoCuentas = tab; if (AUTH) renderDeudas(); }
   else if (esTabCuentas(tab)) ajustarMontosResumen();
@@ -1509,6 +1512,28 @@ function renderTienda() {
   renderTiendaListOnly();
   animarSaldos(document.getElementById('tiendaView'));
 }
+// Agrega a la lista local un movimiento recién guardado (con el saldo que devolvió el servidor).
+function agregarMovTiendaLocal(mov, balance) {
+  if (!TIENDA.movimientos.some(m => m.id === mov.id)) {
+    TIENDA.movimientos.push(mov);
+    if (new Date(mov.fecha).toDateString() === new Date().toDateString()) TIENDA.balanceHoy = Number(TIENDA.balanceHoy || 0) + Number(mov.monto);
+  }
+  if (balance !== undefined) TIENDA.balance = balance;
+}
+// La lista de tienda se dibuja por tramos: los 60 más recientes y "Ver más". Antes se dibujaba todo el
+// mes (cientos de filas) en cada guardado y cada cambio de otra persona: lento en teléfonos modestos.
+const TRAMO_TIENDA = 60;
+let tiendaVisibles = TRAMO_TIENDA;
+// Cambios de otra persona en la tienda: si no estás viéndola, se actualiza al entrar (no en el momento).
+let tiendaDesactualizada = false, refrescoTiendaT = null;
+function refrescarTiendaPronto() {
+  clearTimeout(refrescoTiendaT);
+  if (currentTab !== 'tienda') { tiendaDesactualizada = true; return; }
+  refrescoTiendaT = setTimeout(async () => { // junta varios cambios seguidos en una sola descarga
+    try { TIENDA = await api('/tienda', { silencioso: true }); tiendaDesactualizada = false; if (currentTab === 'tienda') renderTienda(); }
+    catch (e) { tiendaDesactualizada = true; }
+  }, 400);
+}
 function renderTiendaListOnly() {
   const listEl = document.getElementById('tiendaMovList');
   if (!listEl) return;
@@ -1519,17 +1544,22 @@ function renderTiendaListOnly() {
     sinAcentos(m.usuario).includes(q) ||
     sinAcentos(m.tipo).includes(q) ||
     String(Math.abs(Number(m.monto)).toFixed(2)).includes(q.replace(/[q,\s]/g, '')));
+  const visibles = movs.slice(0, tiendaVisibles);
+  const restantes = movs.length - visibles.length;
   const groups = {};
-  movs.forEach(m => { const key = fmtDateShort(m.fecha); (groups[key] = groups[key] || []).push(m); });
+  visibles.forEach(m => { const key = fmtDateShort(m.fecha); (groups[key] = groups[key] || []).push(m); });
   listEl.innerHTML = movs.length === 0
     ? `<div class="empty-state">${ICONS.inbox}<p>${q ? `Ningún movimiento coincide con «${escapeHtml(searchQuery.trim())}».` : 'Sin movimientos registrados en la tienda todavía.'}</p></div>`
     : Object.keys(groups).map(dk => `
         <div class="history-date-group">
           <div class="history-date-label">${fmtDateLabel(groups[dk][0].fecha)}</div>
           ${groups[dk].map(m => movRowHtml(m)).join('')}
-        </div>`).join('');
+        </div>`).join('')
+      + (restantes > 0 ? `<button class="pdf-btn ver-mas" id="btnVerMasTienda" type="button">Ver más (${restantes} anteriores)</button>` : '');
+  const verMas = document.getElementById('btnVerMasTienda');
+  if (verMas) verMas.onclick = () => { tiendaVisibles += 100; renderTiendaListOnly(); };
   bindMovLongPress(listEl, confirmDeleteMovTienda);
-  bindPhotoButtons(listEl, movs);
+  bindPhotoButtons(listEl, visibles);
 }
 // Fotos de factura: se guardan nítidas para poder leer letras pequeñas, sin pasarse de tamaño.
 // - Lado largo hasta 2000 px (antes 1000 px de ancho).
@@ -1543,6 +1573,18 @@ function redimensionarFoto(img, ladoMax) {
   const escala = Math.min(1, ladoMax / Math.max(w0, h0));
   const w = Math.max(1, Math.round(w0 * escala)), h = Math.max(1, Math.round(h0 * escala));
   let fuente = img, fw = w0, fh = h0;
+  // Fotos enormes (cámaras de 50–200 MP): primero se baja de una vez a ≤ 4096 px. Reducir a la mitad
+  // desde el tamaño original creaba lienzos gigantes que dejaban al teléfono sin memoria.
+  if (Math.max(fw, fh) > 4096 && Math.max(fw, fh) / 2 >= Math.max(w, h)) {
+    const e = 4096 / Math.max(fw, fh);
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(fw * e)); c.height = Math.max(1, Math.round(fh * e));
+    const cx = c.getContext('2d');
+    if (!cx) throw new Error('Sin memoria para la foto');
+    cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+    cx.drawImage(fuente, 0, 0, c.width, c.height);
+    fuente = c; fw = c.width; fh = c.height;
+  }
   while (fw / 2 >= w) { // a la mitad mientras siga siendo más del doble del tamaño final
     const c = document.createElement('canvas');
     c.width = Math.round(fw / 2); c.height = Math.round(fh / 2);
@@ -1559,14 +1601,37 @@ function redimensionarFoto(img, ladoMax) {
   ctx.drawImage(fuente, 0, 0, w, h);
   return canvas;
 }
+function esHeic(file) { return /hei[cf]/i.test(file.type || '') || /\.(heic|heif)$/i.test(file.name || ''); }
+function errorFoto(codigo, mensaje) { const e = new Error(mensaje); e.codigo = codigo; return e; }
 function cargarImagen(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen')); };
+    img.onerror = async () => {
+      URL.revokeObjectURL(url);
+      // Plan B: algunos navegadores abren con createImageBitmap lo que <img> no puede.
+      try { if (window.createImageBitmap) return resolve(await createImageBitmap(file)); } catch (e) { /* sigue abajo */ }
+      reject(esHeic(file) ? errorFoto('heic', 'Formato HEIC no compatible') : errorFoto('lectura', 'No se pudo leer la imagen'));
+    };
     img.src = url;
   });
+}
+// Mensaje para la persona según lo que falló.
+function mensajeErrorFoto(e) {
+  if (e && e.codigo === 'heic') return 'Esta foto está en formato HEIC y el navegador no la puede abrir. Tómala con la cámara desde aquí, o en la cámara del teléfono cambia el formato a JPG (en iPhone: Ajustes › Cámara › Formatos › "Más compatible").';
+  if (e && e.codigo === 'lectura') return 'No se pudo abrir esa foto. Intenta tomarla de nuevo o elige otra.';
+  return 'No se pudo procesar la foto. Intenta tomarla de nuevo; si sigue pasando, elige "Usar foto completa".';
+}
+// Diagnóstico: el motivo (sin la foto ni datos personales) queda en los registros del servidor.
+function reportarErrorFoto(e, file, etapa) {
+  try {
+    api('/diagnostico/foto', { method: 'POST', silencioso: true, body: {
+      etapa, codigo: (e && e.codigo) || '', error: String((e && (e.name + ': ' + e.message)) || e).slice(0, 200),
+      tipo: (file && file.type) || '', tamanoKB: file ? Math.round(file.size / 1024) : 0,
+      navegador: navigator.userAgent.slice(0, 160),
+    } }).catch(() => {});
+  } catch (x) {}
 }
 // Convierte una foto (<img> o <canvas>) en JPEG nítido sin pasar de ~1 MB.
 function codificarFoto(fuente) {
@@ -1587,9 +1652,17 @@ async function compressImage(file) { return codificarFoto(await cargarImagen(fil
 // Muestra la foto con las 4 esquinas detectadas para corregirlas con el dedo.
 // Devuelve: un <canvas> con la factura recortada, la foto completa (<img>) o null si se cancela.
 function editarRecorte(img) {
+  return editarRecorteInterno(img).catch(e => {
+    document.querySelectorAll('.recorte-editor').forEach(v => v.remove());
+    reportarErrorFoto(e, null, 'recorte');
+    toast('No se pudo abrir el recorte: se usará la foto completa.');
+    return img;
+  });
+}
+function editarRecorteInterno(img) {
   return new Promise(resolve => {
     const R = window.KaabRecorte;
-    const W = img.naturalWidth, H = img.naturalHeight;
+    const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height; // <img> o ImageBitmap
     let esquinas = null;
     try { esquinas = R ? R.detectar(img) : null; } catch (e) { esquinas = null; }
     const encontrada = !!esquinas;
@@ -1708,23 +1781,39 @@ function openTiendaMovModal(tipo, prellenado = null) {
     guardarBorrador({ camara: true }); // por si el teléfono reinicia la app mientras está la cámara
     document.getElementById('tMovFotoInput').click();
   };
+  // Mientras se procesa la foto, Guardar queda desactivado: antes, si se tocaba rápido, la salida se
+  // guardaba SIN la foto y la foto se perdía sin aviso.
+  let procesandoFoto = false;
+  const estadoFoto = (activo) => {
+    procesandoFoto = activo;
+    const bf = document.getElementById('btnTomarFoto'), bg = document.getElementById('confirmTMov');
+    if (bf) { bf.disabled = activo; bf.innerHTML = activo ? 'Procesando foto…' : `${ICONS.camera} Tomar o elegir foto`; }
+    if (bg) bg.disabled = activo;
+  };
   document.getElementById('tMovFotoInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     e.target.value = ''; // para poder elegir la misma foto otra vez
+    estadoFoto(true);
+    let etapa = 'abrir';
     try {
       const img = await cargarImagen(file);
+      etapa = 'recorte';
       const fuente = await editarRecorte(img); // recortar la factura (o usar la foto completa)
       if (!fuente) return;
+      etapa = 'comprimir';
       fotoDataUrl = codificarFoto(fuente);
       if (!document.getElementById('fotoPreviewWrap')) return; // la ventana ya no está
       mostrarFoto();
       guardarBorrador();
-    } catch (err) { toast('No se pudo procesar la foto'); }
+    } catch (err) {
+      reportarErrorFoto(err, file, etapa);
+      avisoLargo(mensajeErrorFoto(err));
+    } finally { estadoFoto(false); }
   });
   const clave = nuevaClaveEnvio();
   const botonT = document.getElementById('confirmTMov');
-  botonT.onclick = () => conBotonOcupado(botonT, async () => {
+  botonT.onclick = () => procesandoFoto ? toast('Espera: se está procesando la foto.') : conBotonOcupado(botonT, async () => {
     const descripcion = document.getElementById('tMovDesc').value.trim();
     const monto = parseFloat(document.getElementById('tMovMonto').value);
     if (isNaN(monto) || monto <= 0) return;
@@ -1732,9 +1821,9 @@ function openTiendaMovModal(tipo, prellenado = null) {
     const claveUsada = claveParaEnvio(clave, datos);
     const estado = {};
     try {
-      const { movimiento, repetido } = await api('/tienda', { method: 'POST', estado, body: { tipo, descripcion, monto, foto: fotoDataUrl, clave: claveUsada } });
+      const { movimiento, balance, repetido } = await api('/tienda', { method: 'POST', estado, body: { tipo, descripcion, monto, foto: fotoDataUrl, clave: claveUsada } });
       quitarEnDuda(claveUsada); if (prellenado) quitarEnDuda(prellenado.notaClave);
-      TIENDA = await api('/tienda');
+      agregarMovTiendaLocal(movimiento, balance); // antes se volvía a descargar todo el mes en cada guardado
       closeModal(); renderTienda();
       resaltar(`#tiendaView [data-mov="${movimiento.id}"]`);
       if (repetido) avisoLargo('Ya estaba guardado: la conexión se cortó antes de confirmarlo. No se duplicó.');

@@ -880,3 +880,4 @@ body:has(.select-bar) .tabbar{display:none;}
 #fpMsg.info{color:var(--text-dim);}
 /* Aviso dentro de una ventana recuperada tras un reinicio de la app */
 .recuperado-nota{margin:-4px 0 12px;padding:10px 12px;border-radius:12px;background:var(--accent-bg);color:var(--accent);font-size:14px;font-weight:600;line-height:1.4;}
+.ver-mas{margin:6px 0 4px;justify-content:center;}
