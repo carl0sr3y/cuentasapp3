@@ -1035,15 +1035,70 @@ async function obtenerFoto(movId) {
   }
   return cacheFotos.get(movId);
 }
+// Visor de factura a pantalla completa con zoom: pellizcar con dos dedos, tocar dos veces,
+// o los botones + / −; se arrastra para moverse. Esc o × lo cierran.
 function openPhotoLightbox(dataUrl) {
-  showModal(`
-    <h3>Factura</h3>
-    <div id="lightboxFoto"></div>
-    <div class="modal-actions">
-      <button class="btn-confirm" data-close style="width:100%;">Cerrar</button>
+  document.querySelectorAll('.visor-foto').forEach(v => v.remove());
+  const v = document.createElement('div');
+  v.className = 'visor-foto';
+  v.setAttribute('role', 'dialog'); v.setAttribute('aria-modal', 'true'); v.setAttribute('aria-label', 'Factura');
+  v.innerHTML = `
+    <div class="visor-barra">
+      <span class="visor-titulo">Factura</span>
+      <button class="visor-btn" data-z="-" type="button" aria-label="Alejar">−</button>
+      <span class="visor-zoom">Ajustar</span>
+      <button class="visor-btn" data-z="+" type="button" aria-label="Acercar">+</button>
+      <button class="visor-btn visor-cerrar" type="button" aria-label="Cerrar">×</button>
     </div>
-  `, { center: true });
-  document.getElementById('lightboxFoto').appendChild(crearImgFoto(dataUrl, 'width:100%;border-radius:10px;margin:8px 0;display:block;'));
+    <div class="visor-area"></div>
+    <p class="visor-ayuda">Pellizca o toca dos veces para acercar · arrastra para moverte</p>`;
+  const area = v.querySelector('.visor-area');
+  const img = crearImgFoto(dataUrl);
+  img.className = 'visor-img'; img.draggable = false;
+  area.appendChild(img);
+  document.body.appendChild(v);
+  const etiqueta = v.querySelector('.visor-zoom');
+  let z = 1;
+  // Cambia el zoom manteniendo fijo el punto (cx, cy) de la pantalla.
+  const aplicar = (nz, cx, cy) => {
+    nz = Math.min(5, Math.max(1, nz));
+    const r = area.getBoundingClientRect();
+    if (cx == null) { cx = r.left + r.width / 2; cy = r.top + r.height / 2; }
+    // (la foto puede estar centrada dentro del área: se cuenta su desplazamiento offsetLeft/offsetTop)
+    const px = (area.scrollLeft + cx - r.left - img.offsetLeft) / img.offsetWidth;
+    const py = (area.scrollTop + cy - r.top - img.offsetTop) / img.offsetHeight;
+    z = nz;
+    img.style.width = (z * 100) + '%';
+    area.scrollLeft = img.offsetLeft + px * img.offsetWidth - (cx - r.left);
+    area.scrollTop = img.offsetTop + py * img.offsetHeight - (cy - r.top);
+    etiqueta.textContent = z === 1 ? 'Ajustar' : Math.round(z * 100) + '%';
+  };
+  v.querySelector('[data-z="+"]').onclick = () => aplicar(z < 2 ? 2 : z + 1);
+  v.querySelector('[data-z="-"]').onclick = () => aplicar(z <= 2 ? 1 : z - 1);
+  // Doble toque / doble clic: acerca donde tocaste, o vuelve a ajustar.
+  let ultimoToque = 0;
+  const dobleToque = (x, y) => aplicar(z > 1 ? 1 : 2.5, x, y);
+  area.addEventListener('dblclick', e => dobleToque(e.clientX, e.clientY));
+  // Pellizco con dos dedos
+  let pinza = null;
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  area.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      pinza = { d: dist(e.touches), z, cx: (e.touches[0].clientX + e.touches[1].clientX) / 2, cy: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
+    } else if (e.touches.length === 1) {
+      const ahora = Date.now();
+      if (ahora - ultimoToque < 300) { e.preventDefault(); dobleToque(e.touches[0].clientX, e.touches[0].clientY); ultimoToque = 0; }
+      else ultimoToque = ahora;
+    }
+  }, { passive: false });
+  area.addEventListener('touchmove', e => {
+    if (pinza && e.touches.length === 2) { e.preventDefault(); aplicar(pinza.z * dist(e.touches) / pinza.d, pinza.cx, pinza.cy); }
+  }, { passive: false });
+  area.addEventListener('touchend', e => { if (e.touches.length < 2) pinza = null; });
+  const cerrar = () => { v.remove(); document.removeEventListener('keydown', teclas); };
+  const teclas = e => { if (e.key === 'Escape') cerrar(); };
+  document.addEventListener('keydown', teclas);
+  v.querySelector('.visor-cerrar').onclick = cerrar;
 }
 function bindMovLongPress(container, onDelete) {
   let timer = null;
@@ -1151,24 +1206,55 @@ function renderTiendaListOnly() {
   bindMovLongPress(listEl, confirmDeleteMovTienda);
   bindPhotoButtons(listEl, movs);
 }
-function compressImage(file, maxWidth = 1000, quality = 0.7) {
+// Fotos de factura: se guardan nítidas para poder leer letras pequeñas, sin pasarse de tamaño.
+// - Lado largo hasta 2000 px (antes 1000 px de ancho).
+// - Se reduce por pasos (a la mitad cada vez) con suavizado de alta calidad: así las letras no se difuminan.
+// - JPEG al 85 %; si aun así pesa más de ~1 MB, baja la calidad y luego el tamaño hasta caber
+//   (el servidor acepta hasta 1,5 MB: lib/fotos.js).
+const FOTO_LADO_MAX = 2000;
+const FOTO_MAX_CARACTERES = 1100000;
+function redimensionarFoto(img, ladoMax) {
+  const w0 = img.naturalWidth, h0 = img.naturalHeight;
+  const escala = Math.min(1, ladoMax / Math.max(w0, h0));
+  const w = Math.max(1, Math.round(w0 * escala)), h = Math.max(1, Math.round(h0 * escala));
+  let fuente = img, fw = w0, fh = h0;
+  while (fw / 2 >= w) { // a la mitad mientras siga siendo más del doble del tamaño final
+    const c = document.createElement('canvas');
+    c.width = Math.round(fw / 2); c.height = Math.round(fh / 2);
+    const cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+    cx.drawImage(fuente, 0, 0, c.width, c.height);
+    fuente = c; fw = c.width; fh = c.height;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); // por si la imagen trae transparencia
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(fuente, 0, 0, w, h);
+  return canvas;
+}
+function compressImage(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > maxWidth) { height = Math.round(height * (maxWidth / width)); width = maxWidth; }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.onerror = () => reject(new Error('No se pudo leer la imagen'));
-      img.src = e.target.result;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      try {
+        let lado = FOTO_LADO_MAX;
+        for (let intento = 0; intento < 6; intento++) {
+          const canvas = redimensionarFoto(img, lado);
+          for (const calidad of [0.85, 0.78, 0.7]) {
+            const data = canvas.toDataURL('image/jpeg', calidad);
+            if (data.length <= FOTO_MAX_CARACTERES) return resolve(data);
+          }
+          lado = Math.round(lado * 0.8);
+        }
+        reject(new Error('La foto es demasiado grande'));
+      } catch (e) { reject(e); }
     };
-    reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
-    reader.readAsDataURL(file);
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen')); };
+    img.src = url;
   });
 }
 function openTiendaMovModal(tipo) {

@@ -830,3 +830,15 @@ body:has(.select-bar) .tabbar{display:none;}
 .total-head .mini-btn.principal svg{color:var(--on-accent) !important;}
 #deudasView[data-tipo="pagar"] .total-head .mini-btn.principal{background:var(--pagar);}
 .total-head .mini-btn.solo-icono{width:40px;padding:0;justify-content:center;}
+
+/* Visor de factura a pantalla completa con zoom (openPhotoLightbox) */
+.visor-foto{position:fixed;inset:0;z-index:70;background:#0B0D14;display:flex;flex-direction:column;color:#fff;}
+.visor-barra{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;background:rgba(0,0,0,.35);}
+.visor-titulo{flex:1;font-weight:800;font-size:17px;}
+.visor-btn{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:24px;font-weight:600;line-height:1;display:flex;align-items:center;justify-content:center;}
+.visor-btn:active{background:rgba(255,255,255,.22);}
+.visor-cerrar{margin-left:6px;font-size:28px;}
+.visor-zoom{min-width:58px;text-align:center;font-size:14px;font-weight:700;color:#C9CEDE;font-variant-numeric:tabular-nums;}
+.visor-area{flex:1;min-height:0;position:relative;display:flex;overflow:auto;touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+.visor-img{display:block;flex:none;width:100%;max-width:none;height:auto;margin:auto;user-select:none;-webkit-user-select:none;}
+.visor-ayuda{margin:0;padding:8px 12px calc(10px + env(safe-area-inset-bottom));text-align:center;font-size:13px;color:#9AA1B5;}
