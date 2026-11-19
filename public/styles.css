@@ -384,7 +384,14 @@ input[type=number]{-moz-appearance:textfield;}
 .user-card .info{flex:1;min-width:0;}
 .user-card .name{font-size:18px;font-weight:600;}
 .user-card .handle{font-size:15.5px;color:var(--text-dim);}
-.user-card .link-btn{font-size:16px;font-weight:600;color:var(--accent);padding:6px 10px;}
+.cuenta-acciones{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;}
+.cuenta-btn{
+  padding:11px 8px;border-radius:var(--radius-sm);background:var(--accent-bg);color:var(--accent);
+  font-size:15.5px;font-weight:600;text-align:center;line-height:1.2;
+}
+.cuenta-btn:active{opacity:.7;}
+.cuenta-btn:last-child:nth-child(odd){grid-column:1 / -1;}
+.cuenta-btn.peligro{background:var(--red-bg);color:var(--red);}
 
 /* ---------- Copias de seguridad ---------- */
 .backup-row{

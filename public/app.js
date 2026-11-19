@@ -2113,13 +2113,13 @@ function renderUsersPage(meParam, usuariosParam) {
                 <div class="handle">${escapeHtml(EMPRESA ? idAcceso(me.usuario, EMPRESA.codigo) : me.usuario)}${me.email ? ' · ' + escapeHtml(me.email) : ''}</div>
               </div>
             </div>
-            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
-              ${me.es_principal ? `<button class="link-btn" id="btnChangeOwnName">Cambiar nombre</button>` : ''}
+            <div class="cuenta-acciones">
+              ${me.es_principal ? `<button class="cuenta-btn" id="btnChangeOwnName">Cambiar nombre</button>` : ''}
               ${esAdmin ? `
-                <button class="link-btn" id="btnChangeOwnPass">Cambiar contraseña</button>
-                <button class="link-btn" id="btnChangeOwnEmail">${me.email ? 'Cambiar correo' : 'Agregar correo'}</button>
+                <button class="cuenta-btn" id="btnChangeOwnPass">Cambiar contraseña</button>
+                <button class="cuenta-btn" id="btnChangeOwnEmail">${me.email ? 'Cambiar correo' : 'Agregar correo'}</button>
               ` : ''}
-              <button class="link-btn" id="btnLogout">Cerrar sesión</button>
+              <button class="cuenta-btn peligro" id="btnLogout">Cerrar sesión</button>
             </div>
           </div>
 
@@ -2149,11 +2149,11 @@ function renderUsersPage(meParam, usuariosParam) {
                   </div>
                   ${u.es_principal ? `
                   <p class="handle" style="margin:10px 0 0;">Es quien creó la empresa: no se puede eliminar, y solo él puede cambiar su contraseña y su correo.</p>` : `
-                  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;">
-                    ${me.es_principal ? `<button class="link-btn" data-rename="${u.id}" data-name="${escapeHtml(u.nombre)}" data-usuario="${escapeHtml(u.usuario)}">Cambiar nombre</button>` : ''}
-                    <button class="link-btn" data-changepass="${u.id}" data-name="${escapeHtml(u.nombre)}">Cambiar contraseña</button>
-                    <button class="link-btn" data-changeemail="${u.id}" data-email="${u.email ? escapeHtml(u.email) : ''}">${u.email ? 'Cambiar correo' : 'Agregar correo'}</button>
-                    <button class="link-btn" data-deleteuser="${u.id}" data-name="${escapeHtml(u.nombre)}" style="color:var(--red);">Eliminar</button>
+                  <div class="cuenta-acciones">
+                    ${me.es_principal ? `<button class="cuenta-btn" data-rename="${u.id}" data-name="${escapeHtml(u.nombre)}" data-usuario="${escapeHtml(u.usuario)}">Cambiar nombre</button>` : ''}
+                    <button class="cuenta-btn" data-changepass="${u.id}" data-name="${escapeHtml(u.nombre)}">Cambiar contraseña</button>
+                    <button class="cuenta-btn" data-changeemail="${u.id}" data-email="${u.email ? escapeHtml(u.email) : ''}">${u.email ? 'Cambiar correo' : 'Agregar correo'}</button>
+                    <button class="cuenta-btn peligro" data-deleteuser="${u.id}" data-name="${escapeHtml(u.nombre)}" >Eliminar</button>
                   </div>`}
                 </div>
               `).join('')
