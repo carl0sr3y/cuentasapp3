@@ -12,6 +12,10 @@ router.param('id', paramId);
 router.param('cuentaId', paramId);
 router.param('movId', paramId);
 
+// Para comparar nombres de cuentas: "Juan  Pérez " y "juan perez" cuentan como el mismo.
+function nombreComparable(n) {
+  return String(n || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
 function clientIdOf(req) { return req.headers['x-client-id'] || null; }
 function money(n) { return 'Q ' + Number(n).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
@@ -46,22 +50,35 @@ router.post('/', async (req, res) => {
   if (!['cobrar', 'pagar'].includes(tipoCuenta)) return res.status(400).json({ error: 'Tipo de cuenta inválido' });
   const clave = claveEnvio((req.body || {}).clave);
   if (clave === false) return res.status(400).json({ error: 'Datos inválidos' });
-  const { rows } = await pool.query(
-    `INSERT INTO cuentas (empresa_id, usuario_id, nombre, tipo, clave_envio) VALUES ($1,$2,$3,$4,$5)
-     ON CONFLICT (empresa_id, clave_envio) WHERE clave_envio IS NOT NULL DO NOTHING
-     RETURNING id, nombre, tipo, favorito, fecha_creacion`,
-    [req.user.empresa_id, req.user.id, nombre, tipoCuenta, clave || null]
-  );
-  if (!rows[0]) {
-    // Este mismo envío ya se había guardado (reintento): se devuelve la cuenta creada la primera vez.
-    const { rows: ya } = await pool.query(
-      `SELECT id, nombre, tipo, favorito, fecha_creacion FROM cuentas WHERE empresa_id = $1 AND clave_envio = $2`,
-      [req.user.empresa_id, clave]);
-    if (!ya[0]) return res.status(409).json({ error: 'No se pudo crear la cuenta' });
-    const { rows: [s] } = await pool.query('SELECT COALESCE(SUM(monto),0) AS s FROM movimientos_cuentas WHERE cuenta_id = $1', [ya[0].id]);
-    return res.json({ ...ya[0], balance: Number(s.s), repetido: true });
+  // Dentro de una transacción con candado por empresa: dos personas creando "Juan" al mismo tiempo
+  // no pueden colarse las dos.
+  const r = await enTransaccion(pool, async (client) => {
+    await client.query('SELECT pg_advisory_xact_lock(7311, $1)', [req.user.empresa_id]);
+    if (clave) {
+      // Este mismo envío ya se había guardado (reintento): se devuelve la cuenta creada la primera vez.
+      const { rows: ya } = await client.query(
+        `SELECT id, nombre, tipo, favorito, fecha_creacion FROM cuentas WHERE empresa_id = $1 AND clave_envio = $2`,
+        [req.user.empresa_id, clave]);
+      if (ya[0]) return { cuenta: ya[0], repetido: true };
+    }
+    // ¿Ya hay una cuenta del mismo tipo con ese nombre? (sin importar mayúsculas, acentos ni espacios)
+    const buscado = nombreComparable(nombre);
+    const { rows: mismas } = await client.query(
+      `SELECT id, nombre, tipo, favorito, fecha_creacion FROM cuentas WHERE empresa_id = $1 AND tipo = $2 ORDER BY id`,
+      [req.user.empresa_id, tipoCuenta]);
+    const existente = mismas.find(c => nombreComparable(c.nombre) === buscado);
+    if (existente) return { cuenta: existente, existente: true };
+    const { rows } = await client.query(
+      `INSERT INTO cuentas (empresa_id, usuario_id, nombre, tipo, clave_envio) VALUES ($1,$2,$3,$4,$5)
+       RETURNING id, nombre, tipo, favorito, fecha_creacion`,
+      [req.user.empresa_id, req.user.id, nombre, tipoCuenta, clave || null]);
+    return { cuenta: rows[0] };
+  });
+  if (r.repetido || r.existente) {
+    const { rows: [s] } = await pool.query('SELECT COALESCE(SUM(monto),0) AS s FROM movimientos_cuentas WHERE cuenta_id = $1', [r.cuenta.id]);
+    return res.json({ ...r.cuenta, balance: Number(s.s), ...(r.repetido ? { repetido: true } : { existente: true }) });
   }
-  const cuenta = { ...rows[0], balance: 0 };
+  const cuenta = { ...r.cuenta, balance: 0 };
   await registrarHistorial(req.user.empresa_id, req.user.id, 'Crear cuenta',
     `Cuenta "${cuenta.nombre}" creada (${tipoCuenta === 'pagar' ? 'por pagar' : 'por cobrar'})`, { referencia_id: cuenta.id });
   broadcast({ scope: 'cuentas', empresaId: req.user.empresa_id, by: req.user.nombre, excludeClientId: clientIdOf(req) });

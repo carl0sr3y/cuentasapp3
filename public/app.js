@@ -1359,6 +1359,13 @@ function openCreateAccountModal(prellenado = null) {
     try {
       const cuenta = await api('/cuentas', { method: 'POST', estado, body: { nombre, tipo: tipoCuentas, clave: claveUsada } });
       quitarEnDuda(claveUsada); if (prellenado) quitarEnDuda(prellenado.notaClave);
+      if (cuenta.existente) {
+        // Ya había una cuenta con ese nombre: no se crea otra, se lleva a la que ya existe.
+        closeModal(); renderDeudas();
+        await openAccountDetail(cuenta.id);
+        avisoLargo(`Ya existía la cuenta «${cuenta.nombre}». Te llevé a ella.`);
+        return;
+      }
       if (!CUENTAS.some(c => c.id === cuenta.id)) CUENTAS.push({ ...cuenta, ultima_actividad: cuenta.fecha_creacion });
       await exitoEnBoton(botonC);
       closeModal(); renderDeudas(); toast('Cuenta creada');

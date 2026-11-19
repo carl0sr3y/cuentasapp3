@@ -96,3 +96,26 @@ los saldos, y no deja mensajes en los Logs.
 | Un abono que pagó de más dice solo "Abono registrado" | Sí | El botón y la ventana se deciden al abrirla: la cuenta debía algo. El saldo sí queda dorado "a favor" después. |
 | Una cuenta en Q 0.00 se ve gris | Sí | Gris = en cero; dorado = a favor; verde = te deben; rojo = debes. |
 
+
+---
+
+## Cuentas con nombre repetido
+
+Cambio del 18/11/2026. Al crear una cuenta, el servidor revisa si ya hay otra **del mismo tipo** (por cobrar
+o por pagar) con ese nombre. Mayúsculas, acentos y espacios de más no cuentan: "Juan Pérez" = "juan perez".
+No deja mensajes en los Logs.
+
+| Lo que ves | ¿Es normal? | Explicación |
+|---|---|---|
+| "Ya existía la cuenta «…». Te llevé a ella." | Sí | No se creó otra: se abrió la que ya estaba, con su nombre original. |
+| Hay "Juan Pérez" en por cobrar y en por pagar | Sí | El mismo nombre sí se permite en los dos tipos. |
+| Hay dos cuentas iguales del mismo tipo | Sí, si son de antes de este cambio | Las que ya existían no se tocaron. Se pueden eliminar o dejar; las nuevas ya no se repiten. |
+| "Juan Perez" y "Juan Pérez López" son cuentas distintas | Sí | Solo se consideran iguales si el nombre es el mismo, letra por letra, sin contar acentos ni mayúsculas. |
+
+### Pistas técnicas (para revisar el código)
+
+- `POST /api/cuentas` (routes/cuentas.js): transacción con `pg_advisory_xact_lock(7311, empresa_id)`, así
+  dos creaciones al mismo tiempo no se cuelan. Orden: primero la marca de envío (`repetido`), luego el
+  nombre (`nombreComparable`) → responde 200 con la cuenta existente y `existente: true`.
+- App: `openCreateAccountModal` cierra la ventana y llama `openAccountDetail` si llega `existente`.
+- Prueba local: `bash pruebas/correr.sh nombre-repetido`.
