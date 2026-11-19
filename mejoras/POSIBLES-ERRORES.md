@@ -83,3 +83,16 @@ en Perfil → Apariencia → Animaciones, y la app funciona igual.
 - muneco.js: `KaabMuneco.celebrar()` (modo `festeja`) y `esDeNoche()` (clase `duerme`).
 - Prueba local: `bash pruebas/correr.sh animaciones`.
 
+---
+
+## Saldo a favor en dorado
+
+Cambio del 18/11/2026. Solo cambia colores y textos en el teléfono: no toca cómo se guardan ni se calculan
+los saldos, y no deja mensajes en los Logs.
+
+| Lo que ves | ¿Es normal? | Explicación |
+|---|---|---|
+| El botón dice "Abono a favor" y es dorado | Sí, si la cuenta está en cero o ya a favor | Lo que se abone ahí no paga deuda: queda a favor. Si la cuenta debe algo, el botón vuelve a ser "Abono" verde. |
+| Un abono que pagó de más dice solo "Abono registrado" | Sí | El botón y la ventana se deciden al abrirla: la cuenta debía algo. El saldo sí queda dorado "a favor" después. |
+| Una cuenta en Q 0.00 se ve gris | Sí | Gris = en cero; dorado = a favor; verde = te deben; rojo = debes. |
+

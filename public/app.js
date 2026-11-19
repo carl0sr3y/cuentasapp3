@@ -1423,7 +1423,7 @@ function renderAccountDetailPage() {
           ${saldoGrandeHtml(c.balance, c.tipo, 'cuenta-' + c.id)}
         </div>
         <div class="detail-actions">
-          <button class="abono-btn" id="btnAbono">${ICONS.arrowDown} Abono</button>
+          <button class="abono-btn${deudaDe(c.balance) <= 0 ? ' abono-favor' : ''}" id="btnAbono">${ICONS.arrowDown} ${deudaDe(c.balance) <= 0 ? 'Abono a favor' : 'Abono'}</button>
           <button class="cargo-btn" id="btnCargo">${ICONS.arrowUp} Cargo</button>
         </div>
         ${movs.length ? `<div class="swipe-hint">Mantén presionado un movimiento para eliminarlo</div>` : ''}
@@ -1573,10 +1573,17 @@ function bindMovLongPress(container, onDelete) {
 }
 function openMovModal(tipo, cuentaId, prellenado = null) {
   const isAbono = tipo === 'abono';
+  // Si la cuenta no debe nada (en cero o ya a favor), el abono queda a favor: se avisa antes de guardar.
+  const tipoCta = (currentAccountDetail && currentAccountDetail.tipo) || 'cobrar';
+  const aFavor = isAbono && !!currentAccountDetail && deudaDe(currentAccountDetail.balance) <= 0;
+  const T = TEXTOS_TIPO[tipoCta];
+  const descripcion = aFavor
+    ? (tipoCta === 'pagar' ? 'No le debes nada a esta cuenta: lo que registres quedará a tu favor.' : 'Esta cuenta no debe nada: lo que registres quedará a favor del cliente.')
+    : (isAbono ? T.abonoDesc : T.cargoDesc);
   showModal(`
-    <h3>${isAbono ? 'Nuevo abono' : 'Nuevo cargo'}</h3>
+    <h3>${aFavor ? 'Nuevo abono a favor' : isAbono ? 'Nuevo abono' : 'Nuevo cargo'}</h3>
     ${notaRecuperado(prellenado)}
-    <p class="desc">${(() => { const T = TEXTOS_TIPO[(currentAccountDetail && currentAccountDetail.tipo) || 'cobrar']; return isAbono ? T.abonoDesc : T.cargoDesc; })()}</p>
+    <p class="desc">${descripcion}</p>
     <div class="field"><label>Descripción</label><input id="movDesc" type="text" placeholder="Ej. Pago quincenal"></div>
     <div class="field"><label>Monto (Q)</label><input id="movMonto" type="number" step="0.01" min="0" placeholder="0.00"></div>
     <div class="modal-actions">
@@ -1618,7 +1625,7 @@ function openMovModal(tipo, cuentaId, prellenado = null) {
       renderDeudas();
       resaltar(`#pageRoot [data-mov="${movimiento.id}"]`);
       if (repetido) avisoLargo('Ya estaba guardado: la conexión se cortó antes de confirmarlo. No se duplicó.');
-      else toast(isAbono ? 'Abono registrado' : 'Cargo registrado');
+      else toast(aFavor ? 'Abono a favor registrado' : isAbono ? 'Abono registrado' : 'Cargo registrado');
     } catch (e) {
       if (errorEnDuda(estado)) {
         const nombre = (currentAccountDetail && currentAccountDetail.nombre) || 'la cuenta';

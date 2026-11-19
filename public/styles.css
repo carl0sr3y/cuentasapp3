@@ -17,6 +17,8 @@
   --red:#D94740;
   --red-bg:rgba(217,71,64,0.09);
   --yellow:#D99A1E;
+  --favor:#876800;
+  --favor-bg:rgba(176,138,0,0.12);
   --accent:#4E5AD6;
   --accent-bg:rgba(78,90,214,0.10);
   --on-accent:#FFFFFF;
@@ -50,6 +52,8 @@
   --red:#FF7E75;
   --red-bg:rgba(255,126,117,0.13);
   --yellow:#F2B35A;
+  --favor:#E8C84A;
+  --favor-bg:rgba(232,200,74,0.14);
   --accent:#8C95FF;
   --accent-bg:rgba(140,149,255,0.14);
   --on-accent:#10131F;
@@ -67,7 +71,7 @@
     --bg:#13151C; --surface:#1B1E28; --surface-2:#252937; --surface-alt:#1E2130;
     --border:#2B2F3F; --border-soft:#232736; --text:#E8EAF2; --text-dim:#A2A8BA; --text-faint:#6F7588;
     --green:#4CC79A; --green-bg:rgba(76,199,154,0.13); --red:#FF7E75; --red-bg:rgba(255,126,117,0.13);
-    --yellow:#F2B35A; --accent:#8C95FF; --accent-bg:rgba(140,149,255,0.14); --on-accent:#10131F;
+    --yellow:#F2B35A; --favor:#E8C84A; --favor-bg:rgba(232,200,74,0.14); --accent:#8C95FF; --accent-bg:rgba(140,149,255,0.14); --on-accent:#10131F;
     --tienda:#F2B35A; --tienda-bg:rgba(242,179,90,0.13); --pagar:#4FD1C5; --pagar-bg:rgba(79,209,197,0.13); --overlay:rgba(0,0,0,0.55);
     --shadow:0 4px 14px rgba(0,0,0,0.25); --shadow-lg:0 16px 40px rgba(0,0,0,0.5);
   }
@@ -729,11 +733,14 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
   animation:none !important;transition:none !important;
 }
 
-/* Saldos de cuentas: sin signo; verde = por cobrar, rojo = por pagar, gris = en cero, "a favor" = se pagó de más */
+/* Saldos de cuentas: sin signo; verde = por cobrar, rojo = por pagar, gris = en cero, dorado "a favor" = se pagó de más */
 .cero{color:var(--text-faint);}
-.favor{color:var(--text-dim);}
-.a-favor{font-family:var(--rounded);font-size:.72em;font-weight:700;color:var(--accent);background:var(--accent-bg);border-radius:6px;padding:1px 6px;margin-left:4px;vertical-align:1px;white-space:nowrap;}
-.balance-nota{font-size:13.5px;font-weight:700;color:var(--accent);margin-top:4px;}
+.favor{color:var(--favor);}
+.a-favor{font-family:var(--rounded);font-size:.72em;font-weight:700;color:var(--favor);background:var(--favor-bg);border-radius:6px;padding:1px 6px;margin-left:4px;vertical-align:1px;white-space:nowrap;}
+.balance-nota{font-size:13.5px;font-weight:700;color:var(--favor);margin-top:4px;}
+/* Cuenta en cero o a favor: el abono que se registre queda a favor (botón dorado "Abono a favor") */
+.abono-btn.abono-favor{background:var(--favor);color:#fff;}
+:root[data-tema="oscuro"] .abono-btn.abono-favor{color:#10131F;}
 /* Ventana de opciones de PDF */
 .pdf-opciones{display:flex;flex-direction:column;gap:8px;margin:4px 0 6px;}
 .pdf-opcion{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px;border-radius:16px;background:var(--surface-alt);border:1px solid var(--border-soft);color:var(--text);}
