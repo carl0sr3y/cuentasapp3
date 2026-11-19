@@ -1580,8 +1580,9 @@ function openMovModal(tipo, cuentaId, prellenado = null) {
   const descripcion = aFavor
     ? (tipoCta === 'pagar' ? 'No le debes nada a esta cuenta: lo que registres quedará a tu favor.' : 'Esta cuenta no debe nada: lo que registres quedará a favor del cliente.')
     : (isAbono ? T.abonoDesc : T.cargoDesc);
+  // La ventana toma el color del botón que la abrió: verde abono, rojo cargo, dorado abono a favor.
   showModal(`
-    <h3>${aFavor ? 'Nuevo abono a favor' : isAbono ? 'Nuevo abono' : 'Nuevo cargo'}</h3>
+    <h3 class="mov-titulo"><span class="mov-titulo-icono">${isAbono ? ICONS.arrowDown : ICONS.arrowUp}</span>${aFavor ? 'Nuevo abono a favor' : isAbono ? 'Nuevo abono' : 'Nuevo cargo'}</h3>
     ${notaRecuperado(prellenado)}
     <p class="desc">${descripcion}</p>
     <div class="field"><label>Descripción</label><input id="movDesc" type="text" placeholder="Ej. Pago quincenal"></div>
@@ -1590,7 +1591,7 @@ function openMovModal(tipo, cuentaId, prellenado = null) {
       <button class="btn-cancel" data-close>Cancelar</button>
       <button class="btn-confirm" id="confirmMov">Guardar</button>
     </div>
-  `);
+  `, { clase: aFavor ? 'mov-favor' : isAbono ? 'mov-abono' : 'mov-cargo' });
   if (prellenado) { document.getElementById('movDesc').value = prellenado.desc || ''; document.getElementById('movMonto').value = prellenado.monto || ''; }
   activarFormulario({
     tieneDatos: () => !!(document.getElementById('movDesc') && (document.getElementById('movDesc').value.trim() || document.getElementById('movMonto').value)),
@@ -2594,10 +2595,10 @@ function openCreateUserModal() {
 /* ============================================================
    MODALES GENÉRICOS
    ============================================================ */
-function showModal(innerHtml, { center = false } = {}) {
+function showModal(innerHtml, { center = false, clase = '' } = {}) {
   formularioActivo = null;
   const root = document.getElementById('modalRoot');
-  root.innerHTML = `<div class="modal-overlay ${center ? 'center' : ''}" id="overlay"><div class="modal-card">${innerHtml}</div></div>`;
+  root.innerHTML = `<div class="modal-overlay ${center ? 'center' : ''}" id="overlay"><div class="modal-card ${clase}">${innerHtml}</div></div>`;
   root.querySelector('#overlay').addEventListener('click', (e) => {
     if (e.target.id !== 'overlay') return;
     if (formularioActivo && formularioActivo.tieneDatos()) return; // con datos escritos, tocar fuera no la cierra

@@ -741,6 +741,16 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
 /* Cuenta en cero o a favor: el abono que se registre queda a favor (botón dorado "Abono a favor") */
 .abono-btn.abono-favor{background:var(--favor);color:#fff;}
 :root[data-tema="oscuro"] .abono-btn.abono-favor{color:#10131F;}
+/* Ventana de abono / cargo / abono a favor: título, botón Guardar y campo activo con el color del botón tocado */
+.modal-card.mov-abono{--mov:var(--green);--mov-bg:var(--green-bg);}
+.modal-card.mov-cargo{--mov:var(--red);--mov-bg:var(--red-bg);}
+.modal-card.mov-favor{--mov:var(--favor);--mov-bg:var(--favor-bg);}
+.mov-titulo{display:flex;align-items:center;gap:10px;color:var(--mov,var(--text));}
+.mov-titulo-icono{flex:none;width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:var(--mov-bg);color:var(--mov);}
+.mov-titulo-icono svg{width:18px;height:18px;}
+.modal-card[class*="mov-"] .btn-confirm:not(.exito){background:var(--mov);color:#fff;}
+:root[data-tema="oscuro"] .modal-card[class*="mov-"] .btn-confirm:not(.exito){color:#10131F;}
+.modal-card[class*="mov-"] .field input:focus{border-color:var(--mov);box-shadow:0 0 0 3px var(--mov-bg);}
 /* Ventana de opciones de PDF */
 .pdf-opciones{display:flex;flex-direction:column;gap:8px;margin:4px 0 6px;}
 .pdf-opcion{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px;border-radius:16px;background:var(--surface-alt);border:1px solid var(--border-soft);color:var(--text);}
