@@ -32,7 +32,7 @@ en uso real. Desplegada en **Railway** (servicio Node + PostgreSQL); cada `git p
 | `public/muneco.js`, `ojo.js`, `tema.js`, `sw.js` | Muñequito decorativo, ojito de contraseñas, tema/animaciones, service worker (solo push) |
 | `plataforma/` | Panel del superadmin en `/plataforma` (crear/suspender/eliminar empresas, restablecer contraseñas) |
 | `scripts/superadmin.js`, `scripts/respaldo.js` | Crear superadmin; exportar/restaurar la base completa |
-| `mejoras/` | **Pendientes** (índice en `PENDIENTES.md`): rendimiento, seguridad, simplificar, tienda, animación |
+| `mejoras/` | **Pendientes** (índice en `PENDIENTES.md`): rendimiento, seguridad, simplificar, tienda, animación. **`POSIBLES-ERRORES.md`**: qué significa cada error conocido; revisarlo primero si el dueño reporta un fallo, y agregar ahí los de cada cambio nuevo |
 | `pruebas/` | Pruebas automáticas **locales** (no se suben). Ver `pruebas/LEEME.md` |
 
 ## Reglas del dominio que no se deben romper

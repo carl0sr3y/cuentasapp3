@@ -13,6 +13,11 @@ sin decidirlo antes. Al terminar una mejora, se marca con `[x]` en su archivo y 
 | [Movimientos tienda](TIENDA.md) | Ideas para mejorar la pestaña de tienda | Ver los meses anteriores dentro de la app |
 | [Animación](ANIMACION.md) | Ideas para que la app se sienta más viva | Confirmación visual al guardar |
 
+## Si algo falla
+
+[Posibles errores](POSIBLES-ERRORES.md): qué significa cada mensaje de error de los cambios recientes en
+Railway → Logs, qué cosas son normales y qué hacer.
+
 ## Pruebas automáticas
 
 Antes de un `git push` grande: `bash pruebas/correr.sh` (la carpeta `pruebas/` solo existe en tu
