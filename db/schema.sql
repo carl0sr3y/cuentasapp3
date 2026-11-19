@@ -336,3 +336,9 @@ CREATE TABLE IF NOT EXISTS sesiones_enlazadas (
   revocada BOOLEAN NOT NULL DEFAULT false
 );
 CREATE INDEX IF NOT EXISTS idx_sesiones_enlazadas_usuario ON sesiones_enlazadas(usuario_id);
+-- "Es mi computadora": la sesión se mantiene abierta (30 días) y a los 15 minutos sin uso se bloquea
+-- con un PIN de 6 números propio de esa computadora (cifrado). 5 intentos fallidos la cierran.
+ALTER TABLE sesiones_enlazadas ADD COLUMN IF NOT EXISTS recordar BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE sesiones_enlazadas ADD COLUMN IF NOT EXISTS pin_hash TEXT;
+ALTER TABLE sesiones_enlazadas ADD COLUMN IF NOT EXISTS pin_fallos INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE sesiones_enlazadas ADD COLUMN IF NOT EXISTS ultima_actividad TIMESTAMPTZ NOT NULL DEFAULT now();

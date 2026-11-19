@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../db/pool');
-const { requireAuth, setAuthCookie, clearAuthCookie, verifyToken, sesionVigente, COOKIE_NAME, MSG_SUSPENDIDA } = require('../middleware/auth');
+const { requireAuth, requireAuthAunBloqueada, setAuthCookie, clearAuthCookie, verifyToken, sesionVigente, COOKIE_NAME, MSG_SUSPENDIDA } = require('../middleware/auth');
 const { motivoCambioObligatorio, compararContrasena } = require('../lib/passwords');
 const limites = require('../lib/rateLimits');
 
@@ -57,15 +57,17 @@ function datosEmpresa(empresa) {
 
 // Sesión activa (si hay, y si sigue vigente en la base).
 // Las empresas nuevas solo se crean desde el panel de plataforma (no hay registro público).
+// Computadora recordada y bloqueada: no entrega el usuario, solo el nombre para la pantalla del PIN.
 router.get('/status', async (req, res) => {
   let user = null;
   const token = req.cookies[COOKIE_NAME];
   if (token) {
     const r = await sesionVigente(verifyToken(token));
+    if (r.user && r.bloqueo) return res.json({ user: null, bloqueo: r.bloqueo, nombre: r.user.nombre });
     user = r.user || null;
     if (!user) clearAuthCookie(res);
   }
-  res.json({ user });
+  res.json({ user, recordada: !!(user && user.recordar) });
 });
 
 router.post('/login', limites.loginIp, limites.loginCuenta, async (req, res) => {
@@ -113,7 +115,7 @@ router.post('/force-change-password', limites.loginIp, limites.loginCuenta, asyn
   res.json({ user, empresa: datosEmpresa(empresa) });
 });
 
-router.post('/logout', requireAuth, async (req, res) => {
+router.post('/logout', requireAuthAunBloqueada, async (req, res) => {
   const payload = verifyToken(req.cookies[COOKIE_NAME]);
   if (payload && Number.isInteger(payload.enl)) {
     await pool.query('UPDATE sesiones_enlazadas SET revocada = true WHERE id = $1 AND usuario_id = $2', [payload.enl, req.user.id]);

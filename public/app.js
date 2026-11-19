@@ -270,6 +270,11 @@ async function api(path, opts = {}) {
       sesionTerminada(/suspendida/i.test(data.error || '') ? data.error : 'Tu sesión se cerró. Vuelve a entrar.');
       throw 'Sesión cerrada';
     }
+    // Computadora recordada que el servidor ya da por bloqueada (15 min sin uso): pantalla del PIN.
+    if (res.status === 423 && data && (data.codigo === 'BLOQUEADA' || data.codigo === 'CREAR_PIN') && AUTH && !opts.sinCandado) {
+      bloquearComputadora(data.codigo);
+      throw 'Bloqueada';
+    }
     if (!res.ok) throw (data && data.error) || 'Error de red';
     return data;
   } finally {
@@ -345,6 +350,7 @@ document.addEventListener('visibilitychange', async () => {
   // en vez de quedarnos mostrando la app vacía.
   try {
     const status = await api('/auth/status');
+    if (status.bloqueo) { bloquearComputadora(status.bloqueo); return; }
     if (!status.user) { await doLogoutCleanup(); return; }
     AUTH = status.user;
     refrescarTodo();
@@ -555,7 +561,8 @@ let EMPRESA = null; // {id, nombre, codigo} de la empresa actual, una vez loguea
 async function initAuth() {
   try {
     const status = await api('/auth/status');
-    if (status.user) { AUTH = status.user; return enterApp(); }
+    if (status.bloqueo) return renderCandado(status.bloqueo, status.nombre);
+    if (status.user) { AUTH = status.user; SESION_RECORDADA = !!status.recordada; return enterApp(); }
     renderLogin(false, { autoHuella: true }); // solo al abrir la app, no al cerrar sesión
   } catch (e) {
     renderLogin();
@@ -764,10 +771,11 @@ async function renderEntrarConTelefono() {
     if (vuelta !== enlaceVuelta) return;
     if (r && r.estado === 'aprobado') {
       detenerEnlace();
-      AUTH = r.user; EMPRESA = r.empresa;
+      AUTH = r.user; EMPRESA = r.empresa; SESION_RECORDADA = false;
       enterApp();
       return;
     }
+    if (r && r.estado === 'crear_pin') { detenerEnlace(); renderCandado('CREAR_PIN', r.nombre); return; }
     if (r && r.estado === 'rechazado') return terminar('Se rechazó desde el teléfono.');
     if ((r && r.estado === 'vencido') || Date.now() > vence + 5000) return terminar('El código venció. Genera otro para intentarlo de nuevo.');
     enlaceTimer = setTimeout(preguntar, 2000);
@@ -775,6 +783,72 @@ async function renderEntrarConTelefono() {
   enlaceTimer = setTimeout(preguntar, 1000);
 }
 
+// --- "Es mi computadora": PIN propio de esta computadora ---
+let SESION_RECORDADA = false;
+let NOMBRE_CANDADO = '';
+// Bloquea la pantalla (no cierra la sesión): se borra todo lo que se veía y se pide el PIN.
+function bloquearComputadora(modo) {
+  if (AUTH) NOMBRE_CANDADO = AUTH.nombre || AUTH.usuario || NOMBRE_CANDADO;
+  clearInterval(idleInterval);
+  doLogoutCleanup(() => renderCandado(modo, NOMBRE_CANDADO));
+}
+function renderCandado(modo, nombre) {
+  NOMBRE_CANDADO = nombre || NOMBRE_CANDADO;
+  const crear = modo === 'CREAR_PIN';
+  const root = document.getElementById('loginScreen');
+  document.getElementById('mainScreen').classList.add('hidden');
+  root.classList.remove('hidden');
+  root.innerHTML = `
+    <div class="login-card login-card-enlace">
+      <div class="candado-ico">${ICONS.key}</div>
+      <h1>${crear ? 'Crea el PIN de esta computadora' : `Hola${NOMBRE_CANDADO ? ', ' + escapeHtml(NOMBRE_CANDADO.split(' ')[0]) : ''}`}</h1>
+      <p class="sub">${crear
+        ? 'Son 6 números. Te los pediremos cuando pasen 15 minutos sin usar Kaab aquí. Solo sirven en esta computadora.'
+        : 'Kaab está bloqueado en esta computadora. Escribe tu PIN para seguir.'}</p>
+      <input id="pinUno" class="num pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" aria-label="PIN">
+      ${crear ? '<input id="pinDos" class="num pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" aria-label="Repite el PIN"><p class="field-hint">Escríbelo dos veces.</p>' : ''}
+      <button class="btn-primary" id="pinBtn">${crear ? 'Guardar PIN y entrar' : 'Desbloquear'}</button>
+      <p class="login-error" id="pinErr"></p>
+      <p class="login-toggle">${crear ? '' : '<button id="pinOlvide">Olvidé mi PIN</button> · '}<button id="pinSalir">Cerrar sesión aquí</button></p>
+    </div>`;
+  const uno = document.getElementById('pinUno'), dos = document.getElementById('pinDos');
+  const err = document.getElementById('pinErr'), btn = document.getElementById('pinBtn');
+  [uno, dos].forEach(i => i && i.addEventListener('input', () => { i.value = i.value.replace(/\D/g, '').slice(0, 6); err.textContent = ''; }));
+  const salir = async () => {
+    try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch (e) {}
+    SESION_RECORDADA = false;
+    return true;
+  };
+  const enviar = async () => {
+    const pin = uno.value;
+    if (pin.length !== 6) { err.textContent = 'El PIN tiene 6 números.'; return; }
+    if (crear && pin !== dos.value) { err.textContent = 'Los dos PIN no son iguales.'; return; }
+    btn.disabled = true; err.textContent = '';
+    try {
+      const res = await fetch('/api/enlace/' + (crear ? 'pin' : 'desbloquear'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Client-Id': CLIENT_ID },
+        credentials: 'include', body: JSON.stringify({ pin }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        AUTH = data.user; EMPRESA = data.empresa; SESION_RECORDADA = true;
+        enterApp();
+        return;
+      }
+      if (data.codigo === 'SESION') { renderLogin(); const e = document.getElementById('loginErr'); if (e) e.textContent = data.error; else toast(data.error); return; }
+      if (data.codigo === 'CREAR_PIN') { renderCandado('CREAR_PIN'); return; }
+      err.textContent = data.error || 'No se pudo.';
+      uno.value = ''; if (dos) dos.value = ''; uno.focus();
+    } catch (e) { err.textContent = 'No se pudo conectar con el servidor.'; }
+    finally { if (btn.isConnected) btn.disabled = false; }
+  };
+  btn.onclick = enviar;
+  [uno, dos].forEach(i => i && i.addEventListener('keydown', e => { if (e.key === 'Enter') enviar(); }));
+  const olvide = document.getElementById('pinOlvide');
+  if (olvide) olvide.onclick = async () => { await salir(); renderEntrarConTelefono(); };
+  document.getElementById('pinSalir').onclick = async () => { await salir(); renderLogin(); };
+  setTimeout(() => uno.focus(), 50);
+}
 // --- En el teléfono ---
 // Si la app se abrió desde el QR (…/#conectar=12345678), se guarda el código y se quita de la dirección.
 let codigoConectarPendiente = (() => {
@@ -837,6 +911,10 @@ function mostrarAprobarComputadora(codigo, info, { conContrasena = false } = {})
       <div class="info"><div class="name">${escapeHtml(info.dispositivo)}</div><div class="handle">Lo pidió ${hace}</div></div>
     </div>
     <p class="enlace-aviso">Apruébalo <b>solo si esa computadora está frente a ti</b>. Si alguien te pidió este código por llamada o mensaje, no lo apruebes: tendría acceso a tu cuenta.</p>
+    <label class="enlace-recordar">
+      <input type="checkbox" id="conRecordar">
+      <span><b>Es mi computadora: mantener la sesión abierta.</b> Se queda abierta 30 días y, tras 15 minutos sin uso, pide un PIN que crearás en la computadora. No lo marques en computadoras ajenas.</span>
+    </label>
     ${conHuella ? '' : `<div class="field"><label for="conPass">Confirma con tu contraseña</label><input id="conPass" type="password" autocomplete="current-password"></div>`}
     <div class="modal-actions">
       <button class="btn-cancel" id="conRechazar">No, rechazar</button>
@@ -851,10 +929,14 @@ function mostrarAprobarComputadora(codigo, info, { conContrasena = false } = {})
     try { await api('/enlace/rechazar', { method: 'POST', body: { codigo } }); toast('Rechazado. La computadora no entró.'); } catch (e) {}
   };
   const usarPass = document.getElementById('conUsarPass');
-  if (usarPass) usarPass.onclick = () => mostrarAprobarComputadora(codigo, info, { conContrasena: true });
+  if (usarPass) usarPass.onclick = () => {
+    const recordar = document.getElementById('conRecordar').checked;
+    mostrarAprobarComputadora(codigo, info, { conContrasena: true });
+    document.getElementById('conRecordar').checked = recordar;
+  };
   document.getElementById('conAprobar').onclick = () => conBotonOcupado(document.getElementById('conAprobar'), async () => {
     err.textContent = '';
-    const cuerpo = { codigo };
+    const cuerpo = { codigo, recordar: document.getElementById('conRecordar').checked };
     if (conHuella) {
       try {
         const options = await api('/enlace/huella-opciones');
@@ -889,7 +971,7 @@ function cargarSesionesComputadora() {
         <div class="acc-circ">${ICONS.monitor}</div>
         <div class="info">
           <div class="name">${escapeHtml(s.dispositivo || 'Computadora')}${s.esta ? ' <span class="rol-chip">esta</span>' : ''}</div>
-          <div class="handle">Abierta ${fmtDateTimeShort(s.fecha_creacion)} · se cierra sola ${fmtTime(s.vence)}</div>
+          <div class="handle">Abierta ${fmtDateTimeShort(s.fecha_creacion)} · ${s.recordar ? `es tu computadora (con PIN) · hasta el ${fmtDateShort(s.vence)}` : `se cierra sola ${fmtTime(s.vence)}`}</div>
         </div>
         <button class="link-btn" data-cerrarses="${s.id}" data-esta="${s.esta ? 1 : 0}" style="color:var(--red);">Cerrar</button>
       </div>`).join('');
@@ -913,7 +995,7 @@ async function enterApp() {
   document.getElementById('mainScreen').classList.remove('hidden');
   document.getElementById('avatarInitial').textContent = initialOf(AUTH.nombre || AUTH.usuario);
   document.getElementById('userLabel').textContent = AUTH.nombre || AUTH.usuario;
-  lastActivity = Date.now();
+  lastActivity = Date.now(); ultimoLatido = Date.now();
   animarEntrada();
   tipoCuentas = 'cobrar';
   setTabUI('cobrar'); // siempre se empieza en "Por cobrar"
@@ -1093,7 +1175,16 @@ async function cargarDatosIniciales(intento = 0) {
 const IDLE_LIMIT_MS = 15 * 60 * 1000;
 let lastActivity = Date.now();
 let idleInterval = null;
-function markActivity() { lastActivity = Date.now(); }
+// En una computadora recordada, el uso se avisa al servidor (como mucho una vez por minuto) para que
+// no la bloquee mientras se está usando.
+let ultimoLatido = 0;
+function markActivity() {
+  lastActivity = Date.now();
+  if (SESION_RECORDADA && AUTH && lastActivity - ultimoLatido > 60000) {
+    ultimoLatido = lastActivity;
+    api('/enlace/latido', { method: 'POST', silencioso: true }).catch(() => {});
+  }
+}
 ['click', 'touchstart', 'keydown', 'mousemove', 'scroll'].forEach(evt => {
   document.addEventListener(evt, markActivity, { passive: true });
 });
@@ -1107,6 +1198,11 @@ function startIdleWatcher() {
 async function lockSession() {
   if (!AUTH) return;
   clearInterval(idleInterval);
+  if (SESION_RECORDADA) { // "es mi computadora": no se cierra, se bloquea con el PIN
+    api('/enlace/bloquear', { method: 'POST', silencioso: true, sinCandado: true }).catch(() => {});
+    bloquearComputadora('BLOQUEADA');
+    return;
+  }
   // Primero la pantalla (si el teléfono acaba de despertar, la red puede tardar en responder y
   // no queremos dejar la app a medias); luego se avisa al servidor.
   await doLogoutCleanup();
@@ -1125,8 +1221,9 @@ async function logoutManual() {
   try { await api('/auth/logout', { method: 'POST' }); } catch (e) { /* ignorar */ }
   await doLogoutCleanup();
 }
-async function doLogoutCleanup() {
+async function doLogoutCleanup(pantalla) {
   AUTH = null;
+  SESION_RECORDADA = false;
   EMPRESA = null;
   clearTimeout(reintentoCargaT);
   if (ws) { try { ws.close(); } catch (e) {} ws = null; }
@@ -1138,7 +1235,7 @@ async function doLogoutCleanup() {
   document.getElementById('modalRoot').innerHTML = '';
   document.getElementById('mainScreen').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
-  renderLogin();
+  if (pantalla) pantalla(); else renderLogin();
 }
 function esAdminActual() { return !!(AUTH && AUTH.rol === 'admin'); }
 async function checkPendingTiendaBackup() {

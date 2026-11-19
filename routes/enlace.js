@@ -10,13 +10,19 @@
 // Seguridad: el código vence a los 2 minutos y sirve una vez; quien ve el código no puede hacer nada
 // sin el teléfono de la persona (y su huella o contraseña); la sesión de la computadora dura máximo
 // 12 horas y se puede cerrar a distancia desde el perfil (tabla sesiones_enlazadas).
+//
+// "Es mi computadora" (recordar): la sesión dura 30 días aunque se cierre el navegador. Al entrar se
+// crea un PIN de 6 números SOLO para esa sesión (cifrado; no sirve en ningún otro lado). A los 15
+// minutos sin uso el servidor la da por bloqueada (middleware/auth.js) hasta que se escriba el PIN;
+// 5 PIN equivocados la cierran y hay que aprobarla otra vez desde el teléfono.
 // Los códigos pendientes viven en la memoria del proceso (una sola réplica, igual que lib/webauthn).
 const express = require('express');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const QRCode = require('qrcode');
 const { verifyAuthenticationResponse, generateAuthenticationOptions } = require('@simplewebauthn/server');
 const { pool } = require('../db/pool');
-const { requireAuth, setAuthCookie, verifyToken, COOKIE_NAME } = require('../middleware/auth');
+const { requireAuth, requireAuthAunBloqueada, setAuthCookie, verifyToken, COOKIE_NAME } = require('../middleware/auth');
 const { compararContrasena } = require('../lib/passwords');
 const { setChallenge, takeChallenge, getRpAndOrigin } = require('../lib/webauthn');
 const { paramId } = require('../lib/validate');
@@ -26,7 +32,9 @@ const router = express.Router();
 router.param('id', paramId);
 
 const VIGENCIA_MS = 2 * 60 * 1000;      // el código vence a los 2 minutos
-const DURACION_SESION_HORAS = 12;       // la sesión de la computadora dura como máximo 12 horas
+const DURACION_SESION_HORAS = 12;       // la sesión de la computadora dura como máximo 12 horas…
+const DURACION_RECORDADA_DIAS = 30;     // …o 30 días si es "mi computadora" (con PIN)
+const MAX_FALLOS_PIN = 5;
 const MAX_PENDIENTES = 2000;
 
 // codigo -> { secreto, dispositivo, creado, vence, estado: 'esperando'|'aprobado'|'rechazado', usuarioId }
@@ -111,13 +119,18 @@ router.post('/estado', limites.enlaceEstado, async (req, res) => {
   );
   const u = rows[0];
   if (!u || !u.activa || u.sesion_version !== p.sesionVersion) return res.json({ estado: 'vencido' });
+  const recordar = !!p.recordar;
   const { rows: ses } = await pool.query(
-    `INSERT INTO sesiones_enlazadas (usuario_id, dispositivo, vence) VALUES ($1, $2, now() + $3 * interval '1 hour') RETURNING id`,
-    [u.id, p.dispositivo, DURACION_SESION_HORAS]
+    `INSERT INTO sesiones_enlazadas (usuario_id, dispositivo, vence, recordar)
+     VALUES ($1, $2, now() + $3 * interval '1 hour', $4) RETURNING id`,
+    [u.id, p.dispositivo, recordar ? DURACION_RECORDADA_DIAS * 24 : DURACION_SESION_HORAS, recordar]
   );
   const user = { id: u.id, nombre: u.nombre, usuario: u.usuario, empresa_id: u.empresa_id, rol: u.rol, sesion_version: u.sesion_version };
-  setAuthCookie(res, user, { enl: ses[0].id, expiresIn: DURACION_SESION_HORAS + 'h' });
-  await registrarHistorial(u.empresa_id, u.id, 'Inicio de sesión', `Sesión abierta en una computadora (${p.dispositivo}) aprobada desde el teléfono`);
+  setAuthCookie(res, user, { enl: ses[0].id, recordar });
+  await registrarHistorial(u.empresa_id, u.id, 'Inicio de sesión',
+    `Sesión abierta en una computadora (${p.dispositivo}) aprobada desde el teléfono${recordar ? ', marcada como "es mi computadora" (se queda abierta con PIN)' : ''}`);
+  // Si es recordada, la computadora todavía no entra: primero crea su PIN (POST /pin).
+  if (recordar) return res.json({ estado: 'crear_pin', nombre: u.nombre });
   res.json({ estado: 'aprobado', user, empresa: { id: u.empresa_id, nombre: u.empresa_nombre, codigo: u.codigo } });
 });
 
@@ -182,6 +195,7 @@ router.post('/aprobar', requireAuth, limites.enlaceRevisar, async (req, res) => 
   // Se vuelve a revisar: pudo vencer o usarse mientras la persona ponía su huella.
   if (buscar(req.body.codigo) !== p || p.estado !== 'esperando') return res.status(404).json({ error: 'Ese código ya venció. Genera uno nuevo en la computadora.' });
   p.estado = 'aprobado';
+  p.recordar = (req.body || {}).recordar === true;
   p.usuarioId = req.user.id;
   p.sesionVersion = req.user.sv;
   p.vence = Math.max(p.vence, Date.now() + 30 * 1000); // margen para que la computadora lo recoja
@@ -198,7 +212,7 @@ router.post('/rechazar', requireAuth, async (req, res) => {
 router.get('/sesiones', requireAuth, async (req, res) => {
   const payload = verifyToken(req.cookies[COOKIE_NAME]);
   const { rows } = await pool.query(
-    `SELECT id, dispositivo, fecha_creacion, vence FROM sesiones_enlazadas
+    `SELECT id, dispositivo, fecha_creacion, vence, recordar FROM sesiones_enlazadas
      WHERE usuario_id = $1 AND NOT revocada AND vence > now() ORDER BY fecha_creacion DESC`,
     [req.user.id]
   );
@@ -211,6 +225,86 @@ router.delete('/sesiones/:id', requireAuth, async (req, res) => {
     [req.params.id, req.user.id]
   );
   if (rows.length) await registrarHistorial(req.user.empresa_id, req.user.id, 'Cerrar sesión', `Sesión de computadora cerrada a distancia (${rows[0].dispositivo})`);
+  res.json({ ok: true });
+});
+
+// ---------- PIN de "es mi computadora" ----------
+function pinValido(pin) { return typeof pin === 'string' && /^\d{6}$/.test(pin); }
+// PIN fáciles de adivinar: todos iguales (111111) o seguidos (123456, 987654).
+function pinFacil(pin) {
+  if (/^(\d)\1{5}$/.test(pin)) return true;
+  const d = pin.split('').map(Number);
+  const pasos = d.slice(1).map((x, i) => x - d[i]);
+  return pasos.every(x => x === 1) || pasos.every(x => x === -1);
+}
+async function datosEntrada(usuarioId) {
+  const { rows } = await pool.query(
+    `SELECT u.id, u.nombre, u.usuario, u.empresa_id, u.rol, u.sesion_version, e.nombre AS empresa_nombre, e.codigo
+     FROM usuarios u JOIN empresas e ON e.id = u.empresa_id WHERE u.id = $1`, [usuarioId]);
+  const u = rows[0];
+  return {
+    user: { id: u.id, nombre: u.nombre, usuario: u.usuario, empresa_id: u.empresa_id, rol: u.rol, sesion_version: u.sesion_version, recordar: true },
+    empresa: { id: u.empresa_id, nombre: u.empresa_nombre, codigo: u.codigo },
+  };
+}
+function soloRecordada(req, res) {
+  if (!req.user.enl || !req.user.recordar) { res.status(400).json({ error: 'Esta sesión no usa PIN.' }); return false; }
+  return true;
+}
+
+// Crear el PIN (solo una vez, justo después de aprobar la computadora desde el teléfono).
+router.post('/pin', requireAuthAunBloqueada, async (req, res) => {
+  if (!soloRecordada(req, res)) return;
+  if (req.bloqueo !== 'CREAR_PIN') return res.status(400).json({ error: 'Esta computadora ya tiene PIN.' });
+  const { pin } = req.body || {};
+  if (!pinValido(pin)) return res.status(400).json({ error: 'El PIN debe tener 6 números.' });
+  if (pinFacil(pin)) return res.status(400).json({ error: 'Ese PIN es muy fácil de adivinar. Elige otro.' });
+  const hash = await bcrypt.hash(pin, 10);
+  const { rowCount } = await pool.query(
+    'UPDATE sesiones_enlazadas SET pin_hash = $1, pin_fallos = 0, ultima_actividad = now() WHERE id = $2 AND pin_hash IS NULL',
+    [hash, req.user.enl]
+  );
+  if (!rowCount) return res.status(400).json({ error: 'Esta computadora ya tiene PIN.' });
+  res.json(await datosEntrada(req.user.id));
+});
+
+// Desbloquear con el PIN. 5 equivocados seguidos cierran la sesión de esta computadora.
+router.post('/desbloquear', requireAuthAunBloqueada, async (req, res) => {
+  if (!soloRecordada(req, res)) return;
+  if (req.bloqueo === 'CREAR_PIN') return res.status(423).json({ error: 'Crea el PIN de esta computadora para continuar.', codigo: 'CREAR_PIN' });
+  const { pin } = req.body || {};
+  const { rows } = await pool.query('SELECT pin_hash, dispositivo FROM sesiones_enlazadas WHERE id = $1', [req.user.enl]);
+  if (pinValido(pin) && rows[0] && await bcrypt.compare(pin, rows[0].pin_hash)) {
+    await pool.query('UPDATE sesiones_enlazadas SET pin_fallos = 0, ultima_actividad = now() WHERE id = $1', [req.user.enl]);
+    return res.json(await datosEntrada(req.user.id));
+  }
+  const { rows: f } = await pool.query(
+    'UPDATE sesiones_enlazadas SET pin_fallos = pin_fallos + 1 WHERE id = $1 RETURNING pin_fallos', [req.user.enl]);
+  const fallos = f[0] ? f[0].pin_fallos : MAX_FALLOS_PIN;
+  if (fallos >= MAX_FALLOS_PIN) {
+    await pool.query('UPDATE sesiones_enlazadas SET revocada = true WHERE id = $1', [req.user.enl]);
+    await registrarHistorial(req.user.empresa_id, req.user.id, 'Cerrar sesión',
+      `Sesión de computadora cerrada por ${MAX_FALLOS_PIN} PIN equivocados (${rows[0] ? rows[0].dispositivo : 'computadora'})`);
+    return res.status(401).json({ error: `PIN equivocado ${MAX_FALLOS_PIN} veces: se cerró la sesión en esta computadora. Vuelve a entrar con tu teléfono.`, codigo: 'SESION' });
+  }
+  const quedan = MAX_FALLOS_PIN - fallos;
+  res.status(400).json({ error: `PIN equivocado. Te ${quedan === 1 ? 'queda 1 intento' : `quedan ${quedan} intentos`}.` });
+});
+
+// La computadora avisa que la están usando (como mucho una vez por minuto). Las consultas de fondo no
+// cuentan como uso: solo esto mantiene la sesión sin bloquearse.
+router.post('/latido', requireAuth, async (req, res) => {
+  if (req.user.enl && req.user.recordar) {
+    await pool.query('UPDATE sesiones_enlazadas SET ultima_actividad = now() WHERE id = $1', [req.user.enl]);
+  }
+  res.json({ ok: true });
+});
+
+// La computadora se bloqueó sola (15 minutos sin uso en la pantalla): se bloquea también en el servidor.
+router.post('/bloquear', requireAuthAunBloqueada, async (req, res) => {
+  if (req.user.enl && req.user.recordar) {
+    await pool.query("UPDATE sesiones_enlazadas SET ultima_actividad = now() - interval '1 day' WHERE id = $1", [req.user.enl]);
+  }
   res.json({ ok: true });
 });
 

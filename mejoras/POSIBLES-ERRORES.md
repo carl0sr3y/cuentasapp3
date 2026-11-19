@@ -141,13 +141,9 @@ computadora** (o escanear el QR), y aprobar con huella o contraseña.
 | "Demasiados intentos. Espera unos minutos." | Sí | 15 intentos fallidos (código o contraseña equivocados) en 15 minutos por usuario. |
 | El QR abre el navegador del teléfono en vez de la app instalada | Depende del teléfono | En el navegador hay que tener la sesión iniciada. Escribir los 8 números dentro de la app siempre funciona. |
 | No sale el botón "Entrar con mi teléfono" | Sí en teléfonos, tabletas y ventanas angostas | Solo aparece con ratón/trackpad y una pantalla de al menos 900 px de ancho. |
-
-### Pistas técnicas (para revisar el código)
-
-- Servidor: `routes/enlace.js` (`/api/enlace/solicitar`, `estado`, `revisar`, `huella-opciones`, `aprobar`,
-  `rechazar`, `sesiones`). La computadora recibe un `secreto` que solo ella conoce y que se necesita para
-  recoger la sesión. Tabla `sesiones_enlazadas` (el token lleva `enl`); `sesionVigente` la revisa.
-- Límites: `enlaceSolicitar`, `enlaceEstado`, `enlaceRevisar` en `lib/rateLimits.js`.
-- App: `renderEntrarConTelefono` (computadora), `openConectarComputadoraModal` /
-  `mostrarAprobarComputadora` / `cargarSesionesComputadora` (teléfono). El QR abre `/#conectar=12345678`.
-- Prueba local: `bash pruebas/correr.sh telefono-compu`.
+| La computadora pide **crear un PIN** después de aprobarla | Sí, si marcaste "Es mi computadora" | Se crea una sola vez. Si no se crea en 10 minutos, esa aprobación ya no sirve y hay que pedir otro código. |
+| "Ese PIN es muy fácil de adivinar" | Sí | No se aceptan seis números iguales (111111) ni seguidos (123456, 987654). |
+| La computadora pide el PIN aunque nadie la tocó | Sí | Pasaron 15 minutos sin usarla (mover el ratón o escribir cuenta como uso). La sesión sigue abierta: solo está bloqueada. |
+| "PIN equivocado 5 veces: se cerró la sesión…" | Sí | Protección contra quien intente adivinarlo. Volver a entrar con el teléfono y crear un PIN nuevo. |
+| Se me olvidó el PIN | Sí | En el candado, **"Olvidé mi PIN"**: cierra esa sesión y muestra el código para aprobarla otra vez desde el teléfono. |
+| La computadora "recordada" pide otra vez el código del teléfono | Sí, a los 30 días | También pasa si se cerró desde el perfil del teléfono, si cambiaste tu contraseña desde otro dispositivo o si borraste los datos del navegador. |
