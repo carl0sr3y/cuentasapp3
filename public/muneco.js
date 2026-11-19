@@ -11,7 +11,13 @@
   var CLAVE = 'kaab_muneco';
   function preferencia() { try { return localStorage.getItem(CLAVE) !== 'no'; } catch (e) { return true; } }
   function setPreferencia(v) { try { localStorage.setItem(CLAVE, v ? 'si' : 'no'); } catch (e) {} revisarPronto(); }
-  window.KaabMuneco = { activo: preferencia, setActivo: setPreferencia };
+  // celebrar(): se pide al registrar un abono. Como el muñequito solo se ve en la lista de cuentas, el
+  // festejo queda pendiente un minuto y lo hace en cuanto vuelve a verse (o de inmediato si ya se ve).
+  var fiesta = 0;
+  function celebrar() { fiesta = Date.now(); }
+  window.KaabMuneco = { activo: preferencia, setActivo: setPreferencia, celebrar: celebrar };
+  // De noche (9 p. m. a 6 a. m., hora del teléfono) casi siempre está dormido.
+  function esDeNoche() { var h = new Date().getHours(); return h >= 21 || h < 6; }
 
   var ANCHO = 28, ALTO = 36;
   var SVG =
@@ -36,7 +42,11 @@
         '<circle class="m-cabeza" cx="14" cy="10.5" r="6.5"/>' +
         '<circle cx="12" cy="10" r="1" fill="#1B2132"/><circle cx="16.5" cy="10" r="1" fill="#1B2132"/>' +
         '<path d="M12.3 13 Q14.2 14.6 16.2 13" stroke="#1B2132" stroke-width="1" fill="none" stroke-linecap="round"/>' +
+        // ojitos cerrados (solo cuando duerme)
+        '<g class="m-dormido"><circle cx="14" cy="10.5" r="5.4" fill="#FFD58A"/>' +
+          '<path d="M10.8 10.2 Q12 11.3 13.2 10.2 M15.3 10.2 Q16.5 11.3 17.7 10.2" stroke="#1B2132" stroke-width="1" fill="none" stroke-linecap="round"/></g>' +
       '</g>' +
+      '<text class="m-z" x="22" y="6">z</text><text class="m-z m-z2" x="25" y="1">z</text>' +
     '</svg>';
 
   var capa, el, cuerda, lazo, iniciado = false;
@@ -131,6 +141,7 @@
   }
 
   function siguiente() {
+    if (esDeNoche() && Math.random() < 0.85) { nuevo('quieto', { dur: azar(6000, 12000), clase: 'duerme' }); return; }
     var actual = punto(s.id, s.f);
     var vis = tarjetasVisibles().filter(function (c) { return c.id !== s.id; });
     var arriba = actual ? vis.filter(function (c) { return c.r.top < actual.r.top; }) : [];
@@ -177,7 +188,18 @@
     if (!actual || (!visible(actual.r) && s.modo !== 'trepa' && s.modo !== 'salta') ||
         (esPrimera(s.id) && s.modo !== 'trepa' && s.modo !== 'salta')) { aparecer(); return; }
 
-    if (s.modo === 'cae') {
+    // Festejo pendiente (abono registrado): en cuanto está parado sobre su tarjeta, da saltitos.
+    if (fiesta && (s.modo === 'quieto' || s.modo === 'camina')) {
+      var vigente = Date.now() - fiesta < 60000;
+      fiesta = 0;
+      if (vigente) { nuevo('festeja', { dur: 1400, clase: 'festeja' }); }
+    }
+
+    if (s.modo === 'festeja') {
+      // Tres saltitos en su lugar con los brazos arriba.
+      dibujar(actual.x, actual.y - Math.abs(Math.sin(Math.PI * 3 * p)) * 16);
+      if (p >= 1) nuevo('quieto', { dur: 900, clase: 'saluda' });
+    } else if (s.modo === 'cae') {
       var dest = punto(s.id, s.f);
       var y = s.desdeY + (dest.y - s.desdeY) * (p * p); // cae acelerando
       dibujar(dest.x, y);

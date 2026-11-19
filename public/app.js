@@ -372,9 +372,12 @@ const saldosMostrados = new Map();
 function animarSaldos(root = document) {
   root.querySelectorAll('.balance-amount[data-saldo], .total-monto[data-saldo]').forEach(el => {
     const clave = el.dataset.clave, nuevo = Number(el.dataset.saldo);
-    const previo = saldosMostrados.has(clave) ? saldosMostrados.get(clave) : 0;
+    const conocido = saldosMostrados.has(clave);
+    const previo = conocido ? saldosMostrados.get(clave) : 0;
     saldosMostrados.set(clave, nuevo);
     if (!animOn() || previo === nuevo || !isFinite(nuevo)) return;
+    // Si el monto cambió (no es la primera vez que se muestra), destella un instante con su color.
+    if (conocido) { el.classList.remove('destella'); void el.offsetWidth; el.classList.add('destella'); }
     const inicio = performance.now(), dur = 650;
     const paso = (t) => {
       const k = Math.min(1, (t - inicio) / dur), suav = 1 - Math.pow(1 - k, 3);
@@ -391,6 +394,35 @@ function resaltar(selector) {
   const el = document.querySelector(selector);
   if (el) { el.classList.remove('nuevo'); void el.offsetWidth; el.classList.add('nuevo'); }
 }
+// Vibración muy corta al guardar o eliminar (solo Android; el iPhone la ignora). Sigue el ajuste de animaciones.
+function vibrar(ms = 12) {
+  if (!animOn()) return;
+  try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* sin vibración: no pasa nada */ }
+}
+// Palomita al guardar: el botón Guardar se vuelve un círculo con una ✓ que se dibuja, y después se cierra
+// la ventana. Lo ya guardado no depende de esto: solo es una pausa corta antes de cerrar.
+function exitoEnBoton(boton) {
+  vibrar();
+  if (!animOn() || !boton || !boton.isConnected) return Promise.resolve();
+  boton.classList.add('exito');
+  boton.setAttribute('aria-label', 'Guardado');
+  boton.innerHTML = '<svg class="palomita" viewBox="0 0 24 24" aria-hidden="true"><polyline points="5 12.5 10 17.5 19 7"/></svg>';
+  return new Promise(r => setTimeout(r, 480));
+}
+// La tarjeta de una cuenta "crece" hasta ser su pantalla de detalle (y al volver se encoge a su lugar).
+// Usa las transiciones de vista del navegador; donde no existen, se usa la animación de siempre.
+function transicionVistaDisponible() { return animOn() && typeof document.startViewTransition === 'function'; }
+function transicionVista(cambio) {
+  try {
+    const t = document.startViewTransition(() => { try { cambio(); } catch (e) { console.error(e); } });
+    t.finished.catch(() => {}); t.ready.catch(() => {}); t.updateCallbackDone.catch(() => {});
+    return t;
+  } catch (e) { cambio(); return null; }
+}
+function limpiarNombresTransicion() {
+  document.querySelectorAll('.vt-cuenta').forEach(e => { e.style.viewTransitionName = ''; e.classList.remove('vt-cuenta'); });
+}
+function marcarTransicion(el) { if (el) { el.style.viewTransitionName = 'cuenta-abierta'; el.classList.add('vt-cuenta'); } }
 
 /* ============================================================
    ESTADO
@@ -790,13 +822,23 @@ async function conBotonOcupado(boton, tarea) {
   const texto = boton.textContent;
   boton.disabled = true; boton.textContent = 'Guardando…';
   try { await tarea(); }
-  finally { if (boton.isConnected) { boton.disabled = false; boton.textContent = texto; } }
+  finally {
+    // Si se guardó, el botón ya muestra la palomita mientras la ventana se cierra: se deja así.
+    if (boton.isConnected && !boton.classList.contains('exito')) { boton.disabled = false; boton.textContent = texto; }
+  }
 }
 function conLimite(promesa, ms) { return Promise.race([promesa, new Promise((_, no) => setTimeout(() => no(new Error('tiempo')), ms))]); }
+// Mientras llegan los datos: tarjetas grises con la forma de la lista (con un brillo que pasa).
+function esqueletoCargaHtml() {
+  const fila = (i) => `<div class="esq-fila"><span class="esq esq-circ"></span><span class="esq-txt"><span class="esq esq-linea" style="width:${[62, 48, 70, 55, 66, 44][i]}%"></span><span class="esq esq-linea corta"></span></span></div>`;
+  return `<div class="esqueleto" role="status" aria-label="Cargando…"><span class="sr-only">Cargando…</span>
+    <div class="esq-cabeza"><span class="esq-txt"><span class="esq esq-linea corta"></span><span class="esq esq-monto"></span></span><span class="esq esq-boton"></span></div>
+    ${[0, 1, 2, 3, 4, 5].map(fila).join('')}</div>`;
+}
 function mostrarCargando(error) {
   const html = error
     ? `<div class="empty-state carga-estado">${ICONS.inbox}<p>No se pudieron cargar tus datos.<br>Reintentando…</p><button class="btn-secondary" id="btnReintentarCarga" type="button">Reintentar ahora</button></div>`
-    : `<div class="empty-state carga-estado"><p>Cargando…</p></div>`;
+    : esqueletoCargaHtml();
   document.getElementById('deudasView').innerHTML = html;
   document.getElementById('tiendaView').innerHTML = html.replace('id="btnReintentarCarga"', 'id="btnReintentarCarga2"');
   ['btnReintentarCarga', 'btnReintentarCarga2'].forEach(id => { const b = document.getElementById(id); if (b) b.onclick = () => cargarDatosIniciales(); });
@@ -1020,6 +1062,31 @@ function reiniciarBusqueda() {
 }
 document.getElementById('avatarBtn').addEventListener('click', openAccountSettingsPage);
 
+// Fondo de color de la pestaña elegida: se desliza de una pestaña a otra (solo se mueve, no se redibuja).
+const indicadorPestana = (() => {
+  const barra = document.querySelector('.tabbar');
+  if (!barra) return null;
+  const ind = document.createElement('span');
+  ind.className = 'tab-indicador';
+  ind.setAttribute('aria-hidden', 'true');
+  barra.prepend(ind);
+  barra.classList.add('con-indicador');
+  // Si el menú cambia de tamaño (girar el teléfono, o reaparece tras una búsqueda) se recoloca.
+  if (typeof ResizeObserver === 'function') new ResizeObserver(() => moverIndicadorPestana(true)).observe(barra);
+  return ind;
+})();
+function moverIndicadorPestana(sinAnimar) {
+  const ind = indicadorPestana;
+  if (!ind) return;
+  const btn = document.querySelector(`.tab-btn[data-tab="${currentTab}"]`);
+  if (!btn || !btn.offsetWidth) return; // menú oculto: se recoloca cuando vuelva a verse
+  if (sinAnimar) ind.classList.add('sin-animar');
+  ind.dataset.tab = currentTab;
+  ind.style.width = btn.offsetWidth + 'px';
+  ind.style.transform = `translateX(${btn.offsetLeft}px)`;
+  if (sinAnimar) { void ind.offsetWidth; ind.classList.remove('sin-animar'); }
+  ind.classList.add('listo');
+}
 function setTabUI(tab) {
   const anterior = currentTab;
   currentTab = tab;
@@ -1034,6 +1101,7 @@ function setTabUI(tab) {
   // "Por cobrar" y "Por pagar" comparten la misma vista: al cambiar de tipo se vuelve a dibujar.
   if (esTabCuentas(tab) && tipoCuentas !== tab) { tipoCuentas = tab; if (AUTH) renderDeudas(); }
   else if (esTabCuentas(tab)) ajustarMontosResumen();
+  moverIndicadorPestana();
   if (anterior !== tab && animOn()) {
     const vista = document.getElementById(tab === 'tienda' ? 'tiendaView' : 'deudasView');
     vista.classList.remove('entra-der', 'entra-izq');
@@ -1111,6 +1179,25 @@ window.addEventListener('popstate', (e) => {
 });
 async function applyHistoryState(state) {
   state = state || { view: 'cobrar' };
+  // Volver de una cuenta a la lista: su pantalla se encoge hasta la tarjeta de la cuenta.
+  const pagina = document.getElementById('detailPage');
+  const idCuenta = currentAccountDetail && currentAccountDetail.id;
+  const aPestana = !['accountDetail', 'historial', 'users', 'invoice'].includes(state.view);
+  if (aPestana && pagina && idCuenta != null && !document.querySelector('#modalRoot .modal-overlay') && transicionVistaDisponible()) {
+    limpiarNombresTransicion();
+    marcarTransicion(pagina);
+    const t = transicionVista(() => {
+      limpiarNombresTransicion();
+      aplicarEstadoHistorial(state); // para una pestaña todo es inmediato (no espera al servidor)
+      marcarTransicion(document.querySelector(`#accountListWrap .account-card[data-id="${idCuenta}"]`));
+    });
+    if (t) t.finished.finally(limpiarNombresTransicion).catch(() => {});
+    else limpiarNombresTransicion();
+    return;
+  }
+  await aplicarEstadoHistorial(state);
+}
+async function aplicarEstadoHistorial(state) {
   formularioActivo = null;
   document.getElementById('pageRoot').innerHTML = '';
   document.getElementById('modalRoot').innerHTML = '';
@@ -1204,7 +1291,7 @@ function bindAccountCardEvents(el) {
     const id = card.dataset.id;
     card.addEventListener('click', (e) => {
       if (e.target.closest('[data-check]')) return;
-      if (selectMode) toggleSelect(id); else openAccountDetail(id);
+      if (selectMode) toggleSelect(id); else openAccountDetail(id, { desde: card });
     });
   });
   el.querySelectorAll('[data-check]').forEach(b => {
@@ -1242,7 +1329,7 @@ function renderSelectBar() {
           CUENTAS = CUENTAS.filter(c => !selectedIds.has(String(c.id)));
           selectMode = false; selectedIds.clear();
           renderDeudas();
-          toast('Cuentas eliminadas');
+          toast('Cuentas eliminadas'); vibrar();
         } catch (e) { toast('No se pudieron eliminar las cuentas'); }
       });
   };
@@ -1273,6 +1360,7 @@ function openCreateAccountModal(prellenado = null) {
       const cuenta = await api('/cuentas', { method: 'POST', estado, body: { nombre, tipo: tipoCuentas, clave: claveUsada } });
       quitarEnDuda(claveUsada); if (prellenado) quitarEnDuda(prellenado.notaClave);
       if (!CUENTAS.some(c => c.id === cuenta.id)) CUENTAS.push({ ...cuenta, ultima_actividad: cuenta.fecha_creacion });
+      await exitoEnBoton(botonC);
       closeModal(); renderDeudas(); toast('Cuenta creada');
       // Se entra directo a la cuenta nueva, lista para registrar su primer movimiento.
       openAccountDetail(cuenta.id);
@@ -1294,8 +1382,22 @@ function openCreateAccountModal(prellenado = null) {
 async function openAccountDetail(id, opts = {}) {
   try {
     currentAccountDetail = await api(`/cuentas/${id}`);
-    animarEntrada();
-    renderAccountDetailPage();
+    const tarjetaOrigen = opts.desde;
+    if (tarjetaOrigen && tarjetaOrigen.isConnected && !document.getElementById('detailPage') && transicionVistaDisponible()) {
+      // La tarjeta tocada crece hasta ser la pantalla de la cuenta.
+      limpiarNombresTransicion();
+      marcarTransicion(tarjetaOrigen);
+      const t = transicionVista(() => {
+        limpiarNombresTransicion();
+        renderAccountDetailPage();
+        marcarTransicion(document.getElementById('detailPage'));
+      });
+      if (t) t.finished.finally(limpiarNombresTransicion).catch(() => {});
+      else limpiarNombresTransicion();
+    } else {
+      animarEntrada();
+      renderAccountDetailPage();
+    }
     if (!opts.fromHistory) history.pushState({ view: 'accountDetail', id: String(id) }, '', location.href);
   } catch (e) { toast('No se pudo abrir la cuenta'); }
 }
@@ -1509,6 +1611,8 @@ function openMovModal(tipo, cuentaId, prellenado = null) {
       currentAccountDetail.balance = balance;
       const listItem = CUENTAS.find(c => c.id === cuentaId || String(c.id) === String(cuentaId));
       if (listItem) { listItem.balance = balance; listItem.ultima_actividad = movimiento.fecha; }
+      await exitoEnBoton(boton);
+      if (isAbono && window.KaabMuneco && window.KaabMuneco.celebrar) window.KaabMuneco.celebrar();
       closeModal();
       renderAccountDetailPage();
       renderDeudas();
@@ -1533,7 +1637,7 @@ function confirmDeleteMovCuenta(cuentaId, movId) {
       CUENTAS = await api('/cuentas'); // saldo y última actividad recalculados
       renderAccountDetailPage();
       renderDeudas();
-      toast('Movimiento eliminado');
+      toast('Movimiento eliminado'); vibrar();
     } catch (e) { toast('No se pudo eliminar el movimiento'); }
   });
 }
@@ -1879,6 +1983,7 @@ function openTiendaMovModal(tipo, prellenado = null) {
       const { movimiento, balance, repetido } = await api('/tienda', { method: 'POST', estado, body: { tipo, descripcion, monto, foto: fotoDataUrl, clave: claveUsada } });
       quitarEnDuda(claveUsada); if (prellenado) quitarEnDuda(prellenado.notaClave);
       agregarMovTiendaLocal(movimiento, balance); // antes se volvía a descargar todo el mes en cada guardado
+      await exitoEnBoton(botonT);
       closeModal(); renderTienda();
       resaltar(`#tiendaView [data-mov="${movimiento.id}"]`);
       if (repetido) avisoLargo('Ya estaba guardado: la conexión se cortó antes de confirmarlo. No se duplicó.');
@@ -1901,7 +2006,7 @@ function confirmDeleteMovTienda(movId) {
       await api(`/tienda/${movId}`, { method: 'DELETE' });
       TIENDA = await api('/tienda');
       renderTienda();
-      toast('Movimiento eliminado');
+      toast('Movimiento eliminado'); vibrar();
     } catch (e) {
       toast(typeof e === 'string' && e !== 'Error de red' ? e : 'No se pudo eliminar el movimiento');
       if (typeof e === 'string' && /ya no se puede|ya no existe/.test(e)) refrescarTiendaPronto();

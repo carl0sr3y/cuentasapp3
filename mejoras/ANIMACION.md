@@ -9,11 +9,16 @@ si están desactivadas, o el teléfono es de bajos recursos, no se mostrarían.
 
 | # | Mejora | Estado |
 |---|--------|--------|
-| 1 | Confirmación visual al guardar | [ ] Por evaluar |
-| 2 | Pantallas de carga con la forma del contenido | [ ] Por evaluar |
-| 3 | Indicador que se desliza en el menú de pestañas | [ ] Por evaluar |
-| 4 | Más acciones del muñequito | [ ] Por evaluar |
-| 5 | Vibración corta al guardar | [ ] Por evaluar |
+| 1 | Confirmación visual al guardar | [x] Hecho (palomita ✓ en el botón) |
+| 2 | Pantallas de carga con la forma del contenido | [x] Hecho |
+| 3 | Indicador que se desliza en el menú de pestañas | [x] Hecho |
+| 4 | Más acciones del muñequito | [x] Festeja abonos y duerme de noche (tocarlo para que salude: no, para no estorbar) |
+| 5 | Vibración corta al guardar | [x] Hecho (al guardar y al eliminar; solo Android) |
+| 6 | La tarjeta de la cuenta crece hasta su pantalla | [x] Hecho (navegadores recientes; en los demás, la animación de antes) |
+| 7 | Montos que destellan al cambiar | [x] Hecho |
+
+Hechas el 18/11/2026 (ver el commit "Animaciones avanzadas"). Qué puede notarse y qué es normal:
+[Posibles errores](POSIBLES-ERRORES.md#animaciones-avanzadas).
 
 ---
 

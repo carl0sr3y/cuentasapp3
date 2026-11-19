@@ -48,3 +48,38 @@ y [Rendimiento #1](RENDIMIENTO.md) (respaldos por partes).
 - Tablas: `backups_tienda` (columnas `mes`, `desactualizado`, `en_partes`, `version`) y
   `backups_tienda_movs` (un movimiento por fila).
 - Pruebas: `bash pruebas/correr.sh tienda-plazos respaldo-partes`.
+
+---
+
+## Animaciones avanzadas
+
+Cambio del 18/11/2026: [Animación](ANIMACION.md) #1 a #7. Son solo de la pantalla del teléfono: no tocan el
+servidor ni los datos, así que **no dejan mensajes en los Logs**. Si algo se ve raro, se puede apagar todo
+en Perfil → Apariencia → Animaciones, y la app funciona igual.
+
+### Cosas que puedes notar en la app (y si son normales)
+
+| Lo que ves | ¿Es normal? | Explicación |
+|---|---|---|
+| En un iPhone o teléfono viejo la cuenta no "crece", se desliza como antes | Sí | Esa animación necesita un navegador reciente (Chrome 111+ o iPhone con iOS 18+). En los demás queda la de siempre. |
+| El teléfono no vibra al guardar | Sí, en iPhone | El iPhone no permite vibrar desde una página web. En Android sí vibra (si las animaciones están activas). |
+| Nada se anima, ni la palomita | Sí, si el teléfono es modesto | Con "Automático", la app apaga las animaciones en teléfonos con poca memoria o si el teléfono tiene "reducir movimiento". Se pueden forzar en Perfil → Apariencia. |
+| El muñequito está dormido | Sí, de 9 p. m. a 6 a. m. | Usa la hora del teléfono. |
+| El muñequito no festejó un abono | Normal a veces | Solo se ve en la lista de cuentas: festeja al volver a la lista si es dentro del minuto siguiente al abono. |
+| La ventana tarda medio segundo más en cerrarse al guardar | Sí | Es la palomita ✓. El registro ya está guardado en ese momento; la pausa es solo visual. |
+| El color de la pestaña elegida queda fuera de su lugar | **No** | Avísame con una captura y el modelo del teléfono. Mientras, girar el teléfono o cambiar de pestaña lo recoloca. |
+| Al abrir o cerrar una cuenta la pantalla se queda "congelada" un momento | **No** | Avísame con el modelo del teléfono. Mientras, apagar las animaciones en el perfil lo evita. |
+
+### Pistas técnicas (para revisar el código)
+
+- `exitoEnBoton` (app.js): palomita y pausa de 480 ms antes de `closeModal`; `conBotonOcupado` no
+  restaura el texto si el botón tiene `.exito`.
+- `transicionVista` / `marcarTransicion` / `limpiarNombresTransicion`: View Transitions con el nombre
+  `cuenta-abierta` (la tarjeta ↔ `#detailPage`). Al volver, `applyHistoryState` la usa solo si va a una
+  pestaña y no hay ventana abierta; si no, `aplicarEstadoHistorial` normal.
+- `moverIndicadorPestana`: `.tab-indicador` con `transform`; un `ResizeObserver` lo recoloca.
+- `esqueletoCargaHtml`: pantalla de carga; el brillo es un `::after` que solo se traslada.
+- `animarSaldos`: clase `.destella` cuando un monto ya mostrado cambia.
+- muneco.js: `KaabMuneco.celebrar()` (modo `festeja`) y `esDeNoche()` (clase `duerme`).
+- Prueba local: `bash pruebas/correr.sh animaciones`.
+

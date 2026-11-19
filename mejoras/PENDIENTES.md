@@ -11,7 +11,7 @@ sin decidirlo antes. Al terminar una mejora, se marca con `[x]` en su archivo y 
 | [Seguridad](SEGURIDAD.md) | Lo que quedó pendiente de la auditoría y nuevas protecciones | 🔴 Activar la protección CSP y probarla en iPhone |
 | [Simplificar](SIMPLIFICAR.md) | Ordenar el código para que sea más fácil y seguro de cambiar | Quitar código sin uso · rehacer pruebas perdidas |
 | [Movimientos tienda](TIENDA.md) | Ideas para mejorar la pestaña de tienda | Ver los meses anteriores dentro de la app |
-| [Animación](ANIMACION.md) | Ideas para que la app se sienta más viva | Confirmación visual al guardar |
+| [Animación](ANIMACION.md) | Ideas para que la app se sienta más viva | ✅ Todas hechas (18/11/2026) |
 
 ## Si algo falla
 
