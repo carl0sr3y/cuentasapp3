@@ -174,3 +174,25 @@ computadora) abren la cámara dentro de la app, sin salir de ella.
 - App: `openConectarComputadoraModal` (`codigoDeQR`), `openTiendaMovModal` (`procesarFoto`). "Atrás" con la
   cámara abierta solo cierra la cámara (`popstate`).
 - Prueba local: `bash pruebas/correr.sh camara` (usa un video falso con un QR como cámara).
+
+## Perfil ordenado como los Ajustes del teléfono
+
+Cambio del 19/11/2026. El Perfil ahora es una lista corta por grupos (Tu cuenta, Tu empresa, Este
+teléfono) y cada cosa abre su propia pantalla: Usuarios, Apariencia, Huella / Face ID y Usar en una
+computadora. Las acciones de cada usuario (cambiar nombre, contraseña, correo, eliminar) salen al tocarlo.
+
+### Cosas que puedes notar en la app (y si son normales)
+
+| Lo que ves | ¿Es normal? | Explicación |
+|---|---|---|
+| "Atrás" desde Usuarios, Apariencia, Huella o Computadora regresa al Perfil (no a las cuentas) | Sí | Hay que tocar "atrás" otra vez para volver a las cuentas. |
+| Un usuario normal ve "Nombre" y "Correo" sin flechita | Sí | Solo los administradores pueden cambiarlos; abajo sale el aviso. |
+| En "Usuarios", el admin principal sale sin flechita | Sí | A quien creó la empresa no se le puede cambiar nada desde ahí. |
+| "Usar en una computadora" no dice cuántas hay abiertas | Sí, si no hay ninguna o no hay conexión | El número sale solo cuando hay computadoras con la sesión abierta. |
+| "Huella / Face ID" dice "No" aunque la registraste en otro teléfono | Sí | Se refiere solo a este teléfono. |
+
+### Pistas técnicas (para revisar el código)
+
+- `public/app.js`: `openAccountSettingsPage`, `renderUsersPage` (según `perfilSub`), `abrirSubPerfil`,
+  `filaPerfil`, `abrirAccionesUsuario`. Historial: `{ view: 'users', sub }`. Estilos `.perfil-*` en `public/styles.css`.
+- Prueba local: `bash pruebas/correr.sh perfil-botones`.

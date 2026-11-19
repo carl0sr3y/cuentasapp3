@@ -25,6 +25,13 @@ const ICONS = {
   phone: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg>`,
   monitor: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
   receipt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h16v20l-3-2-3 2-3-2-3 2-3-2-1 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>`,
+  user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`,
+  mail: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>`,
+  users: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  palette: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="16" cy="10" r="1.2"/><path d="M12 21a2.5 2.5 0 0 1 0-5h2a3 3 0 0 0 3-3"/></svg>`,
+  logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>`,
+  store: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/></svg>`,
 };
 
 /* ============================================================
@@ -1030,6 +1037,7 @@ async function enterApp() {
   lastActivity = Date.now(); ultimoLatido = Date.now();
   animarEntrada();
   tipoCuentas = 'cobrar';
+  perfilDatos = null; // datos del perfil de una sesión anterior
   setTabUI('cobrar'); // siempre se empieza en "Por cobrar"
   history.replaceState({ view: 'cobrar' }, '', location.href);
   mostrarCargando();
@@ -1415,7 +1423,7 @@ function reiniciarBusqueda() {
   buscador.placeholder = currentTab === 'tienda' ? 'Buscar movimiento…' : 'Buscar cuenta…';
   if (habia) { renderAccountsListOnly(); renderTiendaListOnly(); }
 }
-document.getElementById('avatarBtn').addEventListener('click', openAccountSettingsPage);
+document.getElementById('avatarBtn').addEventListener('click', () => openAccountSettingsPage());
 
 // Fondo de color de la pestaña elegida: se desliza de una pestaña a otra (solo se mueve, no se redibuja).
 const indicadorPestana = (() => {
@@ -1568,7 +1576,7 @@ async function aplicarEstadoHistorial(state) {
   } else if (state.view === 'historial') {
     await openHistorialPage({ fromHistory: true });
   } else if (state.view === 'users') {
-    await openAccountSettingsPage({ fromHistory: true });
+    await openAccountSettingsPage({ fromHistory: true, sub: state.sub });
   } else if (state.view === 'invoice') {
     openInvoicePage({ fromHistory: true });
   } else if (state.view === 'tienda' || state.view === 'pagar') {
@@ -2575,7 +2583,19 @@ function backupRowHtml(b, scope) {
 /* ============================================================
    CUENTA Y USUARIOS (avatar)
    ============================================================ */
+// Perfil estilo "Ajustes del teléfono": una lista corta por grupos y cada cosa abre su propia pantalla
+// (Usuarios, Apariencia, Huella, Computadora). La pantalla abierta se guarda en el historial
+// ({ view: 'users', sub }) para que "atrás" regrese al Perfil.
+let perfilSub = '';     // '' = Perfil; 'usuarios' | 'apariencia' | 'huella' | 'compu'
+let perfilDatos = null; // { me, usuarios }: para redibujar al volver sin esperar al servidor
+const TITULOS_PERFIL = { '': 'Perfil', usuarios: 'Usuarios', apariencia: 'Apariencia', huella: 'Huella / Face ID', compu: 'Usar en una computadora' };
 async function openAccountSettingsPage(opts = {}) {
+  perfilSub = (opts && opts.sub) || '';
+  if (opts.fromHistory && perfilDatos) { // volver con "atrás": se dibuja ya y se actualiza por detrás
+    renderUsersPage(perfilDatos.me, perfilDatos.usuarios);
+    renderUsersPage();
+    return;
+  }
   let me = null, usuarios = null;
   try {
     const meResp = await api('/usuarios/me');
@@ -2589,153 +2609,204 @@ async function openAccountSettingsPage(opts = {}) {
   renderUsersPage(me, usuarios);
   if (!opts.fromHistory) history.pushState({ view: 'users' }, '', location.href);
 }
+function abrirSubPerfil(sub) {
+  perfilSub = sub;
+  animarEntrada();
+  renderUsersPage(perfilDatos.me, perfilDatos.usuarios);
+  history.pushState({ view: 'users', sub }, '', location.href);
+}
+// Una fila de la lista. Con "id" es un botón (lleva flechita); sin "id" solo muestra información.
+function filaPerfil({ id = '', ico, color = 'az', titulo, sub = '', valor = '', valorId = '', rojo = false, chev = true, extra = '' }) {
+  const tag = id ? 'button' : 'div';
+  return `<${tag} class="perfil-fila${rojo ? ' rojo' : ''}"${id ? ` id="${id}" type="button"` : ''}${extra}>
+    <span class="perfil-ico ${rojo ? 'ro' : color}">${ICONS[ico]}</span>
+    <span class="perfil-tx"><b>${titulo}</b>${sub ? `<small>${sub}</small>` : ''}</span>
+    ${valor || valorId ? `<span class="perfil-val"${valorId ? ` id="${valorId}"` : ''}>${valor}</span>` : ''}
+    ${id && chev ? '<span class="perfil-chev">›</span>' : ''}
+  </${tag}>`;
+}
+const etiquetaRol = u => u.es_principal ? 'admin principal' : (u.rol === 'admin' ? 'admin' : 'usuario');
+const claseRol = u => u.es_principal ? 'principal' : (u.rol === 'admin' ? '' : 'usuario');
+const accesoDe = u => EMPRESA ? idAcceso(u.usuario, EMPRESA.codigo) : u.usuario;
 function renderUsersPage(meParam, usuariosParam) {
   const root = document.getElementById('pageRoot');
   const render = (me, usuarios) => {
+    perfilDatos = { me, usuarios };
     const esAdmin = me.rol === 'admin';
-    const otros = (usuarios || []).filter(u => u.id !== me.id);
-    const etiquetaRol = u => u.es_principal ? 'admin principal' : (u.rol === 'admin' ? 'admin' : 'usuario');
-    const claseRol = u => u.es_principal ? 'principal' : (u.rol === 'admin' ? '' : 'usuario');
-    root.innerHTML = `
-      <div class="page-slide" id="usersPage">
-        <div class="page-header">
-          <button class="back-btn" id="usersBack">${ICONS.back}</button>
-          <h2>Cuenta y usuarios</h2>
+    const sub = perfilSub;
+    let cuerpo = '';
+    if (sub === 'usuarios' && esAdmin) {
+      const lista = [me, ...(usuarios || []).filter(u => u.id !== me.id)];
+      cuerpo = `
+        <div class="perfil-grupo">
+          ${lista.map(u => {
+            const propio = u.id === me.id;
+            const tocable = !propio && !u.es_principal;
+            const tag = tocable ? 'button' : 'div';
+            return `<${tag} class="perfil-fila"${tocable ? ` type="button" data-usuario="${u.id}"` : ''}>
+              <span class="perfil-av">${escapeHtml(initialOf(u.nombre))}</span>
+              <span class="perfil-tx"><b>${escapeHtml(u.nombre)} <span class="rol-chip ${claseRol(u)}">${etiquetaRol(u)}</span></b>
+                <small>${escapeHtml(accesoDe(u))} · ${propio ? 'tú' : u.es_principal ? 'no se puede modificar' : (u.email ? escapeHtml(u.email) : 'sin correo')}</small></span>
+              ${tocable ? '<span class="perfil-chev">›</span>' : ''}
+            </${tag}>`;
+          }).join('')}
         </div>
-        <div class="detail-body">
-          ${EMPRESA ? `<p class="desc" style="margin:0 0 16px;">${escapeHtml(EMPRESA.nombre)} · código de empresa: <b style="color:var(--text);font-family:var(--mono);">${escapeHtml(EMPRESA.codigo)}</b></p>` : ''}
-          <div class="section-title">Tu cuenta</div>
-          <div class="user-card" style="flex-direction:column;align-items:stretch;">
-            <div style="display:flex;align-items:center;gap:12px;">
-              <div class="acc-circ">${escapeHtml(initialOf(me.nombre))}</div>
-              <div class="info">
-                <div class="name">${escapeHtml(me.nombre)} <span class="rol-chip ${claseRol(me)}">${etiquetaRol(me)}</span></div>
-                <div class="handle">${escapeHtml(EMPRESA ? idAcceso(me.usuario, EMPRESA.codigo) : me.usuario)}${me.email ? ' · ' + escapeHtml(me.email) : ''}</div>
-              </div>
-            </div>
-            <div class="cuenta-acciones">
-              ${me.es_principal ? `<button class="cuenta-btn" id="btnChangeOwnName">Cambiar nombre</button>` : ''}
-              ${esAdmin ? `
-                <button class="cuenta-btn" id="btnChangeOwnPass">Cambiar contraseña</button>
-                <button class="cuenta-btn" id="btnChangeOwnEmail">${me.email ? 'Cambiar correo' : 'Agregar correo'}</button>
-              ` : ''}
-              <button class="cuenta-btn peligro" id="btnLogout">Cerrar sesión</button>
-            </div>
-          </div>
+        <button class="perfil-boton" id="btnAddUser" type="button">${ICONS.userPlus} Crear nuevo usuario</button>
+        <p class="perfil-nota">Toca a una persona para cambiar su nombre, contraseña o correo, o para eliminarla. A quien creó la empresa (admin principal) no se le puede cambiar nada.</p>`;
+    } else if (sub === 'apariencia') {
+      cuerpo = `
+        <p class="seg-label">Tema</p>
+        <div class="seg" id="segTema">
+          <button data-v="claro">Claro</button><button data-v="oscuro">Oscuro</button><button data-v="sistema">Del sistema</button>
+        </div>
+        <p class="seg-nota">"Del sistema" cambia solo cuando tu teléfono pasa a modo oscuro.</p>
+        <p class="seg-label">Animaciones</p>
+        <div class="seg" id="segAnim">
+          <button data-v="auto">Automático</button><button data-v="si">Activadas</button><button data-v="no">Desactivadas</button>
+        </div>
+        <p class="seg-nota" id="notaAnim"></p>
+        <p class="seg-label">Muñequito</p>
+        <div class="seg" id="segMuneco">
+          <button data-v="si">Activado</button><button data-v="no">Desactivado</button>
+        </div>
+        <p class="seg-nota" id="notaMuneco"></p>
+        <p class="perfil-nota">Se guarda solo en este teléfono.</p>`;
+    } else if (sub === 'huella') {
+      cuerpo = `
+        <p class="desc" style="margin:0 0 14px;">Inicia sesión rápido sin escribir tu contraseña, solo en los dispositivos donde la registres aquí.</p>
+        <div id="fpDevicesList"></div>
+        <button class="pdf-btn" id="btnAddFingerprint">${ICONS.fingerprint} Registrar este dispositivo</button>`;
+    } else if (sub === 'compu') {
+      cuerpo = `
+        <p class="desc" style="margin:0 0 14px;">Abre tu sesión en una computadora sin escribir tu contraseña allí: en la computadora elige "Entrar con mi teléfono" y apruébalo aquí.</p>
+        <div id="enlaceSesiones"></div>
+        <button class="pdf-btn" id="btnConectarCompu">${ICONS.monitor} Conectar una computadora</button>`;
+    } else {
+      perfilSub = '';
+      const nOtros = (usuarios || []).filter(u => u.id !== me.id).length;
+      cuerpo = `
+        <div class="perfil-hero">
+          <div class="perfil-av grande">${escapeHtml(initialOf(me.nombre))}</div>
+          <div class="perfil-nombre">${escapeHtml(me.nombre)} <span class="rol-chip ${claseRol(me)}">${etiquetaRol(me)}</span></div>
+          <div class="perfil-acceso">${escapeHtml(accesoDe(me))}</div>
+          ${EMPRESA ? `<div class="perfil-empresa">${ICONS.store}<span>${escapeHtml(EMPRESA.nombre)} · <b>${escapeHtml(EMPRESA.codigo)}</b></span></div>` : ''}
+        </div>
 
-          <div class="section-title" style="margin-top:22px;">Notificaciones e historial</div>
-          <div class="ajuste-row">
-            <div class="ajuste-ico">${ICONS.bell}</div>
-            <div class="info"><div class="name">Notificaciones</div><div class="handle" id="notifEstado"></div></div>
+        <div class="perfil-titulo">Tu cuenta</div>
+        <div class="perfil-grupo">
+          ${filaPerfil({ id: me.es_principal ? 'btnChangeOwnName' : '', ico: 'user', titulo: 'Nombre', valor: escapeHtml(me.nombre) })}
+          ${esAdmin ? filaPerfil({ id: 'btnChangeOwnPass', ico: 'lock', titulo: 'Contraseña', valor: '••••••' }) : ''}
+          ${filaPerfil({ id: esAdmin ? 'btnChangeOwnEmail' : '', ico: 'mail', titulo: 'Correo', valor: me.email ? escapeHtml(me.email) : (esAdmin ? 'Agregar' : 'Sin correo') })}
+        </div>
+        ${esAdmin ? '' : '<p class="perfil-nota">Solo los administradores de tu empresa pueden cambiar nombres, contraseñas y correos.</p>'}
+
+        <div class="perfil-titulo">Tu empresa</div>
+        <div class="perfil-grupo">
+          ${esAdmin ? filaPerfil({ id: 'btnPerfilUsuarios', ico: 'users', color: 've', titulo: 'Usuarios', valor: nOtros === 0 ? 'Solo tú' : `${nOtros + 1} personas` }) : ''}
+          ${filaPerfil({ id: 'btnHistorialPerfil', ico: 'history', color: 've', titulo: 'Historial general', sub: `Últimos 7 días${esAdmin ? ' y copias de seguridad' : ''}` })}
+        </div>
+
+        <div class="perfil-titulo">Este teléfono</div>
+        <div class="perfil-grupo">
+          <div class="perfil-fila">
+            <span class="perfil-ico am">${ICONS.bell}</span>
+            <span class="perfil-tx"><b>Notificaciones</b><small id="notifEstado"></small></span>
             <button class="switch" id="swNotif" type="button" role="switch" aria-checked="false" aria-label="Notificaciones"><span></span></button>
           </div>
-          <button class="ajuste-row ajuste-link" id="btnHistorialPerfil" type="button">
-            <div class="ajuste-ico">${ICONS.history}</div>
-            <div class="info"><div class="name">Historial general</div><div class="handle">Actividad de los últimos 7 días${esAdmin ? ' y copias de seguridad' : ''}</div></div>
-            <span class="ajuste-chev">›</span>
-          </button>
-
-          ${esAdmin ? `
-            <div class="section-title" style="margin-top:22px;">Usuarios de tu empresa</div>
-            ${otros.length === 0 ? `<div class="empty-state">${ICONS.inbox}<p>Todavía no has creado ningún usuario.</p></div>` :
-              otros.map(u => `
-                <div class="user-card" style="flex-direction:column;align-items:stretch;">
-                  <div style="display:flex;align-items:center;gap:12px;">
-                    <div class="acc-circ">${escapeHtml(initialOf(u.nombre))}</div>
-                    <div class="info">
-                      <div class="name">${escapeHtml(u.nombre)} <span class="rol-chip ${claseRol(u)}">${etiquetaRol(u)}</span></div>
-                      <div class="handle">${escapeHtml(EMPRESA ? idAcceso(u.usuario, EMPRESA.codigo) : u.usuario)}${u.email ? ' · ' + escapeHtml(u.email) : ''}</div>
-                    </div>
-                  </div>
-                  ${u.es_principal ? `
-                  <p class="handle" style="margin:10px 0 0;">Es quien creó la empresa: no se puede eliminar, y solo él puede cambiar su contraseña y su correo.</p>` : `
-                  <div class="cuenta-acciones">
-                    ${me.es_principal ? `<button class="cuenta-btn" data-rename="${u.id}" data-name="${escapeHtml(u.nombre)}" data-usuario="${escapeHtml(u.usuario)}">Cambiar nombre</button>` : ''}
-                    <button class="cuenta-btn" data-changepass="${u.id}" data-name="${escapeHtml(u.nombre)}">Cambiar contraseña</button>
-                    <button class="cuenta-btn" data-changeemail="${u.id}" data-email="${u.email ? escapeHtml(u.email) : ''}">${u.email ? 'Cambiar correo' : 'Agregar correo'}</button>
-                    <button class="cuenta-btn peligro" data-deleteuser="${u.id}" data-name="${escapeHtml(u.nombre)}" >Eliminar</button>
-                  </div>`}
-                </div>
-              `).join('')
-            }
-            <button class="pdf-btn" id="btnAddUser" style="margin-top:14px;">${ICONS.userPlus} Crear nuevo usuario</button>
-          ` : `
-            <p class="desc" style="margin-top:6px;">Solo los administradores de tu empresa pueden crear usuarios, cambiar contraseñas o correos, y eliminar cuentas.</p>
-          `}
-
-          <div class="section-title" style="margin-top:22px;">Apariencia</div>
-          <p class="seg-label">Tema</p>
-          <div class="seg" id="segTema">
-            <button data-v="claro">Claro</button><button data-v="oscuro">Oscuro</button><button data-v="sistema">Del sistema</button>
-          </div>
-          <p class="seg-nota">"Del sistema" cambia solo cuando tu teléfono pasa a modo oscuro.</p>
-          <p class="seg-label">Animaciones</p>
-          <div class="seg" id="segAnim">
-            <button data-v="auto">Automático</button><button data-v="si">Activadas</button><button data-v="no">Desactivadas</button>
-          </div>
-          <p class="seg-nota" id="notaAnim"></p>
-          <p class="seg-label">Muñequito</p>
-          <div class="seg" id="segMuneco">
-            <button data-v="si">Activado</button><button data-v="no">Desactivado</button>
-          </div>
-          <p class="seg-nota" id="notaMuneco"></p>
-
-          <div class="section-title" style="margin-top:22px;">Usar en una computadora</div>
-          <p class="desc" style="margin:-6px 0 14px;">Abre tu sesión en una computadora sin escribir tu contraseña allí: en la computadora elige "Entrar con mi teléfono" y apruébalo aquí.</p>
-          <div id="enlaceSesiones"></div>
-          <button class="pdf-btn" id="btnConectarCompu">${ICONS.monitor} Conectar una computadora</button>
-
-          <div class="section-title" style="margin-top:22px;">Huella / Face ID</div>
-          <p class="desc" style="margin:-6px 0 14px;">Inicia sesión rápido sin escribir tu contraseña, solo en los dispositivos donde la registres aquí.</p>
-          <div id="fpDevicesList"></div>
-          <button class="pdf-btn" id="btnAddFingerprint">${ICONS.fingerprint} Registrar este dispositivo</button>
+          ${filaPerfil({ id: 'btnPerfilApariencia', ico: 'palette', color: 'am', titulo: 'Apariencia', valorId: 'valApariencia' })}
+          ${filaPerfil({ id: 'btnPerfilHuella', ico: 'fingerprint', color: 'am', titulo: 'Huella / Face ID', valor: hasFingerprintFlag() ? 'Activada' : 'No' })}
+          ${filaPerfil({ id: 'btnPerfilCompu', ico: 'monitor', color: 'am', titulo: 'Usar en una computadora', valorId: 'valCompu' })}
         </div>
+
+        <div class="perfil-grupo" style="margin-top:22px;">
+          ${filaPerfil({ id: 'btnLogout', ico: 'logout', titulo: 'Cerrar sesión', rojo: true, chev: false })}
+        </div>`;
+    }
+    root.innerHTML = `
+      <div class="page-slide" id="usersPage" data-sub="${perfilSub}">
+        <div class="page-header">
+          <button class="back-btn" id="usersBack">${ICONS.back}</button>
+          <h2>${TITULOS_PERFIL[perfilSub]}</h2>
+        </div>
+        <div class="detail-body">${cuerpo}</div>
       </div>`;
     document.getElementById('usersBack').onclick = () => { history.back(); };
-    document.getElementById('btnLogout').onclick = () => openLogoutConfirm();
-    if (esAdmin) {
-      document.getElementById('btnChangeOwnPass').onclick = () => openChangePasswordModal(me.id, me.nombre, true);
-      document.getElementById('btnChangeOwnEmail').onclick = () => openChangeEmailModal(me.id, me.email);
-      if (me.es_principal) {
-        document.getElementById('btnChangeOwnName').onclick = () => openRenameModal(me.id, me.nombre, me.usuario, true);
-        root.querySelectorAll('[data-rename]').forEach(b => {
-          b.addEventListener('click', () => openRenameModal(b.dataset.rename, b.dataset.name, b.dataset.usuario, false));
-        });
-      }
-      document.getElementById('btnAddUser').onclick = openCreateUserModal;
-      root.querySelectorAll('[data-changepass]').forEach(b => {
-        b.addEventListener('click', () => openChangePasswordModal(b.dataset.changepass, b.dataset.name, false));
+    const enClic = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
+
+    if (perfilSub === 'usuarios') {
+      enClic('btnAddUser', openCreateUserModal);
+      root.querySelectorAll('[data-usuario]').forEach(b => {
+        const u = (usuarios || []).find(x => String(x.id) === b.dataset.usuario);
+        if (u) b.addEventListener('click', () => abrirAccionesUsuario(me, u));
       });
-      root.querySelectorAll('[data-changeemail]').forEach(b => {
-        b.addEventListener('click', () => openChangeEmailModal(b.dataset.changeemail, b.dataset.email));
-      });
-      root.querySelectorAll('[data-deleteuser]').forEach(b => {
-        b.addEventListener('click', () => openDeleteUserModal(b.dataset.deleteuser, b.dataset.name));
-      });
+    } else if (perfilSub === 'apariencia') {
+      bindApariencia();
+    } else if (perfilSub === 'huella') {
+      enClic('btnAddFingerprint', openRegisterFingerprintModal);
+      loadFingerprintDevices();
+    } else if (perfilSub === 'compu') {
+      enClic('btnConectarCompu', () => openConectarComputadoraModal());
+      cargarSesionesComputadora();
+    } else {
+      enClic('btnLogout', () => openLogoutConfirm());
+      enClic('btnChangeOwnName', () => openRenameModal(me.id, me.nombre, me.usuario, true));
+      enClic('btnChangeOwnPass', () => openChangePasswordModal(me.id, me.nombre, true));
+      enClic('btnChangeOwnEmail', () => openChangeEmailModal(me.id, me.email));
+      enClic('btnHistorialPerfil', () => openHistorialPage());
+      enClic('btnPerfilUsuarios', () => abrirSubPerfil('usuarios'));
+      enClic('btnPerfilApariencia', () => abrirSubPerfil('apariencia'));
+      enClic('btnPerfilHuella', () => abrirSubPerfil('huella'));
+      enClic('btnPerfilCompu', () => abrirSubPerfil('compu'));
+      const T = window.CuentasTema;
+      const va = document.getElementById('valApariencia');
+      if (T && va) va.textContent = { claro: 'Claro', oscuro: 'Oscuro', sistema: 'Del sistema' }[T.tema()] || '';
+      api('/enlace/sesiones', { silencioso: true }).then(l => {
+        const vc = document.getElementById('valCompu');
+        if (vc) vc.textContent = l.length === 0 ? '' : l.length === 1 ? '1 abierta' : `${l.length} abiertas`;
+      }).catch(() => {});
+      const sw = document.getElementById('swNotif');
+      sw.onclick = async () => {
+        sw.disabled = true;
+        try { if (notificacionesActivas) await disablePush(); else await enablePush(); }
+        finally { renderNotifBtn(); }
+      };
+      renderNotifBtn();
     }
-    document.getElementById('btnAddFingerprint').onclick = openRegisterFingerprintModal;
-    document.getElementById('btnConectarCompu').onclick = () => openConectarComputadoraModal();
-    loadFingerprintDevices();
-    cargarSesionesComputadora();
-    bindApariencia();
-    document.getElementById('btnHistorialPerfil').onclick = () => openHistorialPage();
-    const sw = document.getElementById('swNotif');
-    sw.onclick = async () => {
-      sw.disabled = true;
-      try { if (notificacionesActivas) await disablePush(); else await enablePush(); }
-      finally { renderNotifBtn(); }
-    };
-    renderNotifBtn();
   };
   if (meParam) render(meParam, usuariosParam);
   else {
     // Al refrescar (crear, editar o eliminar usuarios) se recarga también la lista del equipo.
     (async () => {
       const r = await api('/usuarios/me');
+      if (r.empresa) EMPRESA = r.empresa;
       const lista = r.usuario && r.usuario.rol === 'admin' ? await api('/usuarios').catch(() => []) : null;
       if (document.getElementById('usersPage')) render(r.usuario, lista);
     })().catch(() => toast('No se pudo cargar tu información'));
   }
+}
+// Al tocar a una persona en "Usuarios": sube un menú con lo que se le puede hacer.
+function abrirAccionesUsuario(me, u) {
+  const acc = (id, ico, texto, rojo = false) => `<button class="perfil-fila${rojo ? ' rojo' : ''}" id="${id}" type="button">
+    <span class="perfil-ico ${rojo ? 'ro' : 'az'}">${ICONS[ico]}</span><span class="perfil-tx"><b>${texto}</b></span></button>`;
+  showModal(`
+    <div class="perfil-hoja-cab">
+      <span class="perfil-av">${escapeHtml(initialOf(u.nombre))}</span>
+      <span class="perfil-tx"><b>${escapeHtml(u.nombre)} <span class="rol-chip ${claseRol(u)}">${etiquetaRol(u)}</span></b>
+        <small>${escapeHtml(accesoDe(u))}${u.email ? ' · ' + escapeHtml(u.email) : ''}</small></span>
+    </div>
+    <div class="perfil-hoja">
+      ${me.es_principal ? acc('accNombre', 'user', 'Cambiar nombre') : ''}
+      ${acc('accPass', 'lock', 'Cambiar contraseña')}
+      ${acc('accCorreo', 'mail', u.email ? 'Cambiar correo' : 'Agregar correo')}
+      ${acc('accEliminar', 'trash', 'Eliminar usuario', true)}
+    </div>
+    <div class="modal-actions"><button class="btn-cancel" data-close>Cancelar</button></div>
+  `);
+  const enClic = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
+  enClic('accNombre', () => openRenameModal(u.id, u.nombre, u.usuario, false));
+  enClic('accPass', () => openChangePasswordModal(u.id, u.nombre, false));
+  enClic('accCorreo', () => openChangeEmailModal(u.id, u.email || ''));
+  enClic('accEliminar', () => openDeleteUserModal(u.id, u.nombre));
 }
 // Selector de tema y animaciones (se guarda en este dispositivo; ver public/tema.js).
 function bindApariencia() {
