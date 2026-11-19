@@ -159,6 +159,34 @@ input{font-family:inherit;}
 .fp-hint{margin:12px 0 0;font-size:15px;color:var(--text-dim);}
 .login-card-fp .login-error{min-height:0;}
 
+/* --- Entrar con mi teléfono (computadora) / Conectar una computadora (teléfono) --- */
+.btn-telefono{margin-top:10px;}
+.login-card-enlace{max-width:440px;text-align:center;}
+.login-card-enlace .sub{margin-bottom:18px;}
+.enlace-qr{
+  width:220px;height:220px;margin:0 auto;padding:10px;border-radius:var(--radius-sm);
+  background:#FFFFFF;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+  transition:opacity .2s, filter .2s;
+}
+.enlace-qr img{width:100%;height:100%;display:block;image-rendering:pixelated;}
+.enlace-qr.vencido{opacity:.25;filter:blur(2px);}
+.enlace-cargando{font-size:15px;color:#6F7588;}
+.enlace-codigo{font-size:34px;font-weight:600;letter-spacing:.08em;margin:16px 0 2px;}
+.enlace-vence{margin:0 0 14px;font-size:14.5px;color:var(--text-dim);min-height:18px;}
+.enlace-pasos{text-align:left;margin:0 0 4px;padding-left:22px;font-size:15px;line-height:1.55;color:var(--text-dim);}
+.enlace-pasos li{margin-bottom:6px;}
+.enlace-pasos b{color:var(--text);}
+.login-card-enlace .btn-secondary{margin-top:10px;}
+.enlace-input{font-size:24px !important;letter-spacing:.12em;text-align:center;}
+.enlace-equipo{
+  display:flex;align-items:center;gap:12px;padding:12px;margin:4px 0 12px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-alt);
+}
+.enlace-equipo .name{font-weight:600;}
+.enlace-equipo .handle{font-size:14px;color:var(--text-dim);}
+.enlace-aviso{font-size:15px;line-height:1.5;color:var(--text-dim);margin:0 0 14px;}
+.enlace-aviso b{color:var(--text);}
+
 #mainScreen{min-height:100vh;padding-bottom:40px;}
 header.topbar{
   position:sticky;top:0;z-index:40;background:var(--bg);

@@ -21,6 +21,8 @@ const ICONS = {
   key: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3"/></svg>`,
   fingerprint: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>`,
   camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
+  phone: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg>`,
+  monitor: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
   receipt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h16v20l-3-2-3 2-3-2-3 2-3-2-1 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>`,
 };
 
@@ -592,7 +594,9 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
         <p class="fp-hint">Toca para usar la huella</p>
         <p class="login-error" id="fpMsg"></p>
         <p class="login-toggle"><button id="showPasswordForm">Entrar con usuario y contraseña</button></p>
+        ${botonEntrarConTelefono()}
       </div>`;
+    activarBotonEntrarConTelefono();
     document.getElementById('fpCircle').onclick = () => loginWithFingerprint();
     document.getElementById('showPasswordForm').onclick = () => renderLogin(true);
     if (autoHuella) loginWithFingerprint({ auto: true });
@@ -613,8 +617,10 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
       <button class="btn-primary" id="loginBtn">Iniciar sesión</button>
       <p class="login-error" id="loginErr"></p>
       ${fingerprintSupported() ? `<button class="btn-secondary" id="fpLoginBtn">${ICONS.fingerprint}<span>${conHuella ? 'Volver a entrar con huella' : 'Entrar con huella / Face ID'}</span></button>` : ''}
+      ${botonEntrarConTelefono()}
       <p class="login-help">¿Olvidaste tu contraseña? Pídele al administrador de tu empresa que te la restablezca.</p>
     </div>`;
+  activarBotonEntrarConTelefono();
   if (fingerprintSupported()) {
     document.getElementById('fpLoginBtn').onclick = () => (conHuella ? renderLogin(false) : loginWithFingerprint());
   }
@@ -678,6 +684,225 @@ function renderForcedPasswordChange(codigoEmpresa, usuario, contrasenaActual, me
     } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo actualizar la contraseña.'; }
   };
 }
+/* ============================================================
+   ENTRAR CON MI TELÉFONO (computadora) y CONECTAR UNA COMPUTADORA (teléfono)
+   La computadora muestra un QR y un código de 8 números; en el teléfono (con la sesión abierta) se
+   escribe o se escanea, se ve qué computadora lo pide y se aprueba con huella o contraseña.
+   Ver routes/enlace.js.
+   ============================================================ */
+// Solo en computadoras: ratón/trackpad, pantalla ancha y que el navegador no diga que es un teléfono o tableta.
+function esComputadora() {
+  const movil = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent || '') ||
+    (navigator.userAgentData && navigator.userAgentData.mobile) ||
+    (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1); // iPad que dice ser Mac
+  const raton = window.matchMedia ? window.matchMedia('(pointer: fine)').matches : true;
+  return !movil && raton && window.innerWidth >= 900;
+}
+function botonEntrarConTelefono() {
+  if (!esComputadora()) return '';
+  return `<button class="btn-secondary btn-telefono" id="entrarConTelefono">${ICONS.phone}<span>Entrar con mi teléfono</span></button>`;
+}
+function activarBotonEntrarConTelefono() {
+  const b = document.getElementById('entrarConTelefono');
+  if (b) b.onclick = () => renderEntrarConTelefono();
+}
+function formatoCodigo(c) { return String(c || '').replace(/\D/g, '').replace(/^(\d{4})(\d{0,4}).*$/, (_, a, b) => b ? a + ' ' + b : a); }
+
+let enlaceTimer = null, enlaceVuelta = 0;
+function detenerEnlace() { if (enlaceTimer) { clearTimeout(enlaceTimer); enlaceTimer = null; } enlaceVuelta++; }
+async function renderEntrarConTelefono() {
+  detenerEnlace();
+  const vuelta = enlaceVuelta;
+  const root = document.getElementById('loginScreen');
+  root.innerHTML = `
+    <div class="login-card login-card-enlace">
+      <h1>Entrar con mi teléfono</h1>
+      <p class="sub">Sin escribir tu contraseña en esta computadora.</p>
+      <div class="enlace-qr" id="enlaceQr"><div class="enlace-cargando">Generando código…</div></div>
+      <div class="enlace-codigo num" id="enlaceCodigo">···· ····</div>
+      <p class="enlace-vence" id="enlaceVence"></p>
+      <ol class="enlace-pasos">
+        <li>Abre Kaab en tu teléfono (con tu sesión iniciada).</li>
+        <li>Escanea este código con la cámara, o ve a <b>Perfil → Conectar una computadora</b> y escribe los números.</li>
+        <li>Revisa que diga esta computadora y apruébalo con tu huella o tu contraseña.</li>
+      </ol>
+      <p class="login-error" id="enlaceMsg"></p>
+      <button class="btn-secondary hidden" id="enlaceOtro">Generar otro código</button>
+      <p class="login-toggle"><button id="enlaceVolver">Volver</button></p>
+    </div>`;
+  document.getElementById('enlaceVolver').onclick = () => { detenerEnlace(); renderLogin(false); };
+  document.getElementById('enlaceOtro').onclick = () => renderEntrarConTelefono();
+  const msg = document.getElementById('enlaceMsg');
+  const terminar = (texto) => {
+    detenerEnlace();
+    const qr = document.getElementById('enlaceQr');
+    if (qr) qr.classList.add('vencido');
+    if (msg) msg.textContent = texto;
+    const v = document.getElementById('enlaceVence'); if (v) v.textContent = '';
+    const otro = document.getElementById('enlaceOtro'); if (otro) otro.classList.remove('hidden');
+  };
+  let datos;
+  try { datos = await api('/enlace/solicitar', { method: 'POST', silencioso: true }); }
+  catch (e) { if (vuelta === enlaceVuelta) terminar(typeof e === 'string' && e !== 'Error de red' ? e : 'No se pudo generar el código. Revisa tu internet.'); return; }
+  if (vuelta !== enlaceVuelta) return;
+  const qr = document.getElementById('enlaceQr');
+  qr.innerHTML = '';
+  const img = document.createElement('img');
+  img.alt = 'Código QR para entrar con tu teléfono';
+  img.src = 'data:image/svg+xml;base64,' + btoa(datos.qr);
+  qr.appendChild(img);
+  document.getElementById('enlaceCodigo').textContent = formatoCodigo(datos.codigo);
+  const vence = Date.now() + datos.vigenciaSeg * 1000;
+  const preguntar = async () => {
+    if (vuelta !== enlaceVuelta) return;
+    const faltan = Math.max(0, Math.round((vence - Date.now()) / 1000));
+    const v = document.getElementById('enlaceVence');
+    if (v) v.textContent = `Vence en ${Math.floor(faltan / 60)}:${String(faltan % 60).padStart(2, '0')}`;
+    let r = null;
+    try { r = await api('/enlace/estado', { method: 'POST', body: { codigo: datos.codigo, secreto: datos.secreto }, silencioso: true }); }
+    catch (e) { /* sin conexión por un momento: se vuelve a preguntar */ }
+    if (vuelta !== enlaceVuelta) return;
+    if (r && r.estado === 'aprobado') {
+      detenerEnlace();
+      AUTH = r.user; EMPRESA = r.empresa;
+      enterApp();
+      return;
+    }
+    if (r && r.estado === 'rechazado') return terminar('Se rechazó desde el teléfono.');
+    if ((r && r.estado === 'vencido') || Date.now() > vence + 5000) return terminar('El código venció. Genera otro para intentarlo de nuevo.');
+    enlaceTimer = setTimeout(preguntar, 2000);
+  };
+  enlaceTimer = setTimeout(preguntar, 1000);
+}
+
+// --- En el teléfono ---
+// Si la app se abrió desde el QR (…/#conectar=12345678), se guarda el código y se quita de la dirección.
+let codigoConectarPendiente = (() => {
+  const m = /^#conectar=(\d{8})$/.exec(location.hash || '');
+  if (!m) return null;
+  try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+  return m[1];
+})();
+window.addEventListener('hashchange', () => {
+  const m = /^#conectar=(\d{8})$/.exec(location.hash || '');
+  if (!m) return;
+  try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+  codigoConectarPendiente = m[1];
+  if (AUTH) revisarCodigoConectarPendiente();
+});
+function revisarCodigoConectarPendiente() {
+  if (!codigoConectarPendiente || !AUTH) return;
+  const c = codigoConectarPendiente; codigoConectarPendiente = null;
+  openConectarComputadoraModal(c);
+}
+function openConectarComputadoraModal(codigoInicial = '') {
+  showModal(`
+    <h3>Conectar una computadora</h3>
+    <p class="desc">En la computadora, abre Kaab y elige <b>"Entrar con mi teléfono"</b>. Escribe aquí los 8 números que aparecen.</p>
+    <div class="field"><label for="conCodigo">Código de la computadora</label>
+      <input id="conCodigo" class="num enlace-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="9" placeholder="0000 0000" value="${escapeHtml(formatoCodigo(codigoInicial))}"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" data-close>Cancelar</button>
+      <button class="btn-confirm" id="conSeguir">Continuar</button>
+    </div>
+    <p class="login-error" id="conErr"></p>
+  `);
+  const input = document.getElementById('conCodigo');
+  const err = document.getElementById('conErr');
+  input.addEventListener('input', () => { input.value = formatoCodigo(input.value); err.textContent = ''; });
+  const seguir = async () => {
+    const codigo = input.value.replace(/\D/g, '');
+    if (codigo.length !== 8) { err.textContent = 'El código tiene 8 números.'; return; }
+    const btn = document.getElementById('conSeguir');
+    await conBotonOcupado(btn, async () => {
+      try {
+        const info = await api('/enlace/revisar', { method: 'POST', body: { codigo } });
+        mostrarAprobarComputadora(codigo, info);
+      } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo revisar el código.'; }
+    }, 'Revisando…');
+  };
+  document.getElementById('conSeguir').onclick = seguir;
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') seguir(); });
+  if (codigoInicial) seguir(); else setTimeout(() => input.focus(), 50);
+}
+function mostrarAprobarComputadora(codigo, info, { conContrasena = false } = {}) {
+  let credId = null;
+  try { credId = localStorage.getItem('cuentasapp_fp_credid'); } catch (e) {}
+  const conHuella = !conContrasena && fingerprintSupported() && hasFingerprintFlag() && !!credId;
+  const hace = info.haceSeg < 60 ? 'hace unos segundos' : `hace ${Math.round(info.haceSeg / 60)} min`;
+  showModal(`
+    <h3>¿Abrir tu sesión en esta computadora?</h3>
+    <div class="enlace-equipo">
+      <div class="ajuste-ico">${ICONS.monitor}</div>
+      <div class="info"><div class="name">${escapeHtml(info.dispositivo)}</div><div class="handle">Lo pidió ${hace}</div></div>
+    </div>
+    <p class="enlace-aviso">Apruébalo <b>solo si esa computadora está frente a ti</b>. Si alguien te pidió este código por llamada o mensaje, no lo apruebes: tendría acceso a tu cuenta.</p>
+    ${conHuella ? '' : `<div class="field"><label for="conPass">Confirma con tu contraseña</label><input id="conPass" type="password" autocomplete="current-password"></div>`}
+    <div class="modal-actions">
+      <button class="btn-cancel" id="conRechazar">No, rechazar</button>
+      <button class="btn-confirm" id="conAprobar">${conHuella ? 'Aprobar con huella' : 'Aprobar'}</button>
+    </div>
+    <p class="login-error" id="conErr"></p>
+    ${conHuella ? '<p class="login-toggle" style="margin-top:8px;"><button id="conUsarPass">Usar mi contraseña</button></p>' : ''}
+  `, { center: true });
+  const err = document.getElementById('conErr');
+  document.getElementById('conRechazar').onclick = async () => {
+    closeModal();
+    try { await api('/enlace/rechazar', { method: 'POST', body: { codigo } }); toast('Rechazado. La computadora no entró.'); } catch (e) {}
+  };
+  const usarPass = document.getElementById('conUsarPass');
+  if (usarPass) usarPass.onclick = () => mostrarAprobarComputadora(codigo, info, { conContrasena: true });
+  document.getElementById('conAprobar').onclick = () => conBotonOcupado(document.getElementById('conAprobar'), async () => {
+    err.textContent = '';
+    const cuerpo = { codigo };
+    if (conHuella) {
+      try {
+        const options = await api('/enlace/huella-opciones');
+        const publicKey = prepareRequestOptions(options);
+        if (!publicKey.timeout) publicKey.timeout = 60000;
+        cuerpo.huella = serializeCredential(await navigator.credentials.get({ publicKey }));
+      } catch (e) {
+        err.textContent = e && e.name === 'NotAllowedError' ? 'Se canceló la huella. Toca "Aprobar con huella" otra vez.'
+          : (typeof e === 'string' ? e : 'No se pudo leer la huella. Usa tu contraseña.');
+        return;
+      }
+    } else {
+      cuerpo.contrasena = document.getElementById('conPass').value;
+      if (!cuerpo.contrasena) { err.textContent = 'Escribe tu contraseña.'; return; }
+    }
+    try {
+      await api('/enlace/aprobar', { method: 'POST', body: cuerpo });
+      closeModal();
+      toast('Listo: la computadora ya entró');
+      if (document.getElementById('enlaceSesiones')) cargarSesionesComputadora();
+    } catch (e) { err.textContent = typeof e === 'string' ? e : 'No se pudo aprobar.'; }
+  }, 'Aprobando…');
+  if (!conHuella) setTimeout(() => { const i = document.getElementById('conPass'); if (i) { i.focus(); i.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('conAprobar').click(); }); } }, 50);
+}
+// Lista de computadoras con la sesión abierta (en el perfil), con botón para cerrarlas a distancia.
+function cargarSesionesComputadora() {
+  const wrap = document.getElementById('enlaceSesiones');
+  if (!wrap) return;
+  api('/enlace/sesiones', { silencioso: true }).then(lista => {
+    wrap.innerHTML = lista.length === 0 ? '' : lista.map(s => `
+      <div class="user-card">
+        <div class="acc-circ">${ICONS.monitor}</div>
+        <div class="info">
+          <div class="name">${escapeHtml(s.dispositivo || 'Computadora')}${s.esta ? ' <span class="rol-chip">esta</span>' : ''}</div>
+          <div class="handle">Abierta ${fmtDateTimeShort(s.fecha_creacion)} · se cierra sola ${fmtTime(s.vence)}</div>
+        </div>
+        <button class="link-btn" data-cerrarses="${s.id}" data-esta="${s.esta ? 1 : 0}" style="color:var(--red);">Cerrar</button>
+      </div>`).join('');
+    wrap.querySelectorAll('[data-cerrarses]').forEach(b => b.addEventListener('click', async () => {
+      try {
+        await api(`/enlace/sesiones/${b.dataset.cerrarses}`, { method: 'DELETE' });
+        if (b.dataset.esta === '1') { await sesionTerminada('Cerraste la sesión de esta computadora.'); return; }
+        toast('Sesión de la computadora cerrada');
+        cargarSesionesComputadora();
+      } catch (e) { toast('No se pudo cerrar la sesión'); }
+    }));
+  }).catch(() => { wrap.innerHTML = ''; });
+}
 // Entra a la app. Antes, si la primera carga de datos fallaba una sola vez (red del teléfono
 // despertando, servidor tardando) o el aviso de notificaciones no respondía, la app quedaba en una
 // pantalla vacía con el punto rojo para siempre. Ahora: se dibuja ya, la carga se reintenta sola,
@@ -698,6 +923,7 @@ async function enterApp() {
   startIdleWatcher();
   conLimite(checkPushStatus(), 4000).then(renderNotifBtn, renderNotifBtn);
   if (await cargarDatosIniciales()) { avisoRespaldoCerrado = false; checkPendingTiendaBackup().then(revisarAvisosRespaldos); restaurarBorrador(); }
+  revisarCodigoConectarPendiente();
 }
 // Marca de envío: una por cada ventana de registro abierta (ver db/schema.sql, clave_envio).
 // Reintentar en la MISMA ventana reusa la marca → el servidor no lo guarda dos veces.
@@ -817,10 +1043,10 @@ function avisoLargo(msg) {
   toast._t = setTimeout(() => document.getElementById('toast').classList.remove('show'), 6500);
 }
 // Ejecuta el guardado con el botón desactivado (evita el doble toque) y lo reactiva si falla.
-async function conBotonOcupado(boton, tarea) {
+async function conBotonOcupado(boton, tarea, ocupado = 'Guardando…') {
   if (!boton || boton.disabled) return;
   const texto = boton.textContent;
-  boton.disabled = true; boton.textContent = 'Guardando…';
+  boton.disabled = true; boton.textContent = ocupado;
   try { await tarea(); }
   finally {
     // Si se guardó, el botón ya muestra la palomita mientras la ventana se cierra: se deja así.
@@ -2300,6 +2526,11 @@ function renderUsersPage(meParam, usuariosParam) {
           </div>
           <p class="seg-nota" id="notaMuneco"></p>
 
+          <div class="section-title" style="margin-top:22px;">Usar en una computadora</div>
+          <p class="desc" style="margin:-6px 0 14px;">Abre tu sesión en una computadora sin escribir tu contraseña allí: en la computadora elige "Entrar con mi teléfono" y apruébalo aquí.</p>
+          <div id="enlaceSesiones"></div>
+          <button class="pdf-btn" id="btnConectarCompu">${ICONS.monitor} Conectar una computadora</button>
+
           <div class="section-title" style="margin-top:22px;">Huella / Face ID</div>
           <p class="desc" style="margin:-6px 0 14px;">Inicia sesión rápido sin escribir tu contraseña, solo en los dispositivos donde la registres aquí.</p>
           <div id="fpDevicesList"></div>
@@ -2329,7 +2560,9 @@ function renderUsersPage(meParam, usuariosParam) {
       });
     }
     document.getElementById('btnAddFingerprint').onclick = openRegisterFingerprintModal;
+    document.getElementById('btnConectarCompu').onclick = () => openConectarComputadoraModal();
     loadFingerprintDevices();
+    cargarSesionesComputadora();
     bindApariencia();
     document.getElementById('btnHistorialPerfil').onclick = () => openHistorialPage();
     const sw = document.getElementById('swNotif');

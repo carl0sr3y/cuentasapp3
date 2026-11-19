@@ -17,16 +17,16 @@ function verifyToken(token) {
 
 // `user.sesion_version` viaja en el token (sv). Si en la base cambia (contraseña restablecida,
 // etc.), todos los tokens anteriores dejan de valer aunque no hayan vencido.
-function signToken(user) {
-  return jwt.sign(
-    { id: user.id, usuario: user.usuario, nombre: user.nombre, empresa_id: user.empresa_id, rol: user.rol, sv: user.sesion_version || 0 },
-    JWT_SECRET,
-    { expiresIn: '30d' }
-  );
+// `enl`: sesión abierta en una computadora desde el teléfono (tabla sesiones_enlazadas); dura menos
+// y se puede cerrar a distancia.
+function signToken(user, { enl = null, expiresIn = '30d' } = {}) {
+  const datos = { id: user.id, usuario: user.usuario, nombre: user.nombre, empresa_id: user.empresa_id, rol: user.rol, sv: user.sesion_version || 0 };
+  if (enl) datos.enl = enl;
+  return jwt.sign(datos, JWT_SECRET, { expiresIn });
 }
 
-function setAuthCookie(res, user) {
-  const token = signToken(user);
+function setAuthCookie(res, user, opciones) {
+  const token = signToken(user, opciones);
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
@@ -54,6 +54,14 @@ async function sesionVigente(payload) {
   if (!u) return { motivo: 'invalida' };
   if ((payload.sv || 0) !== u.sesion_version) return { motivo: 'invalida' };
   if (!u.activa) return { motivo: 'suspendida' };
+  if (payload.enl !== undefined) {
+    if (!Number.isInteger(payload.enl)) return { motivo: 'invalida' };
+    const { rows: enl } = await pool.query(
+      'SELECT 1 FROM sesiones_enlazadas WHERE id = $1 AND usuario_id = $2 AND NOT revocada AND vence > now()',
+      [payload.enl, u.id]
+    );
+    if (!enl.length) return { motivo: 'invalida' };
+  }
   return { user: { id: u.id, usuario: u.usuario, nombre: u.nombre, empresa_id: u.empresa_id, rol: u.rol, sv: u.sesion_version } };
 }
 

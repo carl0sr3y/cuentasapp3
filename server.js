@@ -23,6 +23,7 @@ const reportesRoutes = require('./routes/reportes');
 const backupsRoutes = require('./routes/backups');
 const pushRoutes = require('./routes/push');
 const webauthnRoutes = require('./routes/webauthn');
+const enlaceRoutes = require('./routes/enlace');
 const plataformaRoutes = require('./routes/plataforma');
 const { IS_PROD } = require('./lib/config');
 
@@ -116,6 +117,7 @@ app.use('/api/reportes', reportesRoutes);
 app.use('/api/backups', backupsRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/webauthn', webauthnRoutes);
+app.use('/api/enlace', enlaceRoutes);
 
 // ---------- Panel de plataforma (superadmin) ----------
 // Cabeceras estrictas: no se guarda en caché, no se puede incrustar en otro sitio, no se indexa,

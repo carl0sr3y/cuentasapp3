@@ -324,3 +324,15 @@ CREATE TABLE IF NOT EXISTS backups_tienda_movs (
 ALTER TABLE backups_tienda ADD COLUMN IF NOT EXISTS en_partes BOOLEAN NOT NULL DEFAULT false;
 -- Cambia cada vez que el respaldo se rehace: una descarga que se cruzó con un cambio no cuenta como descargada.
 ALTER TABLE backups_tienda ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 0;
+
+-- Sesiones abiertas en una computadora aprobándolas desde el teléfono ("Entrar con mi teléfono").
+-- Cada una se puede cerrar a distancia desde el perfil (revocada = true).
+CREATE TABLE IF NOT EXISTS sesiones_enlazadas (
+  id SERIAL PRIMARY KEY,
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  dispositivo TEXT,
+  fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now(),
+  vence TIMESTAMPTZ NOT NULL,
+  revocada BOOLEAN NOT NULL DEFAULT false
+);
+CREATE INDEX IF NOT EXISTS idx_sesiones_enlazadas_usuario ON sesiones_enlazadas(usuario_id);

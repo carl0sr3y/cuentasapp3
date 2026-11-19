@@ -23,7 +23,7 @@ en uso real. Desplegada en **Railway** (servicio Node + PostgreSQL); cada `git p
 | `db/pool.js` | Conexión a Postgres, migración y `repararDatos` al arrancar |
 | `middleware/auth.js` | Sesión JWT en cookie, `requireAuth` (401 con `codigo:'SESION'`), `requireAdmin` |
 | `middleware/plataforma.js` | Sesión del superadmin del panel (TOTP) |
-| `routes/` | API: `auth`, `usuarios` (roles, admin principal), `cuentas`, `tienda`, `reportes`, `historial`, `backups`, `envios` (envíos en duda), `diagnostico` (fallos de fotos a los logs), `push`, `webauthn` (huella), `plataforma` (superadmin) |
+| `routes/` | API: `auth`, `usuarios` (roles, admin principal), `cuentas`, `tienda`, `reportes`, `historial`, `backups`, `envios` (envíos en duda), `diagnostico` (fallos de fotos a los logs), `push`, `webauthn` (huella), `enlace` ("Entrar con mi teléfono": la compu muestra QR/código, el teléfono lo aprueba), `plataforma` (superadmin) |
 | `lib/` | `saldos` (transacciones y bloqueos), `validate`, `fotos` (solo JPEG ≤1.5 MB), `realtime` (WebSocket), `rateLimits`, `totp`, `passwords`, `push`, `webauthn` |
 | `jobs/backup.js` | Historial (7 días), respaldo semanal general, respaldo mensual de tienda (día 1) |
 | `public/app.js` | Toda la app del teléfono (~2,700 líneas, sin framework) |

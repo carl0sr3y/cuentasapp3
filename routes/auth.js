@@ -114,6 +114,10 @@ router.post('/force-change-password', limites.loginIp, limites.loginCuenta, asyn
 });
 
 router.post('/logout', requireAuth, async (req, res) => {
+  const payload = verifyToken(req.cookies[COOKIE_NAME]);
+  if (payload && Number.isInteger(payload.enl)) {
+    await pool.query('UPDATE sesiones_enlazadas SET revocada = true WHERE id = $1 AND usuario_id = $2', [payload.enl, req.user.id]);
+  }
   clearAuthCookie(res);
   res.json({ ok: true });
 });

@@ -14,6 +14,8 @@ async function listaEmpresas() {
 async function limpiarHistorialRodante() {
   const { rowCount } = await pool.query("DELETE FROM historial_general WHERE fecha < now() - interval '7 days'");
   if (rowCount > 0) console.log(`Historial general: ${rowCount} registros de hace más de 7 días eliminados (todas las empresas)`);
+  // Sesiones de computadora ya vencidas o cerradas hace más de un día: ya no sirven para nada.
+  await pool.query("DELETE FROM sesiones_enlazadas WHERE vence < now() - interval '1 day' OR (revocada AND fecha_creacion < now() - interval '1 day')");
   return rowCount;
 }
 

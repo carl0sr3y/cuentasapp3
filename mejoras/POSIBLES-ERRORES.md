@@ -119,3 +119,35 @@ No deja mensajes en los Logs.
   nombre (`nombreComparable`) → responde 200 con la cuenta existente y `existente: true`.
 - App: `openCreateAccountModal` cierra la ventana y llama `openAccountDetail` si llega `existente`.
 - Prueba local: `bash pruebas/correr.sh nombre-repetido`.
+
+---
+
+## Entrar con mi teléfono (abrir la sesión en una computadora)
+
+Cambio del 18/11/2026. En la computadora sale el botón **"Entrar con mi teléfono"** (solo en
+computadoras); muestra un QR y un código de 8 números. En el teléfono: **Perfil → Conectar una
+computadora** (o escanear el QR), y aprobar con huella o contraseña.
+
+### Cosas que puedes notar en la app (y si son normales)
+
+| Lo que ves | ¿Es normal? | Explicación |
+|---|---|---|
+| "El código venció. Genera otro…" en la computadora | Sí | Cada código dura 2 minutos y sirve una sola vez. |
+| "Ese código no existe o ya venció" en el teléfono | Sí | Números mal escritos, el código ya venció o ya se usó. Generar otro en la computadora. |
+| Se reinició el servidor (por ejemplo, al subir un cambio) y el código dejó de servir | Sí | Los códigos pendientes viven en la memoria del servidor. Generar otro. |
+| La computadora se sale sola después de un rato | Sí | Igual que el teléfono: 15 minutos sin uso. Además, la sesión de la computadora dura **máximo 12 horas**. |
+| La computadora se salió sin que nadie la tocara | Sí, si alguien la cerró desde el perfil, cambió la contraseña o se restableció | Las sesiones de computadora se cierran a distancia desde **Perfil → Usar en una computadora → Cerrar**. |
+| "Esto se aprueba desde tu teléfono, no desde otra computadora" | Sí | Una computadora conectada así no puede aprobar a otra. |
+| "Demasiados intentos. Espera unos minutos." | Sí | 15 intentos fallidos (código o contraseña equivocados) en 15 minutos por usuario. |
+| El QR abre el navegador del teléfono en vez de la app instalada | Depende del teléfono | En el navegador hay que tener la sesión iniciada. Escribir los 8 números dentro de la app siempre funciona. |
+| No sale el botón "Entrar con mi teléfono" | Sí en teléfonos, tabletas y ventanas angostas | Solo aparece con ratón/trackpad y una pantalla de al menos 900 px de ancho. |
+
+### Pistas técnicas (para revisar el código)
+
+- Servidor: `routes/enlace.js` (`/api/enlace/solicitar`, `estado`, `revisar`, `huella-opciones`, `aprobar`,
+  `rechazar`, `sesiones`). La computadora recibe un `secreto` que solo ella conoce y que se necesita para
+  recoger la sesión. Tabla `sesiones_enlazadas` (el token lleva `enl`); `sesionVigente` la revisa.
+- Límites: `enlaceSolicitar`, `enlaceEstado`, `enlaceRevisar` en `lib/rateLimits.js`.
+- App: `renderEntrarConTelefono` (computadora), `openConectarComputadoraModal` /
+  `mostrarAprobarComputadora` / `cargarSesionesComputadora` (teléfono). El QR abre `/#conectar=12345678`.
+- Prueba local: `bash pruebas/correr.sh telefono-compu`.
