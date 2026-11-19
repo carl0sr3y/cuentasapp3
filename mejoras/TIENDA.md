@@ -13,7 +13,7 @@ pena para tu negocio.
 | 2 | Resumen del día: entradas, salidas y neto | [ ] Por evaluar |
 | 3 | Filtros: solo entradas, solo salidas, con factura, por fecha | [ ] Por evaluar |
 | 4 | Editar un movimiento | [ ] Por evaluar |
-| 5 | Cámara dentro de la app | [ ] Por evaluar (pedido tuyo) |
+| 5 | Cámara dentro de la app | [x] Hecho (ver commit "Cámara dentro de Kaab…") |
 | 6 | Respaldo del mes en un formato fácil de leer | [ ] Por evaluar |
 | 7 | Categorías de gastos | [ ] Por evaluar |
 | 8 | Cierre de caja diario | [ ] Por evaluar |
@@ -47,6 +47,9 @@ pena para tu negocio.
 segundo plano. En teléfonos con poca memoria, el sistema puede reiniciar Kaab. Hoy eso está mitigado
 (el borrador reabre la ventana), pero la foto se tiene que tomar de nuevo.
 **Idea:** que la cámara se abra dentro de Kaab, sin salir de la app.
+**Hecho (19/11/2026):** "Tomar o elegir foto" abre la cámara de Kaab (`public/camara.js`), con botón de
+galería y linterna si el teléfono la tiene. Si el teléfono no deja usarla, se usa la cámara del sistema
+como antes. La misma cámara lee el QR de "Conectar una computadora".
 **Señal de que conviene:** usuarios que ven seguido "Recuperamos lo que estabas escribiendo…" o líneas
 "Foto no procesada" en Railway → Logs.
 

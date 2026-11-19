@@ -29,6 +29,7 @@ en uso real. Desplegada en **Railway** (servicio Node + PostgreSQL); cada `git p
 | `public/app.js` | Toda la app del teléfono (~2,700 líneas, sin framework) |
 | `public/styles.css` | Diseño "Suave", claro/oscuro (`tema.js` pone `data-tema`) |
 | `public/recorte.js` | Detección y enderezado de facturas en el teléfono |
+| `public/camara.js` | Cámara dentro de la app: foto de factura y lector de QR (`public/vendor/jsQR.js` si el navegador no trae lector) |
 | `public/muneco.js`, `ojo.js`, `tema.js`, `sw.js` | Muñequito decorativo, ojito de contraseñas, tema/animaciones, service worker (solo push) |
 | `plataforma/` | Panel del superadmin en `/plataforma` (crear/suspender/eliminar empresas, restablecer contraseñas) |
 | `scripts/superadmin.js`, `scripts/respaldo.js` | Crear superadmin; exportar/restaurar la base completa |

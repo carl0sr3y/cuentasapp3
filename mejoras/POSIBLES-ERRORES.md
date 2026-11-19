@@ -147,3 +147,30 @@ computadora** (o escanear el QR), y aprobar con huella o contraseña.
 | "PIN equivocado 5 veces: se cerró la sesión…" | Sí | Protección contra quien intente adivinarlo. Volver a entrar con el teléfono y crear un PIN nuevo. |
 | Se me olvidó el PIN | Sí | En el candado, **"Olvidé mi PIN"**: cierra esa sesión y muestra el código para aprobarla otra vez desde el teléfono. |
 | La computadora "recordada" pide otra vez el código del teléfono | Sí, a los 30 días | También pasa si se cerró desde el perfil del teléfono, si cambiaste tu contraseña desde otro dispositivo o si borraste los datos del navegador. |
+
+---
+
+## Cámara dentro de Kaab (QR de la computadora y foto de factura)
+
+Cambio del 19/11/2026. "Tomar o elegir foto" (tienda) y "Escanear código QR" (Perfil → Conectar una
+computadora) abren la cámara dentro de la app, sin salir de ella.
+
+### Cosas que puedes notar en la app (y si son normales)
+
+| Lo que ves | ¿Es normal? | Explicación |
+|---|---|---|
+| El teléfono pregunta "¿Permitir que Kaab use la cámara?" | Sí | La primera vez (en iPhone puede preguntarlo más seguido). Hay que permitirlo. |
+| "Kaab no tiene permiso para usar la cámara…" | Sí, si se negó el permiso | Activarlo en el candado junto a la dirección o en Ajustes del teléfono. Mientras tanto: escribir los 8 números (QR) o se abre la cámara del teléfono como antes (factura). |
+| "No se pudo abrir la cámara…" | A veces | Otra app está usando la cámara. Cerrarla y volver a intentar. |
+| "Este no es un código de Kaab" | Sí | Se apuntó a otro QR. Solo se aceptan los que muestra Kaab en la computadora. |
+| Para la factura se abrió la cámara del teléfono (no la de Kaab) | Sí, en teléfonos o navegadores sin permiso o sin esa función | Funciona como antes; el borrador protege lo escrito si el teléfono reinicia la app. |
+| El botón de linterna no aparece | Sí | Solo sale si la cámara del teléfono la permite (muchos iPhone no dejan usarla desde una página). |
+| La foto con la cámara de Kaab sale un poco menos nítida que con la del teléfono | Posible en algunos teléfonos | Si la cámara de Kaab no puede tomar la foto "completa", usa la imagen del video (suficiente para leer la factura). Para más nitidez: "Galería". |
+
+### Pistas técnicas (para revisar el código)
+
+- `public/camara.js` (`KaabCamara.escanearQR`, `tomarFoto`); QR con `BarcodeDetector` o `public/vendor/jsQR.js`
+  (se carga solo si hace falta). La cámara se apaga al cerrar, al tomar la foto y si la app pasa a segundo plano.
+- App: `openConectarComputadoraModal` (`codigoDeQR`), `openTiendaMovModal` (`procesarFoto`). "Atrás" con la
+  cámara abierta solo cierra la cámara (`popstate`).
+- Prueba local: `bash pruebas/correr.sh camara` (usa un video falso con un QR como cámara).

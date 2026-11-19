@@ -31,9 +31,9 @@ computadora; no se sube). Instrucciones en `pruebas/LEEME.md`.
       falla, borrar la variable. Detalle en [Seguridad](SEGURIDAD.md).
 - [ ] **Pedir a los usuarios** que reportaron el problema de la huella que prueben la versión nueva
       (incluye el caso de tocar el botón mientras la huella ya se está pidiendo).
-- [ ] **Confirmar con los usuarios** que al agregar una salida con foto ya no se cierra la ventana. Si ven
-      seguido "Recuperamos lo que estabas escribiendo…", conviene hacer la cámara dentro de la app
-      ([Movimientos tienda](TIENDA.md) #5).
+- [ ] **Confirmar con los usuarios** que al agregar una salida con foto ya no se cierra la ventana. Ahora la
+      foto se toma con la cámara dentro de Kaab ([Movimientos tienda](TIENDA.md) #5, hecho); probarla en
+      Android y en iPhone.
 - [ ] **Revisar de vez en cuando Railway → Logs** buscando "Foto no procesada". Si aparece, compartir
       esa línea para saber la causa exacta.
 - [ ] **Revisar Railway → Usage** y compartir cuánto cuesta cada servicio (la app y Postgres) para
@@ -42,5 +42,3 @@ computadora; no se sube). Instrucciones en `pruebas/LEEME.md`.
 
 ## Ideas sueltas pendientes
 
-- **Cámara dentro de la app** para las fotos de factura (que el teléfono no reinicie Kaab al abrir la
-  cámara). Está anotada en [Movimientos tienda](TIENDA.md).

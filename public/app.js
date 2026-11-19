@@ -21,6 +21,7 @@ const ICONS = {
   key: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3"/></svg>`,
   fingerprint: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>`,
   camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
+  qr: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h3v3h-3"/></svg>`,
   phone: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg>`,
   monitor: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
   receipt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h16v20l-3-2-3 2-3-2-3 2-3-2-1 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>`,
@@ -849,6 +850,21 @@ function renderCandado(modo, nombre) {
   document.getElementById('pinSalir').onclick = async () => { await salir(); renderLogin(); };
   setTimeout(() => uno.focus(), 50);
 }
+// --- Cámara dentro de la app (public/camara.js) ---
+function camaraDisponible() { return !!(window.KaabCamara && KaabCamara.disponible()); }
+function mensajeErrorCamara(e, alternativa) {
+  if (e && e.codigo === 'permiso') return `Kaab no tiene permiso para usar la cámara. Actívalo en los ajustes del navegador (el candado junto a la dirección, o Ajustes del teléfono), o ${alternativa}.`;
+  return `No se pudo abrir la cámara. Cierra otras apps que la estén usando, o ${alternativa}.`;
+}
+// El QR de la computadora es "https://<este sitio>/#conectar=12345678". Solo se aceptan los de Kaab.
+function codigoDeQR(texto) {
+  try {
+    const u = new URL(String(texto || ''));
+    if (u.host !== location.host) return null;
+    const m = /^#conectar=(\d{8})$/.exec(u.hash);
+    return m ? m[1] : null;
+  } catch (e) { return null; }
+}
 // --- En el teléfono ---
 // Si la app se abrió desde el QR (…/#conectar=12345678), se guarda el código y se quita de la dirección.
 let codigoConectarPendiente = (() => {
@@ -872,7 +888,9 @@ function revisarCodigoConectarPendiente() {
 function openConectarComputadoraModal(codigoInicial = '') {
   showModal(`
     <h3>Conectar una computadora</h3>
-    <p class="desc">En la computadora, abre Kaab y elige <b>"Entrar con mi teléfono"</b>. Escribe aquí los 8 números que aparecen.</p>
+    <p class="desc">En la computadora, abre Kaab y elige <b>"Entrar con mi teléfono"</b>. Luego escanea el código QR que aparece${camaraDisponible() ? ', o escribe los 8 números' : ' escribiendo aquí los 8 números'}.</p>
+    ${camaraDisponible() ? `<button class="btn-escanear" id="conEscanear" type="button">${ICONS.qr}<span>Escanear código QR</span></button>
+    <p class="separador-o"><span>o escribe el código</span></p>` : ''}
     <div class="field"><label for="conCodigo">Código de la computadora</label>
       <input id="conCodigo" class="num enlace-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="9" placeholder="0000 0000" value="${escapeHtml(formatoCodigo(codigoInicial))}"></div>
     <div class="modal-actions">
@@ -897,6 +915,20 @@ function openConectarComputadoraModal(codigoInicial = '') {
   };
   document.getElementById('conSeguir').onclick = seguir;
   input.addEventListener('keydown', e => { if (e.key === 'Enter') seguir(); });
+  const escanear = document.getElementById('conEscanear');
+  if (escanear) escanear.onclick = async () => {
+    err.textContent = '';
+    try {
+      const texto = await KaabCamara.escanearQR({
+        titulo: 'Escanear código QR',
+        ayuda: 'Apunta al código QR que aparece en la computadora',
+        validar: t => (codigoDeQR(t) ? null : 'Este no es un código de Kaab. Apunta al QR de la computadora.'),
+      });
+      if (!texto || !document.getElementById('conCodigo')) return; // se canceló
+      input.value = formatoCodigo(codigoDeQR(texto));
+      seguir();
+    } catch (e) { err.textContent = mensajeErrorCamara(e, 'escribe los 8 números'); }
+  };
   if (codigoInicial) seguir(); else setTimeout(() => input.focus(), 50);
 }
 function mostrarAprobarComputadora(codigo, info, { conContrasena = false } = {}) {
@@ -1492,6 +1524,11 @@ function notaRecuperado(p) {
 }
 window.addEventListener('popstate', (e) => {
   if (!AUTH) return;
+  if (window.KaabCamara && KaabCamara.abierta()) { // "atrás" con la cámara abierta: solo se cierra la cámara
+    history.pushState(KaabCamara.estadoAlAbrir(), '', location.href);
+    KaabCamara.cancelar();
+    return;
+  }
   if (formularioActivo && formularioActivo.tieneDatos()) {
     history.pushState(formularioActivo.estado, '', location.href); // se queda donde estaba
     toast('Tienes datos sin guardar. Toca Guardar o Cancelar.');
@@ -2245,6 +2282,7 @@ function openTiendaMovModal(tipo, prellenado = null) {
       <label>Foto de la factura (opcional)</label>
       <button type="button" class="photo-capture-btn" id="btnTomarFoto">${ICONS.camera} Tomar o elegir foto</button>
       <input type="file" accept="image/*" capture="environment" id="tMovFotoInput" style="display:none;">
+      <input type="file" accept="image/*" id="tMovGaleriaInput" style="display:none;">
       <div id="fotoPreviewWrap"></div>
     </div>
     <div class="modal-actions">
@@ -2274,9 +2312,24 @@ function openTiendaMovModal(tipo, prellenado = null) {
   });
   ['tMovDesc', 'tMovMonto'].forEach(id => document.getElementById(id).addEventListener('input', () => guardarBorrador()));
   setTimeout(() => document.getElementById('tMovDesc').focus(), 50);
-  document.getElementById('btnTomarFoto').onclick = () => {
+  // Cámara del sistema o galería: Kaab queda en segundo plano y el teléfono podría reiniciarla.
+  const usarSelectorDelSistema = (id) => {
     guardarBorrador({ camara: true }); // por si el teléfono reinicia la app mientras está la cámara
-    document.getElementById('tMovFotoInput').click();
+    document.getElementById(id).click();
+  };
+  // Lo normal: la cámara dentro de Kaab (no sale de la app). Si el teléfono no la deja usar, se usa
+  // la cámara del sistema como antes.
+  document.getElementById('btnTomarFoto').onclick = async () => {
+    if (!camaraDisponible()) { usarSelectorDelSistema('tMovFotoInput'); return; }
+    let r;
+    try { r = await KaabCamara.tomarFoto({ titulo: isEntrada ? 'Foto del comprobante' : 'Foto de la factura' }); }
+    catch (e) {
+      if (e && e.codigo === 'permiso') avisoLargo(mensajeErrorCamara(e, 'usa la cámara del teléfono (se abre ahora)'));
+      usarSelectorDelSistema('tMovFotoInput');
+      return;
+    }
+    if (r === 'galeria') { usarSelectorDelSistema('tMovGaleriaInput'); return; }
+    if (r && document.getElementById('fotoPreviewWrap')) procesarFoto(async () => r, null);
   };
   // Mientras se procesa la foto, Guardar queda desactivado: antes, si se tocaba rápido, la salida se
   // guardaba SIN la foto y la foto se perdía sin aviso.
@@ -2287,14 +2340,12 @@ function openTiendaMovModal(tipo, prellenado = null) {
     if (bf) { bf.disabled = activo; bf.innerHTML = activo ? 'Procesando foto…' : `${ICONS.camera} Tomar o elegir foto`; }
     if (bg) bg.disabled = activo;
   };
-  document.getElementById('tMovFotoInput').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    e.target.value = ''; // para poder elegir la misma foto otra vez
+  // obtener(): la imagen (<img>, ImageBitmap o <canvas> de la cámara de Kaab). file: el archivo, si lo hay.
+  const procesarFoto = async (obtener, file) => {
     estadoFoto(true);
     let etapa = 'abrir';
     try {
-      const img = await cargarImagen(file);
+      const img = await obtener();
       etapa = 'recorte';
       const fuente = await editarRecorte(img); // recortar la factura (o usar la foto completa)
       if (!fuente) return;
@@ -2307,7 +2358,13 @@ function openTiendaMovModal(tipo, prellenado = null) {
       reportarErrorFoto(err, file, etapa);
       avisoLargo(mensajeErrorFoto(err));
     } finally { estadoFoto(false); }
-  });
+  };
+  ['tMovFotoInput', 'tMovGaleriaInput'].forEach(id => document.getElementById(id).addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = ''; // para poder elegir la misma foto otra vez
+    procesarFoto(() => cargarImagen(file), file);
+  }));
   const clave = nuevaClaveEnvio();
   const botonT = document.getElementById('confirmTMov');
   botonT.onclick = () => procesandoFoto ? toast('Espera: se está procesando la foto.') : conBotonOcupado(botonT, async () => {
