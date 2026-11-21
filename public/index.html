@@ -18,16 +18,14 @@
 
 <div id="mainScreen" class="hidden">
   <header class="topbar">
-    <div class="brand" title="Kaab"><img class="brand-logo" src="/favicon.svg" alt="Kaab" width="28" height="28"></div>
     <div class="sync-wrap" id="syncWrap" title="Estado de sincronización"><span class="sync-dot" id="syncDot"></span></div>
     <div class="top-search" id="topSearch">
       <span class="top-search-icon" id="topSearchIcon"></span>
       <input id="buscador" type="text" placeholder="Buscar cuenta…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Buscar">
       <button class="top-search-clear hidden" id="buscadorLimpiar" type="button" aria-label="Borrar búsqueda">×</button>
     </div>
-    <button class="icon-btn" id="avatarBtn" title="Perfil" style="width:auto;padding:0 4px 0 0;display:flex;align-items:center;gap:0;">
-      <span class="avatar" id="avatarInitial">A</span>
-      <span class="username-label" id="userLabel"></span>
+    <button class="icon-btn menu-btn" id="avatarBtn" type="button" title="Perfil y ajustes" aria-label="Perfil y ajustes">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.1"/><circle cx="12" cy="12" r="2.1"/><circle cx="12" cy="19" r="2.1"/></svg>
     </button>
   </header>
 
@@ -60,5 +58,6 @@
 <script src="/camara.js"></script>
 <script src="/app.js"></script>
 <script src="/muneco.js"></script>
+<script src="/vidrio.js"></script>
 </body>
 </html>

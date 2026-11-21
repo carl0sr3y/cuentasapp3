@@ -31,6 +31,7 @@ en uso real. Desplegada en **Railway** (servicio Node + PostgreSQL); cada `git p
 | `public/recorte.js` | Detección y enderezado de facturas en el teléfono |
 | `public/camara.js` | Cámara dentro de la app: foto de factura y lector de QR (`public/vendor/jsQR.js` si el navegador no trae lector) |
 | `public/muneco.js`, `ojo.js`, `tema.js`, `sw.js` | Muñequito decorativo, ojito de contraseñas, tema/animaciones, service worker (solo push) |
+| `public/vidrio.js` | Menú de abajo "liquid glass": orillas que doblan lo de atrás (solo Chrome/Android; sin efecto en iPhone ni con animaciones apagadas) |
 | `plataforma/` | Panel del superadmin en `/plataforma` (crear/suspender/eliminar empresas, restablecer contraseñas) |
 | `scripts/superadmin.js`, `scripts/respaldo.js` | Crear superadmin; exportar/restaurar la base completa |
 | `mejoras/` | **Pendientes** (índice en `PENDIENTES.md`): rendimiento, seguridad, simplificar, tienda, animación. **`POSIBLES-ERRORES.md`**: qué significa cada error conocido; revisarlo primero si el dueño reporta un fallo, y agregar ahí los de cada cambio nuevo |

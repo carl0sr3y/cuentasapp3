@@ -35,7 +35,7 @@
     // Color de la barra del navegador en el teléfono.
     var meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) { meta = document.createElement('meta'); meta.name = 'theme-color'; document.head.appendChild(meta); }
-    meta.content = oscuro ? '#13151C' : '#F3F4F8';
+    meta.content = oscuro ? '#141414' : '#E7E7E5';
   }
 
   function escuchar(mq) {

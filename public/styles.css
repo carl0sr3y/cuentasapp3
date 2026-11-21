@@ -3,15 +3,15 @@
    public/tema.js pone data-tema="claro|oscuro" en <html> según la preferencia del usuario.
    ============================================================ */
 :root{
-  --bg:#F3F4F8;
+  --bg:#E7E7E5;              /* gris (antes casi blanco azulado) */
   --surface:#FFFFFF;
-  --surface-2:#ECEEF5;
-  --surface-alt:#F7F8FB;
-  --border:#E2E5EE;
-  --border-soft:#EDEFF5;
-  --text:#1B2132;
-  --text-dim:#596276;
-  --text-faint:#8E95A7;
+  --surface-2:#F3F3F1;       /* buscador y menú de abajo: un poco más claros que el fondo */
+  --surface-alt:#F7F7F5;
+  --border:#DCDCD9;
+  --border-soft:#E3E3E0;
+  --text:#1F2023;
+  --text-dim:#5E5F63;
+  --text-faint:#8F9094;
   --green:#1C9466;
   --green-bg:rgba(28,148,102,0.10);
   --red:#D94740;
@@ -19,16 +19,16 @@
   --yellow:#D99A1E;
   --favor:#876800;
   --favor-bg:rgba(176,138,0,0.12);
-  --accent:#4E5AD6;
-  --accent-bg:rgba(78,90,214,0.10);
+  --accent:#2F3238;          /* gris oscuro (antes morado) */
+  --accent-bg:#F4EEE2;       /* crema (antes morado claro) */
   --on-accent:#FFFFFF;
   --tienda:#C77A12;
   --tienda-bg:rgba(230,150,40,0.13);
   --pagar:#0E877E;
   --pagar-bg:rgba(14,143,134,0.11);
-  --overlay:rgba(27,33,50,0.38);
-  --shadow:0 4px 14px rgba(27,33,50,0.07);
-  --shadow-lg:0 16px 40px rgba(27,33,50,0.16);
+  --overlay:rgba(24,24,26,0.38);
+  --shadow:0 4px 14px rgba(24,24,26,0.07);
+  --shadow-lg:0 16px 40px rgba(24,24,26,0.16);
   --radius:20px;
   --radius-sm:14px;
   --mono:'SF Mono',ui-monospace,'Cascadia Code','Roboto Mono',monospace;
@@ -38,15 +38,15 @@
   --ease-spring:cubic-bezier(.34,1.45,.64,1);
 }
 :root[data-tema="oscuro"]{
-  --bg:#13151C;
-  --surface:#1B1E28;
-  --surface-2:#252937;
-  --surface-alt:#1E2130;
-  --border:#2B2F3F;
-  --border-soft:#232736;
-  --text:#E8EAF2;
-  --text-dim:#A2A8BA;
-  --text-faint:#6F7588;
+  --bg:#141414;              /* gris casi negro (antes azul-morado oscuro) */
+  --surface:#1F1F1F;
+  --surface-2:#2A2A2A;
+  --surface-alt:#232323;
+  --border:#333333;
+  --border-soft:#2A2A2A;
+  --text:#EDEDEB;
+  --text-dim:#A8A8A5;
+  --text-faint:#747471;
   --green:#4CC79A;
   --green-bg:rgba(76,199,154,0.13);
   --red:#FF7E75;
@@ -54,9 +54,9 @@
   --yellow:#F2B35A;
   --favor:#E8C84A;
   --favor-bg:rgba(232,200,74,0.14);
-  --accent:#8C95FF;
-  --accent-bg:rgba(140,149,255,0.14);
-  --on-accent:#10131F;
+  --accent:#ECE6DA;          /* oscuro: crema claro sobre fondo oscuro */
+  --accent-bg:rgba(236,230,218,0.12);
+  --on-accent:#161616;
   --tienda:#F2B35A;
   --tienda-bg:rgba(242,179,90,0.13);
   --pagar:#4FD1C5;
@@ -68,10 +68,10 @@
 /* Si tema.js no llegara a cargarse, se respeta igual el modo del teléfono. */
 @media (prefers-color-scheme: dark){
   :root:not([data-tema]){
-    --bg:#13151C; --surface:#1B1E28; --surface-2:#252937; --surface-alt:#1E2130;
-    --border:#2B2F3F; --border-soft:#232736; --text:#E8EAF2; --text-dim:#A2A8BA; --text-faint:#6F7588;
+    --bg:#141414; --surface:#1F1F1F; --surface-2:#2A2A2A; --surface-alt:#232323;
+    --border:#333333; --border-soft:#2A2A2A; --text:#EDEDEB; --text-dim:#A8A8A5; --text-faint:#747471;
     --green:#4CC79A; --green-bg:rgba(76,199,154,0.13); --red:#FF7E75; --red-bg:rgba(255,126,117,0.13);
-    --yellow:#F2B35A; --favor:#E8C84A; --favor-bg:rgba(232,200,74,0.14); --accent:#8C95FF; --accent-bg:rgba(140,149,255,0.14); --on-accent:#10131F;
+    --yellow:#F2B35A; --favor:#E8C84A; --favor-bg:rgba(232,200,74,0.14); --accent:#ECE6DA; --accent-bg:rgba(236,230,218,0.12); --on-accent:#161616;
     --tienda:#F2B35A; --tienda-bg:rgba(242,179,90,0.13); --pagar:#4FD1C5; --pagar-bg:rgba(79,209,197,0.13); --overlay:rgba(0,0,0,0.55);
     --shadow:0 4px 14px rgba(0,0,0,0.25); --shadow-lg:0 16px 40px rgba(0,0,0,0.5);
   }
@@ -590,7 +590,15 @@ header.topbar{gap:10px;}
 .top-search-clear{width:28px;height:28px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
   background:var(--surface-2);color:var(--text-dim);font-size:20px;line-height:1;}
 .top-search:focus-within .top-search-clear{background:var(--surface-alt);}
-/* La barra superior solo muestra el logo (sin texto), así que cabe también en pantallas chicas. */
+/* Buscador un poco más grande (ya no está el logo, el espacio le toca a él) */
+.top-search{height:46px;border-radius:15px;padding-left:38px;}
+.top-search-icon{left:13px;}
+.top-search-icon svg{width:18px;height:18px;}
+.top-search input{font-size:17px;}
+/* Botón de perfil: tres puntitos */
+.menu-btn{width:40px;height:46px;flex:none;border-radius:13px;color:var(--text-dim);}
+.menu-btn svg{width:22px;height:22px;fill:currentColor;}
+.menu-btn:active{background:var(--surface-2);}
 
 /* ============================================================
    PERFIL: filas de ajustes e interruptor
@@ -786,7 +794,7 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
 
 /* Logo (flechas de entrada y salida + punto de la tienda) */
 .brand-logo{width:28px;height:28px;border-radius:8px;display:block;flex-shrink:0;}
-.login-logo{width:56px;height:56px;border-radius:15px;display:block;margin:0 0 16px;box-shadow:0 6px 16px rgba(27,33,50,.18);}
+.login-logo{width:56px;height:56px;border-radius:15px;display:block;margin:0 0 16px;box-shadow:0 6px 16px rgba(24,24,26,.18);}
 .login-card-fp .login-logo{margin:0 auto 16px;}
 /* Borde sutil para que el logo oscuro no se pierda en el modo oscuro */
 .brand-logo,.login-logo{outline:1px solid rgba(255,255,255,.09);outline-offset:-1px;}
@@ -889,7 +897,7 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
   position:fixed;left:0;right:0;bottom:calc(12px + env(safe-area-inset-bottom));
   margin:0 auto;width:calc(100% - 24px);max-width:560px;z-index:41;
   background:var(--surface);border:1px solid var(--border-soft);border-radius:20px;padding:5px;gap:4px;
-  box-shadow:0 10px 30px rgba(27,33,50,.18),0 2px 6px rgba(27,33,50,.08);
+  box-shadow:0 10px 30px rgba(24,24,26,.18),0 2px 6px rgba(24,24,26,.08);
 }
 @media(min-width:640px){.tabbar{margin:0 auto;}}
 .tab-btn{border-radius:15px;padding:11px 4px;}
@@ -899,6 +907,92 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
 .tab-btn.active[data-tab="tienda"]{background:var(--tienda-bg);color:var(--tienda);}
 :root[data-tema="oscuro"] .tabbar{box-shadow:0 10px 30px rgba(0,0,0,.5);}
 @media (prefers-color-scheme: dark){:root:not([data-tema="claro"]) .tabbar{box-shadow:0 10px 30px rgba(0,0,0,.5);}}
+/* ============================================================
+   MENÚ DE ABAJO "LIQUID GLASS" TRANSPARENTE: el centro es vidrio claro (se ve lo de atrás) y el grosor
+   del vidrio se nota solo en las orillas (luz por dentro del borde). La pestaña elegida es vidrio celeste.
+   Capas: .tabbar (vidrio) · ::after (filo de luz) · .tab-indicador (vidrio celeste).
+   ============================================================ */
+:root{
+  --celeste:#6E98D6;
+  --lg-fondo:rgba(255,255,255,.10);
+  --lg-desenfoque:blur(3px) saturate(1.6);
+  --lg-sombra:
+    inset 0 0 0 1px rgba(255,255,255,.55),
+    inset 0 1.5px 0 rgba(255,255,255,.95),
+    inset 0 -1.5px 0 rgba(255,255,255,.6),
+    inset 0 0 14px rgba(255,255,255,.55),
+    inset 0 -6px 12px -6px rgba(24,24,26,.10),
+    0 0 0 .5px rgba(24,24,26,.16),
+    0 10px 26px -8px rgba(24,24,26,.22);
+  --lg-filo:linear-gradient(150deg,rgba(255,255,255,1) 0%,rgba(255,255,255,.35) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.4) 75%,rgba(255,255,255,1) 100%);
+  --gota-fondo:rgba(110,152,214,.42);
+  --gota-sombra:
+    inset 0 0 0 1px rgba(255,255,255,.5),
+    inset 0 1.5px 0 rgba(255,255,255,.9),
+    inset 0 0 12px rgba(255,255,255,.45),
+    inset 0 -5px 10px -5px rgba(48,92,168,.30),
+    0 0 0 .5px rgba(70,118,196,.45),
+    0 4px 12px -4px rgba(70,118,196,.45);
+  --gota-texto:#14243F;
+  --lg-texto-luz:0 0 6px rgba(255,255,255,.95),0 0 2px rgba(255,255,255,.95);
+}
+:root[data-tema="oscuro"]{
+  --lg-fondo:rgba(255,255,255,.04);
+  --lg-sombra:inset 0 0 0 1px rgba(255,255,255,.14),inset 0 1.5px 0 rgba(255,255,255,.35),inset 0 -1px 0 rgba(255,255,255,.12),
+    inset 0 0 14px rgba(255,255,255,.08),0 0 0 .5px rgba(0,0,0,.6),0 10px 26px -8px rgba(0,0,0,.6);
+  --lg-filo:linear-gradient(150deg,rgba(255,255,255,.5) 0%,rgba(255,255,255,.1) 25%,rgba(255,255,255,0) 50%,rgba(255,255,255,.12) 75%,rgba(255,255,255,.45) 100%);
+  --gota-fondo:rgba(110,152,214,.32);
+  --gota-sombra:inset 0 0 0 1px rgba(160,195,245,.35),inset 0 1.5px 0 rgba(255,255,255,.45),inset 0 0 12px rgba(160,195,245,.25),
+    0 0 0 .5px rgba(110,152,214,.5),0 4px 12px -4px rgba(0,0,0,.6);
+  --gota-texto:#FFFFFF;
+  --lg-texto-luz:0 0 6px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.95);
+}
+@media (prefers-color-scheme: dark){:root:not([data-tema]){
+  --lg-fondo:rgba(255,255,255,.04);
+  --lg-sombra:inset 0 0 0 1px rgba(255,255,255,.14),inset 0 1.5px 0 rgba(255,255,255,.35),inset 0 -1px 0 rgba(255,255,255,.12),
+    inset 0 0 14px rgba(255,255,255,.08),0 0 0 .5px rgba(0,0,0,.6),0 10px 26px -8px rgba(0,0,0,.6);
+  --lg-filo:linear-gradient(150deg,rgba(255,255,255,.5) 0%,rgba(255,255,255,.1) 25%,rgba(255,255,255,0) 50%,rgba(255,255,255,.12) 75%,rgba(255,255,255,.45) 100%);
+  --gota-fondo:rgba(110,152,214,.32);
+  --gota-sombra:inset 0 0 0 1px rgba(160,195,245,.35),inset 0 1.5px 0 rgba(255,255,255,.45),inset 0 0 12px rgba(160,195,245,.25),
+    0 0 0 .5px rgba(110,152,214,.5),0 4px 12px -4px rgba(0,0,0,.6);
+  --gota-texto:#FFFFFF;
+  --lg-texto-luz:0 0 6px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.95);
+}}
+/* El vidrio: casi sin color, apenas desenfocado, para que se vea lo de atrás */
+.tabbar,:root[data-tema="oscuro"] .tabbar{
+  border-radius:999px;padding:7px;border:none;background:var(--lg-fondo);box-shadow:var(--lg-sombra);
+  -webkit-backdrop-filter:var(--lg-desenfoque);backdrop-filter:var(--lg-desenfoque);
+  isolation:isolate;
+}
+@media (prefers-color-scheme: dark){:root:not([data-tema="claro"]) .tabbar{box-shadow:var(--lg-sombra);}}
+/* Filo de luz que recorre el borde (más fuerte en las esquinas, como un vidrio grueso) */
+.tabbar::after,.tab-indicador::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;background:var(--lg-filo);pointer-events:none;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);}
+.tabbar::after{z-index:3;}
+/* Las letras llevan un halo para leerse aunque pase algo por detrás */
+.tab-btn{border-radius:999px;color:var(--text);position:relative;z-index:1;text-shadow:var(--lg-texto-luz);}
+/* Pestaña elegida: vidrio celeste transparente */
+.tab-btn.active[data-tab],.tab-indicador,.tab-indicador[data-tab]{background:var(--gota-fondo);box-shadow:var(--gota-sombra);}
+.tab-btn.active[data-tab]{color:var(--gota-texto);}
+.tab-indicador{top:7px;bottom:7px;border-radius:999px;z-index:1;}
+.tab-indicador ~ .tab-btn{z-index:2;}
+.tab-indicador.listo ~ .tab-btn.active[data-tab]{background:transparent;box-shadow:none;}
+/* El vidrio reacciona al dedo (app.js pone .apretada/.apretando mientras se toca) */
+.tabbar{transition:scale .35s var(--ease-spring);}
+.tabbar.apretada{scale:1.025;}
+.tab-indicador{transition:transform .42s var(--ease-spring),translate .42s var(--ease-spring),background-color .3s ease,opacity .2s,scale .3s var(--ease-spring),filter .2s;}
+.tab-indicador.apretada{scale:1.07 1.1;filter:brightness(1.1) saturate(1.15);}
+.tab-btn{transition:background .2s,box-shadow .2s;}
+.tab-btn.apretando:not(.active){background:rgba(255,255,255,.28);box-shadow:inset 0 0 0 1px rgba(255,255,255,.5),inset 0 0 10px rgba(255,255,255,.35);}
+:root[data-tema="oscuro"] .tab-btn.apretando:not(.active){background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);}
+@media (prefers-color-scheme: dark){:root:not([data-tema]) .tab-btn.apretando:not(.active){background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);}}
+/* Chrome/Android: las orillas doblan lo de atrás como una lupa (public/vidrio.js arma el filtro #vidrioLiquido).
+   No se aplica con animaciones apagadas (teléfonos modestos). */
+:root:not([data-animaciones="no"]) .tabbar.vidrio-liquido{
+  -webkit-backdrop-filter:url(#vidrioLiquido) blur(1.5px) saturate(1.6);backdrop-filter:url(#vidrioLiquido) blur(1.5px) saturate(1.6);}
+/* En teléfonos modestos (animaciones apagadas) sin el desenfoque y con fondo sólido, para que se lea bien */
+:root[data-animaciones="no"] .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface);}
 /* Espacio al final para que el menú no tape la última cuenta o movimiento */
 #deudasView,#tiendaView{padding-bottom:calc(96px + env(safe-area-inset-bottom));}
 /* Los avisos salen por encima del menú */
@@ -936,6 +1030,10 @@ body:has(.select-bar) .tabbar{display:none;}
 .total-head .mini-btn.principal svg{color:var(--on-accent) !important;}
 #deudasView[data-tipo="pagar"] .total-head .mini-btn.principal{background:var(--pagar);}
 .total-head .mini-btn.solo-icono{width:40px;padding:0;justify-content:center;}
+/* Menos espacio entre el buscador y "Te deben", y la cifra un poco más grande */
+#deudasView{padding-top:8px;}
+.total-etiqueta{font-size:14.5px;}
+.total-monto{font-size:33px;}
 
 /* Visor de factura a pantalla completa con zoom (openPhotoLightbox) */
 .visor-foto{position:fixed;inset:0;z-index:70;background:#0B0D14;display:flex;flex-direction:column;color:#fff;}
