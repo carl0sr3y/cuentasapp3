@@ -1197,3 +1197,108 @@ button.perfil-fila:active{background:var(--surface-alt);}
 .perfil-nota{font-size:13.5px;color:var(--text-faint);margin:8px 8px 0;line-height:1.45;}
 .perfil-hoja-cab{display:flex;align-items:center;gap:12px;padding:2px 0 14px;border-bottom:1px solid var(--border-soft);margin-bottom:4px;}
 .perfil-hoja .perfil-fila{padding:11px 2px;min-height:54px;}
+
+/* ============================================================
+   VIDRIO EN TODA LA APP (mismo estilo que el menú de abajo)
+   Tres tipos:
+   - Vidrio de color (--tinte): botones principales. Celeste por defecto; verde = abono, rojo = cargo/eliminar,
+     dorado = a favor (los colores del dominio se respetan, solo se vuelven vidrio).
+   - Vidrio claro: botones secundarios, buscador, tarjetas y grupos del perfil.
+   - Vidrio flotante (borroso): ventanas, aviso de abajo y barra de eliminar.
+   El selector inexistente #vidrio dentro de :is() solo sube la prioridad para ganarle a las reglas viejas
+   (sin usar !important). Navegadores sin color-mix() se quedan con el color sólido de antes.
+   ============================================================ */
+/* --- Color de cada botón de vidrio --- */
+:root{--tinte:var(--celeste);} /* por defecto; cada botón de color lo cambia */
+.btn-primary,.btn-confirm,.mini-btn.principal,.filter-chip.active,#offlineBanner .reload-btn,.seg button.on,
+.switch.on,.toggle-opt.selected,.perfil-boton{--tinte:var(--celeste);}
+.abono-btn,button.exito{--tinte:var(--green);}
+.abono-btn.abono-favor{--tinte:var(--favor);}
+.cargo-btn,.btn-confirm.danger,.select-bar .delete-btn{--tinte:var(--red);}
+.modal-card[class*="mov-"] .btn-confirm{--tinte:var(--mov);}
+
+/* --- Vidrio de color --- */
+:is(#vidrio,.btn-primary,.btn-confirm,.mini-btn.principal,.filter-chip.active,.reload-btn,.seg button.on,.toggle-opt.selected,
+    .perfil-boton,.abono-btn,.cargo-btn,.select-bar .delete-btn,.detail-actions button){
+  background:
+    radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.55) 0%,rgba(255,255,255,.15) 45%,rgba(255,255,255,0) 70%),
+    linear-gradient(180deg,rgba(255,255,255,.2) 0%,rgba(255,255,255,0) 50%,rgba(0,0,0,.04) 100%),
+    radial-gradient(farthest-side,color-mix(in srgb,var(--tinte) 24%,transparent) 45%,color-mix(in srgb,var(--tinte) 52%,transparent) 100%);
+  box-shadow:
+    inset 0 0 9px 1px color-mix(in srgb,var(--tinte) 45%,transparent),
+    inset 0 -4px 7px -3px rgba(255,255,255,.55),
+    inset 0 3px 6px -3px rgba(255,255,255,.6),
+    0 0 0 .5px color-mix(in srgb,var(--tinte) 40%,transparent),
+    0 0 14px 1px color-mix(in srgb,var(--tinte) 26%,transparent),
+    0 6px 14px -5px color-mix(in srgb,var(--tinte) 45%,transparent);
+  color:color-mix(in srgb,var(--tinte) 45%,#000);
+  border-color:transparent;
+}
+:is(#vidrio,.btn-primary,.btn-confirm,.mini-btn.principal,.filter-chip.active,.reload-btn,.seg button.on,.toggle-opt.selected,
+    .perfil-boton,.abono-btn,.cargo-btn,.select-bar .delete-btn,.detail-actions button) svg{color:inherit !important;}
+
+/* --- Vidrio claro --- */
+:is(#vidrio,.btn-cancel,.btn-secondary,.mini-btn:not(.principal),.balance-pdf-btn,.pdf-btn,.filter-chip:not(.active),.mov-photo-btn,
+    .backup-dl,.action-btn,.toggle-opt:not(.selected),.pdf-opcion,.seg,.switch:not(.on),.top-search,.perfil-empresa,.photo-capture-btn){
+  background:radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.7) 0%,rgba(255,255,255,.2) 50%,rgba(255,255,255,0) 75%),rgba(255,255,255,.42);
+  box-shadow:inset 0 0 12px rgba(255,255,255,.75),inset 0 -5px 10px -5px rgba(24,24,26,.08),0 0 0 .5px rgba(24,24,26,.12),0 6px 16px -6px rgba(24,24,26,.18);
+  border-color:transparent;
+}
+/* Tarjetas: el mismo vidrio claro, un poco más sólido para leer bien los montos */
+:is(#vidrio,.account-card,.mov-row,.user-card,.fav-chip,.backup-row,.perfil-grupo,.login-card,.ajuste-row){
+  background:radial-gradient(80% 90% at 20% 0%,rgba(255,255,255,.75) 0%,rgba(255,255,255,0) 60%),rgba(255,255,255,.62);
+  box-shadow:inset 0 0 14px rgba(255,255,255,.8),inset 0 -6px 12px -6px rgba(24,24,26,.06),0 0 0 .5px rgba(24,24,26,.08),0 6px 16px -8px rgba(24,24,26,.16);
+  border-color:transparent;
+}
+:is(#vidrio,.account-card,.mov-row):active{background:rgba(255,255,255,.45);}
+.seg{border-radius:999px;}
+.seg button{border-radius:999px;}
+/* Interruptor: canal de vidrio y botón redondo de vidrio blanco; encendido, el canal es celeste */
+:is(#vidrio,.switch.on){
+  background:radial-gradient(farthest-side,color-mix(in srgb,var(--tinte) 30%,transparent) 40%,color-mix(in srgb,var(--tinte) 60%,transparent) 100%);
+  box-shadow:inset 0 0 8px 1px color-mix(in srgb,var(--tinte) 50%,transparent),inset 0 2px 4px -2px rgba(255,255,255,.7),0 0 0 .5px color-mix(in srgb,var(--tinte) 45%,transparent),0 0 10px color-mix(in srgb,var(--tinte) 30%,transparent);
+}
+.switch span{background:radial-gradient(80% 80% at 35% 25%,#fff 0%,#F2F2F0 70%,#E4E4E1 100%);
+  box-shadow:inset 0 -1px 2px rgba(0,0,0,.08),inset 0 1px 1px #fff,0 0 0 .5px rgba(24,24,26,.15),0 2px 6px rgba(24,24,26,.28);}
+
+/* --- Vidrio flotante: ventanas, aviso y barra de eliminar --- */
+:is(#vidrio,.modal-card,#toast,.select-bar){
+  background:radial-gradient(90% 60% at 20% 0%,rgba(255,255,255,.6) 0%,rgba(255,255,255,0) 60%),rgba(250,250,248,.86);
+  -webkit-backdrop-filter:blur(22px) saturate(1.7);backdrop-filter:blur(22px) saturate(1.7);
+  box-shadow:inset 0 0 18px rgba(255,255,255,.7),inset 0 -8px 16px -8px rgba(24,24,26,.06),0 0 0 .5px rgba(24,24,26,.12),0 18px 44px -12px rgba(24,24,26,.35);
+  border-color:transparent;color:var(--text);
+}
+/* Dentro de una ventana de vidrio, los campos de texto también son vidrio claro */
+.modal-card .field input,.modal-card input:not([type=checkbox]):not([type=radio]),.modal-card textarea,.modal-card select{
+  background:rgba(255,255,255,.9);border-color:rgba(24,24,26,.08);box-shadow:inset 0 1px 3px rgba(24,24,26,.06);}
+
+/* --- Modo oscuro --- */
+:root[data-tema="oscuro"] :is(#vidrio,.btn-primary,.btn-confirm,.mini-btn.principal,.filter-chip.active,.reload-btn,.seg button.on,.toggle-opt.selected,
+    .perfil-boton,.abono-btn,.cargo-btn,.select-bar .delete-btn,.detail-actions button){
+  background:
+    radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.26) 0%,rgba(255,255,255,.06) 45%,rgba(255,255,255,0) 70%),
+    linear-gradient(180deg,rgba(255,255,255,.08) 0%,rgba(255,255,255,0) 50%,rgba(0,0,0,.15) 100%),
+    radial-gradient(farthest-side,color-mix(in srgb,var(--tinte) 22%,transparent) 45%,color-mix(in srgb,var(--tinte) 50%,transparent) 100%);
+  box-shadow:inset 0 0 9px 1px color-mix(in srgb,var(--tinte) 50%,transparent),inset 0 -4px 7px -3px rgba(255,255,255,.2),inset 0 3px 6px -3px rgba(255,255,255,.25),
+    0 0 0 .5px color-mix(in srgb,var(--tinte) 45%,transparent),0 0 14px 1px color-mix(in srgb,var(--tinte) 22%,transparent),0 6px 14px -5px rgba(0,0,0,.55);
+  color:#fff;
+}
+:root[data-tema="oscuro"] :is(#vidrio,.btn-cancel,.btn-secondary,.mini-btn:not(.principal),.balance-pdf-btn,.pdf-btn,.filter-chip:not(.active),.mov-photo-btn,
+    .backup-dl,.action-btn,.toggle-opt:not(.selected),.pdf-opcion,.seg,.switch:not(.on),.top-search,.perfil-empresa,.photo-capture-btn){
+  background:radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.10) 0%,rgba(255,255,255,0) 60%),rgba(255,255,255,.06);
+  box-shadow:inset 0 0 12px rgba(255,255,255,.06),0 0 0 .5px rgba(0,0,0,.55),0 6px 16px -6px rgba(0,0,0,.5);
+}
+:root[data-tema="oscuro"] :is(#vidrio,.account-card,.mov-row,.user-card,.fav-chip,.backup-row,.perfil-grupo,.login-card,.ajuste-row){
+  background:radial-gradient(80% 90% at 20% 0%,rgba(255,255,255,.07) 0%,rgba(255,255,255,0) 60%),rgba(255,255,255,.05);
+  box-shadow:inset 0 0 14px rgba(255,255,255,.04),0 0 0 .5px rgba(0,0,0,.5),0 6px 16px -8px rgba(0,0,0,.5);
+}
+:root[data-tema="oscuro"] :is(#vidrio,.account-card,.mov-row):active{background:rgba(255,255,255,.09);}
+:root[data-tema="oscuro"] :is(#vidrio,.modal-card,#toast,.select-bar){
+  background:radial-gradient(90% 60% at 20% 0%,rgba(255,255,255,.08) 0%,rgba(255,255,255,0) 60%),rgba(34,34,34,.86);
+  box-shadow:inset 0 0 18px rgba(255,255,255,.05),0 0 0 .5px rgba(0,0,0,.6),0 18px 44px -12px rgba(0,0,0,.7);
+}
+:root[data-tema="oscuro"] .modal-card .field input,:root[data-tema="oscuro"] .modal-card input:not([type=checkbox]):not([type=radio]),
+:root[data-tema="oscuro"] .modal-card textarea,:root[data-tema="oscuro"] .modal-card select{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.08);}
+:root[data-tema="oscuro"] .switch span{background:radial-gradient(80% 80% at 35% 25%,#F4F4F2 0%,#D9D9D6 100%);}
+/* Teléfonos modestos: sin lo borroso de las ventanas (lo que más cuesta dibujar); quedan más sólidas */
+:root[data-animaciones="no"] :is(#vidrio,.modal-card,#toast,.select-bar){-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface);}
