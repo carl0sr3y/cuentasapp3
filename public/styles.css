@@ -921,12 +921,19 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
     inset 0 -6px 12px -6px rgba(24,24,26,.10),
     0 0 0 .5px rgba(24,24,26,.16),
     0 10px 26px -8px rgba(24,24,26,.22);
-  --gota-fondo:rgba(110,152,214,.42);
+  /* Gota de vidrio celeste, de arriba hacia abajo en capas:
+     reflejo suave arriba a la izquierda · luz que entra por arriba · centro claro y orillas más azules */
+  --gota-fondo:
+    radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.62) 0%,rgba(255,255,255,.18) 45%,rgba(255,255,255,0) 70%),
+    linear-gradient(180deg,rgba(255,255,255,.22) 0%,rgba(255,255,255,0) 50%,rgba(40,80,150,.10) 100%),
+    radial-gradient(farthest-side,rgba(140,176,230,.22) 50%,rgba(98,142,210,.55) 100%);
   --gota-sombra:
-    inset 0 0 12px rgba(255,255,255,.45),
-    inset 0 -5px 10px -5px rgba(48,92,168,.30),
-    0 0 0 .5px rgba(70,118,196,.45),
-    0 4px 12px -4px rgba(70,118,196,.45);
+    inset 0 0 9px 1px rgba(78,122,198,.45),
+    inset 0 -4px 7px -3px rgba(255,255,255,.55),
+    inset 0 3px 6px -3px rgba(255,255,255,.6),
+    0 0 0 .5px rgba(70,118,196,.40),
+    0 0 16px 1px rgba(110,152,214,.42),
+    0 6px 14px -5px rgba(60,108,190,.50);
   --gota-texto:#14243F;
   --lg-texto-luz:0 0 6px rgba(255,255,255,.95),0 0 2px rgba(255,255,255,.95);
 }
@@ -934,9 +941,12 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
   --lg-fondo:rgba(255,255,255,.04);
   --lg-sombra:
     inset 0 0 14px rgba(255,255,255,.08),0 0 0 .5px rgba(0,0,0,.6),0 10px 26px -8px rgba(0,0,0,.6);
-  --gota-fondo:rgba(110,152,214,.32);
-  --gota-sombra:inset 0 0 12px rgba(160,195,245,.25),
-    0 0 0 .5px rgba(110,152,214,.5),0 4px 12px -4px rgba(0,0,0,.6);
+  --gota-fondo:
+    radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.28) 0%,rgba(255,255,255,.07) 45%,rgba(255,255,255,0) 70%),
+    linear-gradient(180deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,0) 50%,rgba(0,20,60,.18) 100%),
+    radial-gradient(farthest-side,rgba(110,152,214,.18) 50%,rgba(96,140,212,.50) 100%);
+  --gota-sombra:inset 0 0 9px 1px rgba(120,165,235,.45),inset 0 -4px 7px -3px rgba(190,215,255,.35),inset 0 3px 6px -3px rgba(255,255,255,.3),
+    0 0 0 .5px rgba(110,152,214,.5),0 0 16px 1px rgba(110,152,214,.35),0 6px 14px -5px rgba(0,0,0,.6);
   --gota-texto:#FFFFFF;
   --lg-texto-luz:0 0 6px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.95);
 }
@@ -944,9 +954,12 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
   --lg-fondo:rgba(255,255,255,.04);
   --lg-sombra:
     inset 0 0 14px rgba(255,255,255,.08),0 0 0 .5px rgba(0,0,0,.6),0 10px 26px -8px rgba(0,0,0,.6);
-  --gota-fondo:rgba(110,152,214,.32);
-  --gota-sombra:inset 0 0 12px rgba(160,195,245,.25),
-    0 0 0 .5px rgba(110,152,214,.5),0 4px 12px -4px rgba(0,0,0,.6);
+  --gota-fondo:
+    radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.28) 0%,rgba(255,255,255,.07) 45%,rgba(255,255,255,0) 70%),
+    linear-gradient(180deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,0) 50%,rgba(0,20,60,.18) 100%),
+    radial-gradient(farthest-side,rgba(110,152,214,.18) 50%,rgba(96,140,212,.50) 100%);
+  --gota-sombra:inset 0 0 9px 1px rgba(120,165,235,.45),inset 0 -4px 7px -3px rgba(190,215,255,.35),inset 0 3px 6px -3px rgba(255,255,255,.3),
+    0 0 0 .5px rgba(110,152,214,.5),0 0 16px 1px rgba(110,152,214,.35),0 6px 14px -5px rgba(0,0,0,.6);
   --gota-texto:#FFFFFF;
   --lg-texto-luz:0 0 6px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.95);
 }}
@@ -966,7 +979,9 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
 .tab-indicador ~ .tab-btn{z-index:2;}
 .tab-indicador.listo ~ .tab-btn.active[data-tab]{background:transparent;box-shadow:none;}
 /* El vidrio reacciona al dedo (app.js pone .apretada/.apretando mientras se toca) */
-.tabbar{transition:scale .35s var(--ease-spring);}
+.tabbar{transition:scale .35s var(--ease-spring);transform-origin:50% 100%;}
+/* Al bajar por la lista el menú se achica (app.js pone .compacta) */
+.tabbar.compacta{scale:.84;}
 .tabbar.apretada{scale:1.025;}
 .tab-indicador{transition:transform .42s var(--ease-spring),translate .42s var(--ease-spring),background-color .3s ease,opacity .2s,scale .3s var(--ease-spring),filter .2s;}
 .tab-indicador.apretada{scale:1.07 1.1;filter:brightness(1.1) saturate(1.15);}

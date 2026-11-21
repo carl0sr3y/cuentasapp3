@@ -1490,6 +1490,24 @@ function estirarGota(ind, saltos) {
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => barra.addEventListener(t, soltar));
   window.addEventListener('blur', soltar);
 })();
+// Al bajar por la lista el menú se achica para dejar más espacio; al subir un poco (o al tocarlo, o al
+// llegar arriba) vuelve a su tamaño. Solo se mira cuánto se movió la página: no se toca la lista.
+(() => {
+  const barra = document.querySelector('.tabbar');
+  if (!barra) return;
+  let ultimoY = window.scrollY, pendiente = false;
+  const revisar = () => {
+    pendiente = false;
+    const y = window.scrollY, dy = y - ultimoY;
+    if (y < 60) barra.classList.remove('compacta');
+    else if (dy > 8) barra.classList.add('compacta');
+    else if (dy < -8) barra.classList.remove('compacta');
+    else return; // movimiento muy chico: se espera a que sume más
+    ultimoY = y;
+  };
+  window.addEventListener('scroll', () => { if (!pendiente) { pendiente = true; requestAnimationFrame(revisar); } }, { passive: true });
+  barra.addEventListener('pointerdown', () => barra.classList.remove('compacta'));
+})();
 function setTabUI(tab) {
   const anterior = currentTab;
   currentTab = tab;
