@@ -1,6 +1,6 @@
 // "Liquid glass" con lupa en las orillas: lo que pasa por detrás se dobla al llegar al borde del vidrio
 // (sensación de volumen) y en el filo se separa un poquito en colores (arcoíris finito).
-// Se aplica al menú de abajo (.tabbar) y a las ventanas flotantes (.modal-card).
+// Se aplica al menú de abajo (.tabbar), a las ventanas flotantes (.modal-card) y a las tarjetas.
 // Usa un filtro SVG en backdrop-filter, que hoy solo dibuja Chrome/Android. En los demás navegadores
 // (iPhone, Firefox) y con animaciones apagadas (teléfonos modestos) queda el vidrio normal del CSS.
 //
@@ -74,10 +74,14 @@
 
   // Arma el filtro de un elemento. conCentro = ventana: centro borroso con velo, orilla con lupa.
   var cuenta = 0;
-  function crearFiltro(conCentro) {
+  function crearFiltro(conCentro, simple) {
     var id = 'vidrioLiquido' + (++cuenta);
     var f = nodo('filter', { id: id, filterUnits: 'userSpaceOnUse', primitiveUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' }, svg);
     var mapa = nodo('feImage', { result: 'mapa', preserveAspectRatio: 'none' }, f);
+    if (simple) { // solo la lupa, sin arcoíris: una sola pasada (para las tarjetas, que son muchas)
+      nodo('feDisplacementMap', { in: 'SourceGraphic', in2: 'mapa', scale: String(FUERZA), xChannelSelector: 'R', yChannelSelector: 'G' }, f);
+      return { id: id, filtro: f, mapa: mapa, mascara: null };
+    }
     COLORES.forEach(function (c) {
       nodo('feDisplacementMap', { in: 'SourceGraphic', in2: 'mapa', scale: String(Math.round(FUERZA * c[1])),
         xChannelSelector: 'R', yChannelSelector: 'G', result: 'd' + c[0] }, f);
@@ -148,9 +152,50 @@
     }).observe(barra);
   }
 
+  // Tarjetas (cuentas, movimientos, usuarios, grupos del perfil): el mismo vidrio que el menú.
+  // Pueden ser muchas, así que: (1) las del mismo tamaño comparten un solo filtro, y (2) la lupa solo
+  // se activa en las que están en pantalla (o a punto de entrar), para no cargar al teléfono.
+  var TARJETAS = '.account-card,.mov-row,.user-card,.perfil-grupo,.backup-row';
+  var compartidos = {};
+  function filtroCompartido(w, h, r) {
+    var clave = w + 'x' + h + 'r' + r;
+    if (compartidos[clave]) return compartidos[clave];
+    var v = crearFiltro(false, true);
+    [v.filtro, v.mapa].forEach(function (n) {
+      n.setAttribute('x', '0'); n.setAttribute('y', '0');
+      n.setAttribute('width', String(w)); n.setAttribute('height', String(h));
+    });
+    v.mapa.setAttribute('href', dibujar(w, h, r, false).mapa);
+    return (compartidos[clave] = v.id);
+  }
+  function activarTarjeta(el) {
+    var w = el.offsetWidth, h = el.offsetHeight;
+    if (!w || !h) return;
+    var r = Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, h / 2, w / 2);
+    el.style.setProperty('--vidrio-url', 'url(#' + filtroCompartido(w, h, r) + ')');
+    el.classList.add('vidrio-liquido');
+  }
+  var vistas = new IntersectionObserver(function (entradas) {
+    entradas.forEach(function (e) {
+      if (e.isIntersecting) activarTarjeta(e.target); else e.target.classList.remove('vidrio-liquido');
+    });
+  }, { rootMargin: '120px 0px' });
+  var tarjetas = new Set();
+  function revisarTarjetas() {
+    document.querySelectorAll(TARJETAS).forEach(function (t) {
+      if (!tarjetas.has(t)) { tarjetas.add(t); vistas.observe(t); }
+    });
+    tarjetas.forEach(function (t) { if (!t.isConnected) { vistas.unobserve(t); tarjetas.delete(t); } });
+  }
+  // Si cambia el ancho de la pantalla (girar el teléfono), las tarjetas visibles toman su nuevo tamaño.
+  window.addEventListener('resize', function () {
+    tarjetas.forEach(function (t) { if (t.classList.contains('vidrio-liquido')) activarTarjeta(t); });
+  });
+
   // Ventanas flotantes: aparecen y desaparecen, así que se vigila cuándo se agregan o se quitan.
   var ventanas = [];
   function revisarVentanas() {
+    revisarTarjetas();
     document.querySelectorAll('.modal-card').forEach(function (m) {
       if (!m._vidrio) { vigilar(m, true); ventanas.push(m); }
     });
