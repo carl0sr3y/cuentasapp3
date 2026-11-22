@@ -196,3 +196,15 @@ computadora. Las acciones de cada usuario (cambiar nombre, contraseña, correo, 
 - `public/app.js`: `openAccountSettingsPage`, `renderUsersPage` (según `perfilSub`), `abrirSubPerfil`,
   `filaPerfil`, `abrirAccionesUsuario`. Historial: `{ view: 'users', sub }`. Estilos `.perfil-*` en `public/styles.css`.
 - Prueba local: `bash pruebas/correr.sh perfil-botones`.
+
+## Vidrio, lupa, arcoíris y luz en las orillas (tema especial, `public/vidrio.js`)
+
+| Lo que ves | ¿Es normal? | Explicación |
+|---|---|---|
+| En iPhone no hay lupa, arcoíris ni luz en las orillas | Sí | Safari no permite ese filtro; se ve el vidrio transparente normal. |
+| En un teléfono modesto o con "animaciones" apagadas no hay lupa ni luz | Sí | Se apagan solas para que la app no se trabe. |
+| El brillo de las orillas parpadea | No | Se corrigió (el brillo se dibuja en un lienzo propio de cada pieza). Si vuelve, revisar `copiar()` en `public/vidrio.js`. |
+| El brillo no se mueve al inclinar el teléfono (Android/Chrome) | No | El navegador no está mandando el giroscopio: revisar que la página sea https y que en Chrome → Configuración del sitio → "Sensores de movimiento" esté permitido. |
+| La lupa se ve corrida unos puntos hacia adentro | No | Falla de Chrome: pasa si la pieza con lupa (o algo dentro) tiene sombra por fuera. La sombra tiene que ir en otra pieza aparte (como `.tabbar-sombra`). |
+
+- Prueba local de parpadeo/fluidez: no hay prueba fija; se mide con el navegador de pruebas enviando giroscopio simulado.

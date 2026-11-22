@@ -147,8 +147,8 @@
   // tres luces apenas separadas (cálida, verde, azul) dan blanco donde coinciden y colores en las puntas
   // del brillo (arcoíris). El brillo NO depende de lo que hay detrás, así que se calcula aquí como una
   // imagen, una vez por tamaño de pieza, y solo se vuelve a calcular cuando la luz cambia de dirección.
-  // Cada pieza la muestra en su ::after (ver --vidrio-brillo en styles.css). Así el filtro del vidrio
-  // sigue igual de liviano.
+  // Cada pieza lo muestra en su propio lienzo (ver .vidrio-lienzo en styles.css). Así el filtro del
+  // vidrio sigue igual de liviano.
   var LUZ_COLORES = [[255, 106, 77, -14], [124, 255, 138, 0], [90, 140, 255, 14]];
   var ELEVACION = 20 * Math.PI / 180, INTENSIDAD = 1.35;
   var brillo = (function () {
@@ -166,7 +166,7 @@
         qx[i] = ax / al; qy[i] = ay / al;
       }
       var c = document.createElement('canvas'); c.width = w; c.height = h;
-      return (formas[clave] = { clave: clave, w: w, h: h, t: t, vx: vx, vy: vy, qx: qx, qy: qy, c: c, g: c.getContext('2d'), url: null, els: new Set() });
+      return (formas[clave] = { clave: clave, w: w, h: h, t: t, vx: vx, vy: vy, qx: qx, qy: qy, c: c, g: c.getContext('2d'), listo: false, els: new Set() });
     }
     function pintar(F) {
       var w = F.w, h = F.h, img = F.g.createImageData(w, h), d = img.data;
@@ -196,22 +196,33 @@
         d[j] = Math.min(255, r * 255 / m); d[j + 1] = Math.min(255, g * 255 / m); d[j + 2] = Math.min(255, b * 255 / m); d[j + 3] = a;
       }
       F.g.putImageData(img, 0, 0);
-      F.c.toBlob(function (blob) {
-        if (!blob) return;
-        var viejo = F.url; F.url = URL.createObjectURL(blob);
-        var v = 'url(' + F.url + ')';
-        F.els.forEach(function (el) { el.style.setProperty('--vidrio-brillo', v); });
-        if (viejo) setTimeout(function () { URL.revokeObjectURL(viejo); }, 3000);
-      });
+      F.listo = true;
+      F.els.forEach(copiar);
+    }
+    // Cada pieza tiene su propio lienzo (<canvas class="vidrio-lienzo">) donde se copia el brillo de su
+    // tamaño. Se dibuja directo, en el mismo instante: así nunca hay un momento sin brillo (con imágenes
+    // que se cambiaban, el teléfono las volvía a cargar y el brillo parpadeaba).
+    function copiar(el) {
+      var F = el._brillo, c = el._lienzo;
+      if (!F || !c || !F.listo) return;
+      if (c.width !== F.w || c.height !== F.h) { c.width = F.w; c.height = F.h; }
+      var g = c.getContext('2d'); g.clearRect(0, 0, F.w, F.h); g.drawImage(F.c, 0, 0);
     }
     function quitar(el) {
       if (el._brillo) { el._brillo.els.delete(el); el._brillo = null; }
+      if (el._lienzo) { el._lienzo.remove(); el._lienzo = null; }
     }
     function usar(el, w, h, r) {
       var F = forma(w, h, r);
-      if (el._brillo === F) return;
-      quitar(el); el._brillo = F; F.els.add(el);
-      if (F.url) el.style.setProperty('--vidrio-brillo', 'url(' + F.url + ')'); else pintar(F);
+      if (el._brillo === F && el._lienzo && el._lienzo.isConnected) return;
+      if (el._brillo) el._brillo.els.delete(el);
+      el._brillo = F; F.els.add(el);
+      if (!el._lienzo || !el._lienzo.isConnected) {
+        var c = document.createElement('canvas');
+        c.className = 'vidrio-lienzo'; c.setAttribute('aria-hidden', 'true');
+        el.appendChild(c); el._lienzo = c;
+      }
+      if (F.listo) copiar(el); else pintar(F);
     }
     function luz(x, y) {
       luzX = x; luzY = y;
@@ -321,12 +332,12 @@
     if (!corriendo) { corriendo = true; requestAnimationFrame(paso); }
   }
   // Giroscopio: al inclinar el teléfono la luz "da la vuelta" por la orilla. "base" es cómo se sostiene
-  // normalmente (se acomoda despacio), así sin moverlo la luz queda arriba a la izquierda.
+  // normalmente (se acomoda despacio, ~10 s), así sin moverlo la luz queda arriba a la izquierda.
   window.addEventListener('deviceorientation', function (e) {
     if (e.beta == null || e.gamma == null) return;
     if (base == null) base = e.beta;
-    base += (e.beta - base) * 0.01;
-    luzHacia(-0.6 + e.gamma / 20, -0.8 + (e.beta - base) / 15);
+    base += (e.beta - base) * 0.002; // se acomoda en unos 10 segundos a cómo se sostiene el teléfono
+    luzHacia(-0.6 + e.gamma / 15, -0.8 + (e.beta - base) / 12);
   });
   // Computadora: la luz viene de donde está el mouse.
   if (window.matchMedia && matchMedia('(pointer: fine)').matches) {

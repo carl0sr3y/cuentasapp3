@@ -1438,10 +1438,9 @@ button.perfil-fila:active{background:var(--surface-alt);}
 :root[data-tema="oscuro"]:root .perfil-grupo{background:rgba(8,8,14,.70);}
 :root[data-tema="oscuro"] :is(.perfil-val,.perfil-tx small){color:#B4B4B1;}
 
-/* Brillo de la luz en la orilla del vidrio (public/vidrio.js lo calcula y lo pone en --vidrio-brillo).
-   Va en una capa encima del vidrio y debajo del texto; del mismo tamaño que la pieza (no se sale, así
-   no descuadra la lupa). Solo con lupa activa (Chrome/Android, animaciones encendidas). */
+/* Brillo de la luz en la orilla del vidrio: public/vidrio.js lo dibuja en un lienzo dentro de cada pieza.
+   Va encima del vidrio y debajo del texto, del mismo tamaño que la pieza (no se sale, así no descuadra
+   la lupa). Solo se ve con lupa activa (Chrome/Android, animaciones encendidas). */
 :is(.mov-row,.modal-card,.user-card,.backup-row){position:relative;}
-:root:not([data-animaciones="no"]) :is(.tabbar,.modal-card,.account-card,.mov-row,.user-card,.perfil-grupo,.backup-row).vidrio-liquido::after{
-  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
-  background:var(--vidrio-brillo,none) 0 0/100% 100% no-repeat;}
+.vidrio-lienzo{position:absolute;left:0;top:0;width:100%;height:100%;border-radius:inherit;pointer-events:none;z-index:-1;display:none;}
+:root:not([data-animaciones="no"]) .vidrio-liquido > .vidrio-lienzo{display:block;}
