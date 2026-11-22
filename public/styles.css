@@ -1359,7 +1359,8 @@ button.perfil-fila:active{background:var(--surface-alt);}
 .account-card .acc-balance{font-size:19px;}
 
 /* ============================================================
-   MODO OSCURO: fondo negro con manchas grises que se mueven despacio (#manchas en index.html).
+   MODO OSCURO: fondo "Aurora" (morado, coral, turquesa y amarillo sobre azul noche) con formas que se
+   mueven despacio (#manchas en index.html). Las orillas definidas de las formas lucen la lupa y el arcoíris.
    Una sola capa fija para toda la app: detrás de la lista; cuando hay una pantalla abierta (una cuenta,
    el perfil…) sube por encima de la lista y queda detrás de esa pantalla, que se vuelve transparente.
    Las manchas solo se mueven con "transform" (lo dibuja la tarjeta de video, gasta poco); con las
@@ -1367,16 +1368,19 @@ button.perfil-fila:active{background:var(--surface-alt);}
    ============================================================ */
 #manchas{display:none;}
 :root[data-tema="oscuro"]{--bg:#000000;}
-:root[data-tema="oscuro"] #manchas{display:block;position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;background:#000;}
+:root[data-tema="oscuro"] #manchas{display:block;position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;background:#0B0B1A;}
+/* Velo que apaga un poco los colores (como el fondo de pantalla del teléfono en modo oscuro) */
+:root[data-tema="oscuro"] #manchas::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.30);}
 :root[data-tema="oscuro"] #pageRoot:not(:empty) ~ #manchas{z-index:49;}
 #manchas i{position:absolute;display:block;border-radius:50%;will-change:transform;
-  background:radial-gradient(closest-side,rgba(205,205,205,.44) 0%,rgba(180,180,180,.36) 58%,rgba(150,150,150,.15) 80%,rgba(120,120,120,0) 100%);}
+  background:radial-gradient(closest-side,#7B5CFF 0%,#5A3FD8 70%,#3A2AA0 99%,transparent 100%);}
 #manchas i:nth-child(1){width:70vmax;height:52vmax;left:-34vmax;top:-8vmax;animation:mancha1 46s ease-in-out infinite alternate;}
-#manchas i:nth-child(2){width:56vmax;height:76vmax;right:-40vmax;top:26vh;animation:mancha2 58s ease-in-out infinite alternate;}
+#manchas i:nth-child(2){width:56vmax;height:76vmax;right:-40vmax;top:26vh;animation:mancha2 58s ease-in-out infinite alternate;
+  background:radial-gradient(closest-side,#FF8A4C 0%,#F2545B 65%,#C23A6B 99%,transparent 100%);}
 #manchas i:nth-child(3){width:50vmax;height:38vmax;left:-20vmax;bottom:-24vmax;animation:mancha3 41s ease-in-out infinite alternate;
-  background:radial-gradient(closest-side,rgba(170,170,170,.34) 0%,rgba(140,140,140,.24) 55%,rgba(110,110,110,0) 100%);}
+  background:radial-gradient(closest-side,#2EC5CE 0%,#1E8FB0 70%,#14607F 99%,transparent 100%);}
 #manchas i:nth-child(4){width:26vmax;height:24vmax;left:46vw;top:8vh;animation:mancha4 64s ease-in-out infinite alternate;
-  background:radial-gradient(closest-side,rgba(240,240,240,.34) 0%,rgba(210,210,210,.22) 55%,rgba(180,180,180,0) 100%);}
+  background:radial-gradient(closest-side,#FFD166 0%,#F7A440 70%,#E07A2E 99%,transparent 100%);}
 @keyframes mancha1{0%{transform:translate(0,0) rotate(0deg) scale(1)}50%{transform:translate(14vmax,10vmax) rotate(18deg) scale(1.08)}100%{transform:translate(6vmax,24vmax) rotate(-10deg) scale(.94)}}
 @keyframes mancha2{0%{transform:translate(0,0) rotate(0deg) scale(1)}50%{transform:translate(-16vmax,-12vmax) rotate(-22deg) scale(1.1)}100%{transform:translate(-8vmax,8vmax) rotate(12deg) scale(.96)}}
 @keyframes mancha3{0%{transform:translate(0,0) rotate(0deg)}50%{transform:translate(18vmax,-10vmax) rotate(25deg) scale(1.12)}100%{transform:translate(30vmax,-4vmax) rotate(-8deg)}}
@@ -1420,3 +1424,17 @@ button.perfil-fila:active{background:var(--surface-alt);}
 /* Teléfonos modestos: sin desenfoque y con fondo sólido para leer bien */
 :root[data-animaciones="no"] :is(#vidrio,.account-card,.mov-row,.user-card,.perfil-grupo,.backup-row){
   -webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface);}
+/* Modo oscuro con fondo de colores: las tarjetas oscurecen lo de atrás en el centro (donde van los
+   números) y dejan las orillas más transparentes para que se vea la lupa y el arcoíris. */
+:root[data-tema="oscuro"]:root :is(#vidrio,.account-card,.mov-row,.user-card,.backup-row){
+  background:radial-gradient(80% 90% at 20% 0%,rgba(255,255,255,.06) 0%,rgba(255,255,255,0) 60%),
+    radial-gradient(farthest-side,rgba(8,8,14,.58) 84%,rgba(8,8,14,.12) 100%);}
+:root[data-tema="oscuro"]:root .perfil-grupo{background:rgba(8,8,14,.55);}
+:root[data-tema="oscuro"] .cero{color:#A3A3A0;}
+/* Textos que van directo sobre el fondo de colores: más claros y con una sombra suave para que se lean
+   aunque pase un color vivo por detrás. Grupos del perfil un poco más oscuros. */
+:root[data-tema="oscuro"] :is(.swipe-hint,.history-date-label,.letter-head,.perfil-titulo,.perfil-nota,.total-sub,.total-etiqueta,.perfil-acceso){
+  color:#C9C9C6;text-shadow:0 1px 3px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.7);}
+:root[data-tema="oscuro"] :is(.perfil-nombre,.page-header h2){text-shadow:0 1px 3px rgba(0,0,0,.8),0 0 10px rgba(0,0,0,.5);}
+:root[data-tema="oscuro"]:root .perfil-grupo{background:rgba(8,8,14,.70);}
+:root[data-tema="oscuro"] :is(.perfil-val,.perfil-tx small){color:#B4B4B1;}
