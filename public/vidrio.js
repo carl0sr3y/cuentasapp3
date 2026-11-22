@@ -6,6 +6,11 @@
 //
 // Ventanas: el centro queda borroso y con un velo claro (para leer bien lo que se escribe) y solo la
 // orilla deja ver lo de atrás doblado. Todo eso lo hace el mismo filtro con una "máscara" del centro.
+//
+// Luz: una luz que no se ve (sin fuente en pantalla) pega en la orilla curva del vidrio y la hace brillar
+// del lado de donde viene, con el brillo separado en colores en las puntas (arcoíris). La dirección
+// sigue al giroscopio del teléfono (o al mouse en computadora). El brillo se calcula como imagen (una
+// por tamaño de pieza) y solo cuando la luz cambia de dirección; el filtro del vidrio no se toca.
 (function () {
   'use strict';
   // Solo navegadores basados en Chromium (userAgentData no existe en Safari/iPhone ni en Firefox).
@@ -86,7 +91,7 @@
     nodo('feBlend', { in: 'r', in2: 'g', mode: 'screen', result: 'rg' }, f);
     var mascara = null;
     if (!conCentro) {
-      nodo('feBlend', { in: 'rg', in2: 'b', mode: 'screen' }, f);
+      nodo('feBlend', { in: 'rg', in2: 'b', mode: 'screen', result: 'vidrio' }, f);
     } else {
       nodo('feBlend', { in: 'rg', in2: 'b', mode: 'screen', result: 'lente' }, f);
       // Orilla: la lupa con un velo muy leve. Centro: borroso con el velo de la ventana (color en el CSS).
@@ -97,7 +102,7 @@
       nodo('feComposite', { in: 'velo', in2: 'borroso', operator: 'over', result: 'centroLleno' }, f);
       mascara = nodo('feImage', { result: 'mascara', preserveAspectRatio: 'none' }, f);
       nodo('feComposite', { in: 'centroLleno', in2: 'mascara', operator: 'in', result: 'centro' }, f);
-      nodo('feComposite', { in: 'centro', in2: 'orilla', operator: 'over' }, f);
+      nodo('feComposite', { in: 'centro', in2: 'orilla', operator: 'over', result: 'vidrio' }, f);
     }
     return { id: id, filtro: f, mapa: mapa, mascara: mascara };
   }
@@ -125,13 +130,95 @@
       if (v.mascara) v.mascara.setAttribute('href', img.mascara);
       el.style.setProperty('--vidrio-url', 'url(#' + v.id + ')');
       el.classList.add('vidrio-liquido');
+      brillo.usar(el, w, h, r);
     }
     var ro = new ResizeObserver(actualizar);
     ro.observe(el);
-    function borrar() { ro.disconnect(); if (v.filtro.parentNode) v.filtro.parentNode.removeChild(v.filtro); el._vidrio = null; }
+    function borrar() {
+      ro.disconnect(); if (v.filtro.parentNode) v.filtro.parentNode.removeChild(v.filtro); el._vidrio = null;
+      brillo.quitar(el);
+    }
     v.borrar = borrar;
     actualizar();
   }
+
+  // ---- Brillo de la luz en la orilla ----
+  // La luz (que no se ve) pega en la orilla curva del vidrio y la hace brillar del lado de donde viene;
+  // tres luces apenas separadas (cálida, verde, azul) dan blanco donde coinciden y colores en las puntas
+  // del brillo (arcoíris). El brillo NO depende de lo que hay detrás, así que se calcula aquí como una
+  // imagen, una vez por tamaño de pieza, y solo se vuelve a calcular cuando la luz cambia de dirección.
+  // Cada pieza la muestra en su ::after (ver --vidrio-brillo en styles.css). Así el filtro del vidrio
+  // sigue igual de liviano.
+  var LUZ_COLORES = [[255, 106, 77, -14], [124, 255, 138, 0], [90, 140, 255, 14]];
+  var ELEVACION = 20 * Math.PI / 180, INTENSIDAD = 1.35;
+  var brillo = (function () {
+    var formas = {}, luzX = -0.6, luzY = -0.8;
+    function forma(w, h, r) {
+      var clave = w + 'x' + h + 'r' + r;
+      if (formas[clave]) return formas[clave];
+      var n = w * h, t = new Float32Array(n), vx = new Float32Array(n), vy = new Float32Array(n);
+      var qx = new Float32Array(n), qy = new Float32Array(n);
+      for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+        var o = orilla(x + 0.5, y + 0.5, w, h, r), i = y * w + x;
+        t[i] = o.t; vx[i] = o.vx; vy[i] = o.vy;
+        // hacia qué lado de la pieza queda este punto (para que el brillo se concentre del lado de la luz)
+        var ax = (x + 0.5 - w / 2) / (w / 2), ay = (y + 0.5 - h / 2) / (h / 2), al = Math.sqrt(ax * ax + ay * ay) || 1;
+        qx[i] = ax / al; qy[i] = ay / al;
+      }
+      var c = document.createElement('canvas'); c.width = w; c.height = h;
+      return (formas[clave] = { clave: clave, w: w, h: h, t: t, vx: vx, vy: vy, qx: qx, qy: qy, c: c, g: c.getContext('2d'), url: null, els: new Set() });
+    }
+    function pintar(F) {
+      var w = F.w, h = F.h, img = F.g.createImageData(w, h), d = img.data;
+      var base = Math.atan2(luzY, luzX), ce = Math.cos(ELEVACION), se = Math.sin(ELEVACION);
+      var lx = Math.cos(base), ly = Math.sin(base);
+      // Vector "a medio camino" entre la luz y el ojo, para cada una de las tres luces
+      var Hs = LUZ_COLORES.map(function (c) {
+        var a = base + c[3] * Math.PI / 180, hx = Math.cos(a) * ce, hy = Math.sin(a) * ce, hz = se + 1;
+        var l = Math.sqrt(hx * hx + hy * hy + hz * hz); return [hx / l, hy / l, hz / l, c];
+      });
+      for (var i = 0, n = w * h; i < n; i++) {
+        var t = F.t[i]; if (t <= 0) continue;
+        // La orilla se curva hacia afuera cada vez más rápido al llegar al filo (como un vidrio grueso
+        // redondeado): así el brillo cae en el filo y no adentro de la pieza.
+        var ang = t * t * t * 1.45, s = Math.sin(ang), nx = F.vx[i] * s, ny = F.vy[i] * s, nz = Math.cos(ang);
+        // Más brillo del lado que da hacia la luz; se apaga a lo largo de la orilla (destello, no raya)
+        var lado = F.qx[i] * lx + F.qy[i] * ly; if (lado <= -0.2) continue;
+        lado = (lado + 0.2) / 1.2; lado = lado * lado * lado;
+        var r = 0, g = 0, b = 0, borde = (t < 0.5 ? t / 0.5 : 1) * lado;
+        for (var k = 0; k < 3; k++) {
+          var H = Hs[k], p = nx * H[0] + ny * H[1] + nz * H[2]; if (p <= 0) continue;
+          var p2 = p * p, p4 = p2 * p2, p8 = p4 * p4, e = p8 * p4 * INTENSIDAD * borde; // p^12
+          r += H[3][0] * e; g += H[3][1] * e; b += H[3][2] * e;
+        }
+        var m = Math.max(r, g, b); if (m < 2) continue;
+        var a = Math.min(255, m), j = i * 4;
+        d[j] = Math.min(255, r * 255 / m); d[j + 1] = Math.min(255, g * 255 / m); d[j + 2] = Math.min(255, b * 255 / m); d[j + 3] = a;
+      }
+      F.g.putImageData(img, 0, 0);
+      F.c.toBlob(function (blob) {
+        if (!blob) return;
+        var viejo = F.url; F.url = URL.createObjectURL(blob);
+        var v = 'url(' + F.url + ')';
+        F.els.forEach(function (el) { el.style.setProperty('--vidrio-brillo', v); });
+        if (viejo) setTimeout(function () { URL.revokeObjectURL(viejo); }, 3000);
+      });
+    }
+    function quitar(el) {
+      if (el._brillo) { el._brillo.els.delete(el); el._brillo = null; }
+    }
+    function usar(el, w, h, r) {
+      var F = forma(w, h, r);
+      if (el._brillo === F) return;
+      quitar(el); el._brillo = F; F.els.add(el);
+      if (F.url) el.style.setProperty('--vidrio-brillo', 'url(' + F.url + ')'); else pintar(F);
+    }
+    function luz(x, y) {
+      luzX = x; luzY = y;
+      for (var k in formas) if (formas[k].els.size) pintar(formas[k]);
+    }
+    return { usar: usar, quitar: quitar, luz: luz };
+  })();
 
   // Menú de abajo (sin centro borroso: es vidrio transparente).
   // Chrome corre el filtro si el mismo elemento (o algo dentro de él) tiene sombra por fuera, así que la
@@ -170,10 +257,11 @@
     var r = Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, h / 2, w / 2);
     el.style.setProperty('--vidrio-url', 'url(#' + filtroCompartido(w, h, r) + ')');
     el.classList.add('vidrio-liquido');
+    brillo.usar(el, w, h, r);
   }
   var vistas = new IntersectionObserver(function (entradas) {
     entradas.forEach(function (e) {
-      if (e.isIntersecting) activarTarjeta(e.target); else e.target.classList.remove('vidrio-liquido');
+      if (e.isIntersecting) activarTarjeta(e.target); else { e.target.classList.remove('vidrio-liquido'); brillo.quitar(e.target); }
     });
   }, { rootMargin: '120px 0px' });
   var tarjetas = new Set();
@@ -181,7 +269,7 @@
     document.querySelectorAll(TARJETAS).forEach(function (t) {
       if (!tarjetas.has(t)) { tarjetas.add(t); vistas.observe(t); }
     });
-    tarjetas.forEach(function (t) { if (!t.isConnected) { vistas.unobserve(t); tarjetas.delete(t); } });
+    tarjetas.forEach(function (t) { if (!t.isConnected) { vistas.unobserve(t); tarjetas.delete(t); brillo.quitar(t); } });
   }
   // Si cambia el ancho de la pantalla (girar el teléfono), las tarjetas visibles toman su nuevo tamaño.
   window.addEventListener('resize', function () {
@@ -210,4 +298,40 @@
     }
   }).observe(document.body, { childList: true, subtree: true });
   revisarVentanas();
+
+  // ---- Dirección de la luz ----
+  // (x, y) apunta hacia donde "está" la luz (que no se ve). Por defecto arriba a la izquierda. Se mueve
+  // suave hacia su objetivo, se ignoran los temblores del pulso y el brillo se recalcula como mucho
+  // unas 14 veces por segundo (suficiente para verse fluido y sin cargar al teléfono).
+  var obj = { x: -0.6, y: -0.8 }, act = { x: -0.6, y: -0.8 }, corriendo = false, base = null, ultimoAng = null, ultimoPinte = 0;
+  function animOn() { return !(window.CuentasTema && !window.CuentasTema.animacionesActivas()); }
+  function paso(ahora) {
+    act.x += (obj.x - act.x) * 0.14; act.y += (obj.y - act.y) * 0.14;
+    var ang = Math.atan2(act.y, act.x) * 180 / Math.PI;
+    if ((ultimoAng === null || Math.abs(ang - ultimoAng) >= 1) && ahora - ultimoPinte >= 70) {
+      ultimoAng = ang; ultimoPinte = ahora; brillo.luz(act.x, act.y);
+    }
+    if (Math.abs(obj.x - act.x) > 0.004 || Math.abs(obj.y - act.y) > 0.004) requestAnimationFrame(paso);
+    else { corriendo = false; brillo.luz(act.x, act.y); ultimoAng = ang; }
+  }
+  function luzHacia(x, y) {
+    if (!animOn() || (!x && !y)) return;
+    if (Math.abs(x - obj.x) < 0.02 && Math.abs(y - obj.y) < 0.02) return;
+    obj.x = x; obj.y = y;
+    if (!corriendo) { corriendo = true; requestAnimationFrame(paso); }
+  }
+  // Giroscopio: al inclinar el teléfono la luz "da la vuelta" por la orilla. "base" es cómo se sostiene
+  // normalmente (se acomoda despacio), así sin moverlo la luz queda arriba a la izquierda.
+  window.addEventListener('deviceorientation', function (e) {
+    if (e.beta == null || e.gamma == null) return;
+    if (base == null) base = e.beta;
+    base += (e.beta - base) * 0.01;
+    luzHacia(-0.6 + e.gamma / 20, -0.8 + (e.beta - base) / 15);
+  });
+  // Computadora: la luz viene de donde está el mouse.
+  if (window.matchMedia && matchMedia('(pointer: fine)').matches) {
+    window.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'mouse') luzHacia(e.clientX / innerWidth * 2 - 1, e.clientY / innerHeight * 2 - 1);
+    }, { passive: true });
+  }
 })();
