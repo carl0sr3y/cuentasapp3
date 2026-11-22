@@ -74,14 +74,10 @@
 
   // Arma el filtro de un elemento. conCentro = ventana: centro borroso con velo, orilla con lupa.
   var cuenta = 0;
-  function crearFiltro(conCentro, simple) {
+  function crearFiltro(conCentro) {
     var id = 'vidrioLiquido' + (++cuenta);
     var f = nodo('filter', { id: id, filterUnits: 'userSpaceOnUse', primitiveUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' }, svg);
     var mapa = nodo('feImage', { result: 'mapa', preserveAspectRatio: 'none' }, f);
-    if (simple) { // solo la lupa, sin arcoíris: una sola pasada (para las tarjetas, que son muchas)
-      nodo('feDisplacementMap', { in: 'SourceGraphic', in2: 'mapa', scale: String(FUERZA), xChannelSelector: 'R', yChannelSelector: 'G' }, f);
-      return { id: id, filtro: f, mapa: mapa, mascara: null };
-    }
     COLORES.forEach(function (c) {
       nodo('feDisplacementMap', { in: 'SourceGraphic', in2: 'mapa', scale: String(Math.round(FUERZA * c[1])),
         xChannelSelector: 'R', yChannelSelector: 'G', result: 'd' + c[0] }, f);
@@ -160,7 +156,7 @@
   function filtroCompartido(w, h, r) {
     var clave = w + 'x' + h + 'r' + r;
     if (compartidos[clave]) return compartidos[clave];
-    var v = crearFiltro(false, true);
+    var v = crearFiltro(false);
     [v.filtro, v.mapa].forEach(function (n) {
       n.setAttribute('x', '0'); n.setAttribute('y', '0');
       n.setAttribute('width', String(w)); n.setAttribute('height', String(h));
