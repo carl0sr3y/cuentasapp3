@@ -1444,3 +1444,11 @@ button.perfil-fila:active{background:var(--surface-alt);}
 :is(.mov-row,.modal-card,.user-card,.backup-row){position:relative;}
 .vidrio-lienzo{position:absolute;left:0;top:0;width:100%;height:100%;border-radius:inherit;pointer-events:none;z-index:-1;display:none;}
 :root:not([data-animaciones="no"]) .vidrio-liquido > .vidrio-lienzo{display:block;}
+
+/* Modo oscuro: fondo gris oscuro liso (elegido por el dueño). Las formas de colores "Aurora" quedan
+   apagadas (no se dibujan ni se mueven); para volver a ellas basta con borrar este bloque. La capa
+   #manchas se queda como fondo sólido porque también tapa la lista cuando hay una pantalla abierta. */
+:root[data-tema="oscuro"]{--bg:#1C1C1E;}
+:root[data-tema="oscuro"] #manchas{background:#1C1C1E;}
+:root[data-tema="oscuro"] #manchas i,:root[data-tema="oscuro"] #manchas::after{display:none;}
+:root[data-tema="oscuro"] header.topbar,:root[data-tema="oscuro"] .page-header{background:rgba(28,28,30,.72);}
