@@ -12,6 +12,7 @@ sin decidirlo antes. Al terminar una mejora, se marca con `[x]` en su archivo y 
 | [Simplificar](SIMPLIFICAR.md) | Ordenar el código para que sea más fácil y seguro de cambiar | Quitar código sin uso · rehacer pruebas perdidas |
 | [Movimientos tienda](TIENDA.md) | Ideas para mejorar la pestaña de tienda | Ver los meses anteriores dentro de la app |
 | [Animación](ANIMACION.md) | Ideas para que la app se sienta más viva | ✅ Todas hechas (18/11/2026) |
+| [Menú "liquid glass"](liquid-glass-menu/README.md) | Menú de abajo de vidrio (gota celeste, lupa, arcoíris, luz con giroscopio), guardado para el futuro | Se probó el 21–22/11/2026 y se quitó; código y lecciones guardados |
 
 ## Si algo falla
 
