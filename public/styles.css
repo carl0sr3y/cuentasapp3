@@ -3,15 +3,15 @@
    public/tema.js pone data-tema="claro|oscuro" en <html> según la preferencia del usuario.
    ============================================================ */
 :root{
-  --bg:#FFFFFF;              /* fondo blanco (color fijo del tema claro) */
+  --bg:#F3F4F8;
   --surface:#FFFFFF;
-  --surface-2:#F2F2F2;       /* buscador y fondos suaves: gris muy claro sobre el blanco */
-  --surface-alt:#F7F7F7;
-  --border:#E2E2E2;
-  --border-soft:#EBEBEB;
-  --text:#1F2023;
-  --text-dim:#5E5F63;
-  --text-faint:#8F9094;
+  --surface-2:#ECEEF5;
+  --surface-alt:#F7F8FB;
+  --border:#E2E5EE;
+  --border-soft:#EDEFF5;
+  --text:#1B2132;
+  --text-dim:#596276;
+  --text-faint:#8E95A7;
   --green:#1C9466;
   --green-bg:rgba(28,148,102,0.10);
   --red:#D94740;
@@ -19,16 +19,16 @@
   --yellow:#D99A1E;
   --favor:#876800;
   --favor-bg:rgba(176,138,0,0.12);
-  --accent:#2F3238;          /* gris oscuro (antes morado) */
-  --accent-bg:#F2F2F2;       /* gris muy claro (sin crema) */
+  --accent:#4E5AD6;
+  --accent-bg:rgba(78,90,214,0.10);
   --on-accent:#FFFFFF;
   --tienda:#C77A12;
   --tienda-bg:rgba(230,150,40,0.13);
   --pagar:#0E877E;
   --pagar-bg:rgba(14,143,134,0.11);
-  --overlay:rgba(24,24,26,0.38);
-  --shadow:0 4px 14px rgba(24,24,26,0.07);
-  --shadow-lg:0 16px 40px rgba(24,24,26,0.16);
+  --overlay:rgba(27,33,50,0.38);
+  --shadow:0 4px 14px rgba(27,33,50,0.07);
+  --shadow-lg:0 16px 40px rgba(27,33,50,0.16);
   --radius:20px;
   --radius-sm:14px;
   --mono:'SF Mono',ui-monospace,'Cascadia Code','Roboto Mono',monospace;
@@ -38,15 +38,15 @@
   --ease-spring:cubic-bezier(.34,1.45,.64,1);
 }
 :root[data-tema="oscuro"]{
-  --bg:#1C1C1E;              /* gris carbón (color fijo del tema oscuro) */
-  --surface:#262628;
-  --surface-2:#2E2E30;
-  --surface-alt:#2A2A2C;
-  --border:#38383A;
-  --border-soft:#303032;
-  --text:#EDEDEB;
-  --text-dim:#A8A8A5;
-  --text-faint:#747471;
+  --bg:#13151C;
+  --surface:#1B1E28;
+  --surface-2:#252937;
+  --surface-alt:#1E2130;
+  --border:#2B2F3F;
+  --border-soft:#232736;
+  --text:#E8EAF2;
+  --text-dim:#A2A8BA;
+  --text-faint:#6F7588;
   --green:#4CC79A;
   --green-bg:rgba(76,199,154,0.13);
   --red:#FF7E75;
@@ -54,9 +54,9 @@
   --yellow:#F2B35A;
   --favor:#E8C84A;
   --favor-bg:rgba(232,200,74,0.14);
-  --accent:#EDEDEB;          /* oscuro: gris claro sobre fondo oscuro (sin crema) */
-  --accent-bg:rgba(255,255,255,0.08);
-  --on-accent:#161616;
+  --accent:#8C95FF;
+  --accent-bg:rgba(140,149,255,0.14);
+  --on-accent:#10131F;
   --tienda:#F2B35A;
   --tienda-bg:rgba(242,179,90,0.13);
   --pagar:#4FD1C5;
@@ -68,10 +68,10 @@
 /* Si tema.js no llegara a cargarse, se respeta igual el modo del teléfono. */
 @media (prefers-color-scheme: dark){
   :root:not([data-tema]){
-    --bg:#1C1C1E; --surface:#262628; --surface-2:#2E2E30; --surface-alt:#2A2A2C;
-    --border:#38383A; --border-soft:#303032; --text:#EDEDEB; --text-dim:#A8A8A5; --text-faint:#747471;
+    --bg:#13151C; --surface:#1B1E28; --surface-2:#252937; --surface-alt:#1E2130;
+    --border:#2B2F3F; --border-soft:#232736; --text:#E8EAF2; --text-dim:#A2A8BA; --text-faint:#6F7588;
     --green:#4CC79A; --green-bg:rgba(76,199,154,0.13); --red:#FF7E75; --red-bg:rgba(255,126,117,0.13);
-    --yellow:#F2B35A; --favor:#E8C84A; --favor-bg:rgba(232,200,74,0.14); --accent:#EDEDEB; --accent-bg:rgba(255,255,255,0.08); --on-accent:#161616;
+    --yellow:#F2B35A; --favor:#E8C84A; --favor-bg:rgba(232,200,74,0.14); --accent:#8C95FF; --accent-bg:rgba(140,149,255,0.14); --on-accent:#10131F;
     --tienda:#F2B35A; --tienda-bg:rgba(242,179,90,0.13); --pagar:#4FD1C5; --pagar-bg:rgba(79,209,197,0.13); --overlay:rgba(0,0,0,0.55);
     --shadow:0 4px 14px rgba(0,0,0,0.25); --shadow-lg:0 16px 40px rgba(0,0,0,0.5);
   }
@@ -590,15 +590,7 @@ header.topbar{gap:10px;}
 .top-search-clear{width:28px;height:28px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
   background:var(--surface-2);color:var(--text-dim);font-size:20px;line-height:1;}
 .top-search:focus-within .top-search-clear{background:var(--surface-alt);}
-/* Buscador un poco más grande (ya no está el logo, el espacio le toca a él) */
-.top-search{height:46px;border-radius:15px;padding-left:38px;}
-.top-search-icon{left:13px;}
-.top-search-icon svg{width:18px;height:18px;}
-.top-search input{font-size:17px;}
-/* Botón de perfil: tres puntitos */
-.menu-btn{width:40px;height:46px;flex:none;border-radius:13px;color:var(--text-dim);}
-.menu-btn svg{width:22px;height:22px;fill:currentColor;}
-.menu-btn:active{background:var(--surface-2);}
+/* La barra superior solo muestra el logo (sin texto), así que cabe también en pantallas chicas. */
 
 /* ============================================================
    PERFIL: filas de ajustes e interruptor
@@ -794,7 +786,7 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
 
 /* Logo (flechas de entrada y salida + punto de la tienda) */
 .brand-logo{width:28px;height:28px;border-radius:8px;display:block;flex-shrink:0;}
-.login-logo{width:56px;height:56px;border-radius:15px;display:block;margin:0 0 16px;box-shadow:0 6px 16px rgba(24,24,26,.18);}
+.login-logo{width:56px;height:56px;border-radius:15px;display:block;margin:0 0 16px;box-shadow:0 6px 16px rgba(27,33,50,.18);}
 .login-card-fp .login-logo{margin:0 auto 16px;}
 /* Borde sutil para que el logo oscuro no se pierda en el modo oscuro */
 .brand-logo,.login-logo{outline:1px solid rgba(255,255,255,.09);outline-offset:-1px;}
@@ -806,7 +798,8 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
   .mini-btn{padding:7px 9px;gap:4px;}
 }
 @media (max-width:335px){.cuentas-head{flex-wrap:wrap;row-gap:8px;}}
-/* Lista por actividad reciente (sin favoritos ni letras) */
+/* Lista por actividad reciente (sin favoritos ni letras): fecha del último movimiento a la derecha */
+.acc-actividad{flex:none;align-self:flex-start;margin-top:3px;font-size:12.5px;font-weight:600;color:var(--text-faint);white-space:nowrap;}
 .lista-actividad{padding-top:6px;}
 .animar-entrada .lista-actividad .account-card:nth-child(2){animation-delay:.14s}
 .animar-entrada .lista-actividad .account-card:nth-child(3){animation-delay:.18s}
@@ -896,7 +889,7 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
   position:fixed;left:0;right:0;bottom:calc(12px + env(safe-area-inset-bottom));
   margin:0 auto;width:calc(100% - 24px);max-width:560px;z-index:41;
   background:var(--surface);border:1px solid var(--border-soft);border-radius:20px;padding:5px;gap:4px;
-  box-shadow:0 10px 30px rgba(24,24,26,.18),0 2px 6px rgba(24,24,26,.08);
+  box-shadow:0 10px 30px rgba(27,33,50,.18),0 2px 6px rgba(27,33,50,.08);
 }
 @media(min-width:640px){.tabbar{margin:0 auto;}}
 .tab-btn{border-radius:15px;padding:11px 4px;}
@@ -906,94 +899,6 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
 .tab-btn.active[data-tab="tienda"]{background:var(--tienda-bg);color:var(--tienda);}
 :root[data-tema="oscuro"] .tabbar{box-shadow:0 10px 30px rgba(0,0,0,.5);}
 @media (prefers-color-scheme: dark){:root:not([data-tema="claro"]) .tabbar{box-shadow:0 10px 30px rgba(0,0,0,.5);}}
-/* ============================================================
-   MENÚ DE ABAJO "LIQUID GLASS" TRANSPARENTE: el centro es vidrio claro (se ve lo de atrás) y el grosor
-   del vidrio se nota solo en las orillas (luz por dentro del borde). La pestaña elegida es vidrio celeste.
-   Capas: .tabbar (vidrio) · .tab-indicador (vidrio celeste). Sin filo blanco en el borde (pedido del dueño).
-   ============================================================ */
-:root{
-  --celeste:#6E98D6;
-  --lg-fondo:rgba(255,255,255,.10);
-  --lg-desenfoque:blur(3px) saturate(1.6);
-  --lg-sombra:
-    inset 0 0 14px rgba(255,255,255,.55),
-    inset 0 -6px 12px -6px rgba(24,24,26,.10),
-    0 0 0 .5px rgba(24,24,26,.16),
-    0 10px 26px -8px rgba(24,24,26,.22);
-  /* Gota de vidrio celeste, de arriba hacia abajo en capas:
-     reflejo suave arriba a la izquierda · luz que entra por arriba · centro claro y orillas más azules */
-  --gota-fondo:
-    radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.62) 0%,rgba(255,255,255,.18) 45%,rgba(255,255,255,0) 70%),
-    linear-gradient(180deg,rgba(255,255,255,.22) 0%,rgba(255,255,255,0) 50%,rgba(40,80,150,.10) 100%),
-    radial-gradient(farthest-side,rgba(140,176,230,.22) 50%,rgba(98,142,210,.55) 100%);
-  --gota-sombra:
-    inset 0 0 9px 1px rgba(78,122,198,.45),
-    inset 0 -4px 7px -3px rgba(255,255,255,.55),
-    inset 0 3px 6px -3px rgba(255,255,255,.6),
-    0 0 0 .5px rgba(70,118,196,.40),
-    0 0 16px 1px rgba(110,152,214,.42),
-    0 6px 14px -5px rgba(60,108,190,.50);
-  --gota-texto:#14243F;
-  --lg-texto-luz:0 0 6px rgba(255,255,255,.95),0 0 2px rgba(255,255,255,.95);
-}
-:root[data-tema="oscuro"]{
-  --lg-fondo:rgba(255,255,255,.04);
-  --lg-sombra:
-    inset 0 0 14px rgba(255,255,255,.08),0 0 0 .5px rgba(0,0,0,.6),0 10px 26px -8px rgba(0,0,0,.6);
-  --gota-fondo:
-    radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.28) 0%,rgba(255,255,255,.07) 45%,rgba(255,255,255,0) 70%),
-    linear-gradient(180deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,0) 50%,rgba(0,20,60,.18) 100%),
-    radial-gradient(farthest-side,rgba(110,152,214,.18) 50%,rgba(96,140,212,.50) 100%);
-  --gota-sombra:inset 0 0 9px 1px rgba(120,165,235,.45),inset 0 -4px 7px -3px rgba(190,215,255,.35),inset 0 3px 6px -3px rgba(255,255,255,.3),
-    0 0 0 .5px rgba(110,152,214,.5),0 0 16px 1px rgba(110,152,214,.35),0 6px 14px -5px rgba(0,0,0,.6);
-  --gota-texto:#FFFFFF;
-  --lg-texto-luz:0 0 6px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.95);
-}
-@media (prefers-color-scheme: dark){:root:not([data-tema]){
-  --lg-fondo:rgba(255,255,255,.04);
-  --lg-sombra:
-    inset 0 0 14px rgba(255,255,255,.08),0 0 0 .5px rgba(0,0,0,.6),0 10px 26px -8px rgba(0,0,0,.6);
-  --gota-fondo:
-    radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.28) 0%,rgba(255,255,255,.07) 45%,rgba(255,255,255,0) 70%),
-    linear-gradient(180deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,0) 50%,rgba(0,20,60,.18) 100%),
-    radial-gradient(farthest-side,rgba(110,152,214,.18) 50%,rgba(96,140,212,.50) 100%);
-  --gota-sombra:inset 0 0 9px 1px rgba(120,165,235,.45),inset 0 -4px 7px -3px rgba(190,215,255,.35),inset 0 3px 6px -3px rgba(255,255,255,.3),
-    0 0 0 .5px rgba(110,152,214,.5),0 0 16px 1px rgba(110,152,214,.35),0 6px 14px -5px rgba(0,0,0,.6);
-  --gota-texto:#FFFFFF;
-  --lg-texto-luz:0 0 6px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.95);
-}}
-/* El vidrio: casi sin color, apenas desenfocado, para que se vea lo de atrás */
-.tabbar,:root[data-tema="oscuro"] .tabbar{
-  border-radius:999px;padding:7px;border:none;background:var(--lg-fondo);box-shadow:var(--lg-sombra);
-  -webkit-backdrop-filter:var(--lg-desenfoque);backdrop-filter:var(--lg-desenfoque);
-  isolation:isolate;
-}
-@media (prefers-color-scheme: dark){:root:not([data-tema="claro"]) .tabbar{box-shadow:var(--lg-sombra);}}
-/* Las letras llevan un halo para leerse aunque pase algo por detrás */
-.tab-btn{border-radius:999px;color:var(--text);position:relative;z-index:1;text-shadow:var(--lg-texto-luz);}
-/* Pestaña elegida: vidrio celeste transparente */
-.tab-btn.active[data-tab],.tab-indicador,.tab-indicador[data-tab]{background:var(--gota-fondo);box-shadow:var(--gota-sombra);}
-.tab-btn.active[data-tab]{color:var(--gota-texto);}
-.tab-indicador{top:7px;bottom:7px;border-radius:999px;z-index:1;}
-.tab-indicador ~ .tab-btn{z-index:2;}
-.tab-indicador.listo ~ .tab-btn.active[data-tab]{background:transparent;box-shadow:none;}
-/* El vidrio reacciona al dedo (app.js pone .apretada/.apretando mientras se toca) */
-.tabbar{transition:scale .35s var(--ease-spring);transform-origin:50% 100%;}
-/* Al bajar por la lista el menú se achica (app.js pone .compacta) */
-.tabbar.compacta{scale:.84;}
-.tabbar.apretada{scale:1.025;}
-.tab-indicador{transition:transform .42s var(--ease-spring),translate .42s var(--ease-spring),background-color .3s ease,opacity .2s,scale .3s var(--ease-spring),filter .2s;}
-.tab-indicador.apretada{scale:1.07 1.1;filter:brightness(1.1) saturate(1.15);}
-.tab-btn{transition:background .2s,box-shadow .2s;}
-.tab-btn.apretando:not(.active){background:rgba(255,255,255,.28);box-shadow:inset 0 0 10px rgba(255,255,255,.4);}
-:root[data-tema="oscuro"] .tab-btn.apretando:not(.active){background:rgba(255,255,255,.07);box-shadow:inset 0 0 10px rgba(255,255,255,.08);}
-@media (prefers-color-scheme: dark){:root:not([data-tema]) .tab-btn.apretando:not(.active){background:rgba(255,255,255,.07);box-shadow:inset 0 0 10px rgba(255,255,255,.08);}}
-/* Chrome/Android: las orillas doblan lo de atrás como una lupa (public/vidrio.js arma el filtro #vidrioLiquido).
-   No se aplica con animaciones apagadas (teléfonos modestos). */
-:root:not([data-animaciones="no"]) .tabbar.vidrio-liquido{
-  -webkit-backdrop-filter:var(--vidrio-url) blur(1.5px) saturate(1.6);backdrop-filter:var(--vidrio-url) blur(1.5px) saturate(1.6);}
-/* En teléfonos modestos (animaciones apagadas) sin el desenfoque y con fondo sólido, para que se lea bien */
-:root[data-animaciones="no"] .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface);}
 /* Espacio al final para que el menú no tape la última cuenta o movimiento */
 #deudasView,#tiendaView{padding-bottom:calc(96px + env(safe-area-inset-bottom));}
 /* Los avisos salen por encima del menú */
@@ -1031,10 +936,6 @@ body:has(.select-bar) .tabbar{display:none;}
 .total-head .mini-btn.principal svg{color:var(--on-accent) !important;}
 #deudasView[data-tipo="pagar"] .total-head .mini-btn.principal{background:var(--pagar);}
 .total-head .mini-btn.solo-icono{width:40px;padding:0;justify-content:center;}
-/* Menos espacio entre el buscador y "Te deben", y la cifra un poco más grande */
-#deudasView{padding-top:8px;}
-.total-etiqueta{font-size:14.5px;}
-.total-monto{font-size:33px;}
 
 /* Visor de factura a pantalla completa con zoom (openPhotoLightbox) */
 .visor-foto{position:fixed;inset:0;z-index:70;background:#0B0D14;display:flex;flex-direction:column;color:#fff;}
@@ -1196,259 +1097,3 @@ button.perfil-fila:active{background:var(--surface-alt);}
 .perfil-nota{font-size:13.5px;color:var(--text-faint);margin:8px 8px 0;line-height:1.45;}
 .perfil-hoja-cab{display:flex;align-items:center;gap:12px;padding:2px 0 14px;border-bottom:1px solid var(--border-soft);margin-bottom:4px;}
 .perfil-hoja .perfil-fila{padding:11px 2px;min-height:54px;}
-
-/* ============================================================
-   VIDRIO EN TODA LA APP (mismo estilo que el menú de abajo)
-   Tres tipos:
-   - Vidrio de color (--tinte): botones principales. Celeste por defecto; verde = abono, rojo = cargo/eliminar,
-     dorado = a favor (los colores del dominio se respetan, solo se vuelven vidrio).
-   - Vidrio claro: botones secundarios, buscador, tarjetas y grupos del perfil.
-   - Vidrio flotante (borroso): ventanas, aviso de abajo y barra de eliminar.
-   El selector inexistente #vidrio dentro de :is() solo sube la prioridad para ganarle a las reglas viejas
-   (sin usar !important). Navegadores sin color-mix() se quedan con el color sólido de antes.
-   ============================================================ */
-/* --- Color de cada botón de vidrio --- */
-:root{--tinte:var(--celeste);} /* por defecto; cada botón de color lo cambia */
-.btn-primary,.btn-confirm,.mini-btn.principal,.filter-chip.active,#offlineBanner .reload-btn,.seg button.on,
-.switch.on,.toggle-opt.selected,.perfil-boton{--tinte:var(--celeste);}
-.abono-btn,button.exito{--tinte:var(--green);}
-.abono-btn.abono-favor{--tinte:var(--favor);}
-.cargo-btn,.btn-confirm.danger,.select-bar .delete-btn{--tinte:var(--red);}
-.modal-card[class*="mov-"] .btn-confirm{--tinte:var(--mov);}
-
-/* --- Vidrio de color --- */
-:is(#vidrio,.btn-primary,.btn-confirm,.mini-btn.principal,.filter-chip.active,.reload-btn,.seg button.on,.toggle-opt.selected,
-    .perfil-boton,.abono-btn,.cargo-btn,.select-bar .delete-btn,.detail-actions button){
-  background:
-    radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.55) 0%,rgba(255,255,255,.15) 45%,rgba(255,255,255,0) 70%),
-    linear-gradient(180deg,rgba(255,255,255,.2) 0%,rgba(255,255,255,0) 50%,rgba(0,0,0,.04) 100%),
-    radial-gradient(farthest-side,color-mix(in srgb,var(--tinte) 24%,transparent) 45%,color-mix(in srgb,var(--tinte) 52%,transparent) 100%);
-  box-shadow:
-    inset 0 0 9px 1px color-mix(in srgb,var(--tinte) 45%,transparent),
-    inset 0 -4px 7px -3px rgba(255,255,255,.55),
-    inset 0 3px 6px -3px rgba(255,255,255,.6),
-    0 0 0 .5px color-mix(in srgb,var(--tinte) 40%,transparent),
-    0 0 14px 1px color-mix(in srgb,var(--tinte) 26%,transparent),
-    0 6px 14px -5px color-mix(in srgb,var(--tinte) 45%,transparent);
-  color:color-mix(in srgb,var(--tinte) 45%,#000);
-  border-color:transparent;
-}
-:is(#vidrio,.btn-primary,.btn-confirm,.mini-btn.principal,.filter-chip.active,.reload-btn,.seg button.on,.toggle-opt.selected,
-    .perfil-boton,.abono-btn,.cargo-btn,.select-bar .delete-btn,.detail-actions button) svg{color:inherit !important;}
-
-/* --- Vidrio claro --- */
-:is(#vidrio,.btn-cancel,.btn-secondary,.mini-btn:not(.principal),.balance-pdf-btn,.pdf-btn,.filter-chip:not(.active),.mov-photo-btn,
-    .backup-dl,.action-btn,.toggle-opt:not(.selected),.pdf-opcion,.seg,.switch:not(.on),.top-search,.perfil-empresa,.photo-capture-btn){
-  background:radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.7) 0%,rgba(255,255,255,.2) 50%,rgba(255,255,255,0) 75%),rgba(255,255,255,.42);
-  box-shadow:inset 0 0 12px rgba(255,255,255,.75),inset 0 -5px 10px -5px rgba(24,24,26,.08),0 0 0 .5px rgba(24,24,26,.12),0 6px 16px -6px rgba(24,24,26,.18);
-  border-color:transparent;
-}
-/* Tarjetas: el mismo vidrio claro, un poco más sólido para leer bien los montos */
-:is(#vidrio,.account-card,.mov-row,.user-card,.fav-chip,.backup-row,.perfil-grupo,.login-card,.ajuste-row){
-  background:radial-gradient(80% 90% at 20% 0%,rgba(255,255,255,.75) 0%,rgba(255,255,255,0) 60%),rgba(255,255,255,.62);
-  box-shadow:inset 0 0 14px rgba(255,255,255,.8),inset 0 -6px 12px -6px rgba(24,24,26,.06),0 0 0 .5px rgba(24,24,26,.08),0 6px 16px -8px rgba(24,24,26,.16);
-  border-color:transparent;
-}
-:is(#vidrio,.account-card,.mov-row):active{background:rgba(255,255,255,.45);}
-.seg{border-radius:999px;}
-.seg button{border-radius:999px;}
-/* Interruptor: canal de vidrio y botón redondo de vidrio blanco; encendido, el canal es celeste */
-:is(#vidrio,.switch.on){
-  background:radial-gradient(farthest-side,color-mix(in srgb,var(--tinte) 30%,transparent) 40%,color-mix(in srgb,var(--tinte) 60%,transparent) 100%);
-  box-shadow:inset 0 0 8px 1px color-mix(in srgb,var(--tinte) 50%,transparent),inset 0 2px 4px -2px rgba(255,255,255,.7),0 0 0 .5px color-mix(in srgb,var(--tinte) 45%,transparent),0 0 10px color-mix(in srgb,var(--tinte) 30%,transparent);
-}
-.switch span{background:radial-gradient(80% 80% at 35% 25%,#fff 0%,#F2F2F0 70%,#E4E4E1 100%);
-  box-shadow:inset 0 -1px 2px rgba(0,0,0,.08),inset 0 1px 1px #fff,0 0 0 .5px rgba(24,24,26,.15),0 2px 6px rgba(24,24,26,.28);}
-
-/* --- Vidrio flotante: ventanas, aviso y barra de eliminar --- */
-:is(#vidrio,.modal-card,#toast,.select-bar){
-  background:radial-gradient(90% 60% at 20% 0%,rgba(255,255,255,.6) 0%,rgba(255,255,255,0) 60%),rgba(250,250,248,.86);
-  -webkit-backdrop-filter:blur(22px) saturate(1.7);backdrop-filter:blur(22px) saturate(1.7);
-  box-shadow:inset 0 0 18px rgba(255,255,255,.7),inset 0 -8px 16px -8px rgba(24,24,26,.06),0 0 0 .5px rgba(24,24,26,.12),0 18px 44px -12px rgba(24,24,26,.35);
-  border-color:transparent;color:var(--text);
-}
-/* Dentro de una ventana de vidrio, los campos de texto también son vidrio claro */
-.modal-card .field input,.modal-card input:not([type=checkbox]):not([type=radio]),.modal-card textarea,.modal-card select{
-  background:rgba(255,255,255,.9);border-color:rgba(24,24,26,.08);box-shadow:inset 0 1px 3px rgba(24,24,26,.06);}
-
-/* --- Modo oscuro --- */
-:root[data-tema="oscuro"] :is(#vidrio,.btn-primary,.btn-confirm,.mini-btn.principal,.filter-chip.active,.reload-btn,.seg button.on,.toggle-opt.selected,
-    .perfil-boton,.abono-btn,.cargo-btn,.select-bar .delete-btn,.detail-actions button){
-  background:
-    radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.26) 0%,rgba(255,255,255,.06) 45%,rgba(255,255,255,0) 70%),
-    linear-gradient(180deg,rgba(255,255,255,.08) 0%,rgba(255,255,255,0) 50%,rgba(0,0,0,.15) 100%),
-    radial-gradient(farthest-side,color-mix(in srgb,var(--tinte) 22%,transparent) 45%,color-mix(in srgb,var(--tinte) 50%,transparent) 100%);
-  box-shadow:inset 0 0 9px 1px color-mix(in srgb,var(--tinte) 50%,transparent),inset 0 -4px 7px -3px rgba(255,255,255,.2),inset 0 3px 6px -3px rgba(255,255,255,.25),
-    0 0 0 .5px color-mix(in srgb,var(--tinte) 45%,transparent),0 0 14px 1px color-mix(in srgb,var(--tinte) 22%,transparent),0 6px 14px -5px rgba(0,0,0,.55);
-  color:#fff;
-}
-:root[data-tema="oscuro"] :is(#vidrio,.btn-cancel,.btn-secondary,.mini-btn:not(.principal),.balance-pdf-btn,.pdf-btn,.filter-chip:not(.active),.mov-photo-btn,
-    .backup-dl,.action-btn,.toggle-opt:not(.selected),.pdf-opcion,.seg,.switch:not(.on),.top-search,.perfil-empresa,.photo-capture-btn){
-  background:radial-gradient(70% 75% at 28% 8%,rgba(255,255,255,.10) 0%,rgba(255,255,255,0) 60%),rgba(255,255,255,.06);
-  box-shadow:inset 0 0 12px rgba(255,255,255,.06),0 0 0 .5px rgba(0,0,0,.55),0 6px 16px -6px rgba(0,0,0,.5);
-}
-:root[data-tema="oscuro"] :is(#vidrio,.account-card,.mov-row,.user-card,.fav-chip,.backup-row,.perfil-grupo,.login-card,.ajuste-row){
-  background:radial-gradient(80% 90% at 20% 0%,rgba(255,255,255,.07) 0%,rgba(255,255,255,0) 60%),rgba(255,255,255,.05);
-  box-shadow:inset 0 0 14px rgba(255,255,255,.04),0 0 0 .5px rgba(0,0,0,.5),0 6px 16px -8px rgba(0,0,0,.5);
-}
-:root[data-tema="oscuro"] :is(#vidrio,.account-card,.mov-row):active{background:rgba(255,255,255,.09);}
-:root[data-tema="oscuro"] :is(#vidrio,.modal-card,#toast,.select-bar){
-  background:radial-gradient(90% 60% at 20% 0%,rgba(255,255,255,.08) 0%,rgba(255,255,255,0) 60%),rgba(38,38,40,.86);
-  box-shadow:inset 0 0 18px rgba(255,255,255,.05),0 0 0 .5px rgba(0,0,0,.6),0 18px 44px -12px rgba(0,0,0,.7);
-}
-:root[data-tema="oscuro"] .modal-card .field input,:root[data-tema="oscuro"] .modal-card input:not([type=checkbox]):not([type=radio]),
-:root[data-tema="oscuro"] .modal-card textarea,:root[data-tema="oscuro"] .modal-card select{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.08);}
-:root[data-tema="oscuro"] .switch span{background:radial-gradient(80% 80% at 35% 25%,#F4F4F2 0%,#D9D9D6 100%);}
-/* Teléfonos modestos: sin lo borroso de las ventanas (lo que más cuesta dibujar); quedan más sólidas */
-:root[data-animaciones="no"] :is(#vidrio,.modal-card,#toast,.select-bar){-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface);}
-
-/* Ventanas con lupa y arcoíris en las orillas (Chrome/Android; public/vidrio.js arma un filtro por ventana).
-   El filtro ya trae el centro borroso con su velo, así que el fondo propio de la ventana queda casi
-   transparente (solo el reflejo de luz) para que se vea la orilla doblada. */
-:root{--vidrio-velo:#FAFAF8;--vidrio-velo-op:.8;--vidrio-velo-orilla-op:.12;}
-:root[data-tema="oscuro"]{--vidrio-velo:#262628;--vidrio-velo-op:.82;--vidrio-velo-orilla-op:.03;}
-.vidrio-velo{flood-color:var(--vidrio-velo);flood-opacity:var(--vidrio-velo-op);}
-.vidrio-velo-orilla{flood-color:#FFFFFF;flood-opacity:var(--vidrio-velo-orilla-op);}
-:root:not([data-animaciones="no"]) :is(#vidrio,.modal-card.vidrio-liquido){
-  background:radial-gradient(90% 60% at 20% 0%,rgba(255,255,255,.45) 0%,rgba(255,255,255,0) 60%);
-  -webkit-backdrop-filter:var(--vidrio-url) saturate(1.5);backdrop-filter:var(--vidrio-url) saturate(1.5);
-}
-:root[data-tema="oscuro"]:not([data-animaciones="no"]) :is(#vidrio,.modal-card.vidrio-liquido){
-  background:radial-gradient(90% 60% at 20% 0%,rgba(255,255,255,.07) 0%,rgba(255,255,255,0) 60%);
-}
-/* El oscurecido detrás de las ventanas se anima en una capa propia (::before) y no en .modal-overlay:
-   si el contenedor de la ventana se anima (opacidad), Chrome descuadra el filtro de lupa de la ventana. */
-.modal-overlay,.modal-overlay.cerrando{background:transparent;animation:none;}
-.modal-overlay::before{content:"";position:fixed;inset:0;background:var(--overlay);z-index:-1;pointer-events:none;animation:velo .2s ease both;}
-.modal-overlay.cerrando::before{animation:veloFuera .18s ease both;}
-/* Chrome descuadra el filtro de lupa (lo corre hacia adentro) si la ventana tiene sombra por fuera, aunque
-   sea en una capa propia. Con lupa activa la ventana no lleva sombra de afuera (el velo oscuro de atrás
-   ya la separa) y su contorno se marca con una línea por dentro (inset). */
-:root:not([data-animaciones="no"]) :is(#vidrio,.modal-card.vidrio-liquido){
-  box-shadow:inset 0 0 0 .5px rgba(24,24,26,.14),inset 0 0 18px rgba(255,255,255,.7),inset 0 -8px 16px -8px rgba(24,24,26,.06);}
-:root[data-tema="oscuro"]:not([data-animaciones="no"]) :is(#vidrio,.modal-card.vidrio-liquido){
-  box-shadow:inset 0 0 0 .5px rgba(0,0,0,.6),inset 0 0 18px rgba(255,255,255,.05);}
-/* Sombra del menú de abajo en pieza aparte (public/vidrio.js), solo con lupa activa: el menú queda sin
-   sombra de afuera para que Chrome no descuadre el filtro. Sigue al menú al achicarse o al apretarlo. */
-.tabbar-sombra{display:none;}
-:root:not([data-animaciones="no"]) .tabbar-sombra:has(+ .tabbar.vidrio-liquido){
-  display:block;position:fixed;left:0;right:0;bottom:calc(12px + env(safe-area-inset-bottom));margin:0 auto;
-  width:calc(100% - 24px);max-width:560px;border-radius:999px;z-index:40;pointer-events:none;
-  box-shadow:0 0 0 .5px rgba(24,24,26,.16),0 10px 26px -8px rgba(24,24,26,.22);
-  transform-origin:50% 100%;transition:scale .35s var(--ease-spring);}
-:root[data-tema="oscuro"]:not([data-animaciones="no"]) .tabbar-sombra:has(+ .tabbar.vidrio-liquido){box-shadow:0 0 0 .5px rgba(0,0,0,.6),0 10px 26px -8px rgba(0,0,0,.6);}
-.tabbar-sombra:has(+ .tabbar.compacta){scale:.84;}
-.tabbar-sombra:has(+ .tabbar.apretada){scale:1.025;}
-:root .busqueda-activa .tabbar-sombra,body:has(.select-bar) .tabbar-sombra{display:none !important;}
-:root:not([data-animaciones="no"]) .tabbar.vidrio-liquido,:root[data-tema="oscuro"]:not([data-animaciones="no"]) .tabbar.vidrio-liquido{
-  box-shadow:inset 0 0 14px rgba(255,255,255,.55),inset 0 -6px 12px -6px rgba(24,24,26,.10);}
-:root[data-tema="oscuro"]:not([data-animaciones="no"]) .tabbar.vidrio-liquido{box-shadow:inset 0 0 14px rgba(255,255,255,.08);}
-
-/* Tarjeta de cuenta: nombre grande a la izquierda y lo que debe a la derecha, a la misma altura (sin hora). */
-.acc-name{font-size:21px;font-weight:700;line-height:1.25;}
-.account-card .acc-balance{flex:none;align-self:center;margin-top:0;font-size:17px;font-weight:700;
-  text-align:right;white-space:nowrap;max-width:48%;overflow:hidden;text-overflow:ellipsis;}
-/* Tarjetas de una línea con las puntas totalmente redondas (como el menú de abajo). El círculo de la
-   izquierda queda centrado en la curva; a la derecha hay más espacio para que el monto no toque la curva. */
-.account-card,.mov-row,.user-card,.backup-row,.fav-chip{border-radius:999px;padding-right:20px;}
-.account-card.selectable{padding-left:16px;}
-.mov-row .mov-icon{border-radius:50%;}
-/* Tarjeta de cuenta sin círculo de inicial: solo nombre y lo que debe, más grandes. */
-.account-card{padding-left:22px;}
-.account-card .acc-name{font-size:23px;}
-.account-card .acc-balance{font-size:19px;}
-
-/* ============================================================
-   MODO OSCURO: fondo "Aurora" (morado, coral, turquesa y amarillo sobre azul noche) con formas que se
-   mueven despacio (#manchas en index.html). Las orillas definidas de las formas lucen la lupa y el arcoíris.
-   Una sola capa fija para toda la app: detrás de la lista; cuando hay una pantalla abierta (una cuenta,
-   el perfil…) sube por encima de la lista y queda detrás de esa pantalla, que se vuelve transparente.
-   Las manchas solo se mueven con "transform" (lo dibuja la tarjeta de video, gasta poco); con las
-   animaciones apagadas (teléfonos modestos o desde el perfil) se quedan quietas.
-   ============================================================ */
-#manchas{display:none;}
-:root[data-tema="oscuro"]{--bg:#000000;}
-:root[data-tema="oscuro"] #manchas{display:block;position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;background:#0B0B1A;}
-/* Velo que apaga un poco los colores (como el fondo de pantalla del teléfono en modo oscuro) */
-:root[data-tema="oscuro"] #manchas::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.30);}
-:root[data-tema="oscuro"] #pageRoot:not(:empty) ~ #manchas{z-index:49;}
-#manchas i{position:absolute;display:block;border-radius:50%;will-change:transform;
-  background:radial-gradient(closest-side,#7B5CFF 0%,#5A3FD8 70%,#3A2AA0 99%,transparent 100%);}
-#manchas i:nth-child(1){width:70vmax;height:52vmax;left:-34vmax;top:-8vmax;animation:mancha1 46s ease-in-out infinite alternate;}
-#manchas i:nth-child(2){width:56vmax;height:76vmax;right:-40vmax;top:26vh;animation:mancha2 58s ease-in-out infinite alternate;
-  background:radial-gradient(closest-side,#FF8A4C 0%,#F2545B 65%,#C23A6B 99%,transparent 100%);}
-#manchas i:nth-child(3){width:50vmax;height:38vmax;left:-20vmax;bottom:-24vmax;animation:mancha3 41s ease-in-out infinite alternate;
-  background:radial-gradient(closest-side,#2EC5CE 0%,#1E8FB0 70%,#14607F 99%,transparent 100%);}
-#manchas i:nth-child(4){width:26vmax;height:24vmax;left:46vw;top:8vh;animation:mancha4 64s ease-in-out infinite alternate;
-  background:radial-gradient(closest-side,#FFD166 0%,#F7A440 70%,#E07A2E 99%,transparent 100%);}
-@keyframes mancha1{0%{transform:translate(0,0) rotate(0deg) scale(1)}50%{transform:translate(14vmax,10vmax) rotate(18deg) scale(1.08)}100%{transform:translate(6vmax,24vmax) rotate(-10deg) scale(.94)}}
-@keyframes mancha2{0%{transform:translate(0,0) rotate(0deg) scale(1)}50%{transform:translate(-16vmax,-12vmax) rotate(-22deg) scale(1.1)}100%{transform:translate(-8vmax,8vmax) rotate(12deg) scale(.96)}}
-@keyframes mancha3{0%{transform:translate(0,0) rotate(0deg)}50%{transform:translate(18vmax,-10vmax) rotate(25deg) scale(1.12)}100%{transform:translate(30vmax,-4vmax) rotate(-8deg)}}
-@keyframes mancha4{0%{transform:translate(0,0) scale(1)}33%{transform:translate(-22vw,-18vh) scale(1.25)}66%{transform:translate(10vw,-30vh) scale(.85)}100%{transform:translate(-30vw,8vh) scale(1.1)}}
-/* Pantallas abiertas transparentes (las manchas se ven detrás); barras de arriba de vidrio oscuro */
-:root[data-tema="oscuro"] .page-slide{background:transparent;}
-:root[data-tema="oscuro"] header.topbar,:root[data-tema="oscuro"] .page-header{
-  background:rgba(0,0,0,.5);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);}
-:root[data-tema="oscuro"][data-animaciones="no"] header.topbar,:root[data-tema="oscuro"][data-animaciones="no"] .page-header{
-  background:rgba(0,0,0,.85);-webkit-backdrop-filter:none;backdrop-filter:none;}
-/* Tarjetas de vidrio oscuro: dejan adivinar las manchas pero los montos se leen bien */
-:root[data-tema="oscuro"] :is(#vidrio,.account-card,.mov-row,.user-card,.fav-chip,.backup-row,.perfil-grupo,.login-card,.ajuste-row){
-  background:radial-gradient(80% 90% at 20% 0%,rgba(255,255,255,.07) 0%,rgba(255,255,255,0) 60%),rgba(22,22,24,.62);
-  box-shadow:inset 0 0 14px rgba(255,255,255,.05),0 8px 20px -10px rgba(0,0,0,.6);}
-:root[data-tema="oscuro"] :is(#vidrio,.account-card,.mov-row):active{background:rgba(40,40,42,.7);}
-:root[data-tema="oscuro"] #detailPage .balance-block{background:rgba(22,22,24,.55);}
-
-/* ============================================================
-   TARJETAS CON EL MISMO LIQUID GLASS DEL MENÚ DE ABAJO (cuentas, movimientos, usuarios, perfil)
-   Transparentes, con la luz en las orillas y apenas desenfocadas. En Chrome/Android public/vidrio.js
-   les pone la lupa y el arcoíris en las orillas (solo a las que están en pantalla); con lupa no llevan
-   sombra por fuera (Chrome descuadraría el filtro) y el contorno se marca por dentro.
-   ============================================================ */
-:root :is(#vidrio,.account-card,.mov-row,.user-card,.perfil-grupo,.backup-row){
-  background:var(--lg-fondo);box-shadow:var(--lg-sombra);
-  -webkit-backdrop-filter:var(--lg-desenfoque);backdrop-filter:var(--lg-desenfoque);
-}
-:root[data-tema="oscuro"]:root :is(#vidrio,.account-card,.mov-row,.user-card,.perfil-grupo,.backup-row){
-  background:var(--lg-fondo);box-shadow:var(--lg-sombra);
-}
-:root :is(#vidrio,.account-card,.mov-row):active{background:rgba(255,255,255,.35);}
-:root[data-tema="oscuro"]:root :is(#vidrio,.account-card,.mov-row):active{background:rgba(255,255,255,.10);}
-/* Con lupa (Chrome/Android, animaciones encendidas) */
-:root:not([data-animaciones="no"]) :is(#vidrio,.account-card,.mov-row,.user-card,.perfil-grupo,.backup-row).vidrio-liquido{
-  -webkit-backdrop-filter:var(--vidrio-url) blur(1.5px) saturate(1.6);backdrop-filter:var(--vidrio-url) blur(1.5px) saturate(1.6);
-  box-shadow:inset 0 0 0 .5px rgba(24,24,26,.16),inset 0 0 14px rgba(255,255,255,.55),inset 0 -6px 12px -6px rgba(24,24,26,.10);
-}
-:root[data-tema="oscuro"]:not([data-animaciones="no"]) :is(#vidrio,.account-card,.mov-row,.user-card,.perfil-grupo,.backup-row).vidrio-liquido{
-  box-shadow:inset 0 0 0 .5px rgba(0,0,0,.5),inset 0 0 14px rgba(255,255,255,.08);
-}
-/* Teléfonos modestos: sin desenfoque y con fondo sólido para leer bien */
-:root[data-animaciones="no"] :is(#vidrio,.account-card,.mov-row,.user-card,.perfil-grupo,.backup-row){
-  -webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface);}
-/* Modo oscuro con fondo de colores: tarjetas transparentes como el menú (sin centro oscuro); las letras
-   llevan una sombra suave para leerse aunque pase un color vivo por detrás. */
-:root[data-tema="oscuro"] :is(.account-card,.mov-row,.user-card,.backup-row) :is(.acc-name,.acc-balance,.mov-desc,.mov-time,.mov-monto,.mov-saldo,.name,.handle,b,small,span){
-  text-shadow:0 1px 2px rgba(0,0,0,.85),0 0 8px rgba(0,0,0,.6);}
-:root[data-tema="oscuro"]:root .perfil-grupo{background:rgba(8,8,14,.55);}
-:root[data-tema="oscuro"] .cero{color:#A3A3A0;}
-/* Textos que van directo sobre el fondo de colores: más claros y con una sombra suave para que se lean
-   aunque pase un color vivo por detrás. Grupos del perfil un poco más oscuros. */
-:root[data-tema="oscuro"] :is(.swipe-hint,.history-date-label,.letter-head,.perfil-titulo,.perfil-nota,.total-sub,.total-etiqueta,.perfil-acceso){
-  color:#C9C9C6;text-shadow:0 1px 3px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.7);}
-:root[data-tema="oscuro"] :is(.perfil-nombre,.page-header h2){text-shadow:0 1px 3px rgba(0,0,0,.8),0 0 10px rgba(0,0,0,.5);}
-:root[data-tema="oscuro"]:root .perfil-grupo{background:rgba(8,8,14,.70);}
-:root[data-tema="oscuro"] :is(.perfil-val,.perfil-tx small){color:#B4B4B1;}
-
-/* Brillo de la luz en la orilla del vidrio: public/vidrio.js lo dibuja en un lienzo dentro de cada pieza.
-   Va encima del vidrio y debajo del texto, del mismo tamaño que la pieza (no se sale, así no descuadra
-   la lupa). Solo se ve con lupa activa (Chrome/Android, animaciones encendidas). */
-:is(.mov-row,.modal-card,.user-card,.backup-row){position:relative;}
-.vidrio-lienzo{position:absolute;left:0;top:0;width:100%;height:100%;border-radius:inherit;pointer-events:none;z-index:-1;display:none;}
-:root:not([data-animaciones="no"]) .vidrio-liquido > .vidrio-lienzo{display:block;}
-
-/* Modo oscuro: fondo gris oscuro liso (elegido por el dueño). Las formas de colores "Aurora" quedan
-   apagadas (no se dibujan ni se mueven); para volver a ellas basta con borrar este bloque. La capa
-   #manchas se queda como fondo sólido porque también tapa la lista cuando hay una pantalla abierta. */
-:root[data-tema="oscuro"]{--bg:#1C1C1E;}
-:root[data-tema="oscuro"] #manchas{background:#1C1C1E;}
-:root[data-tema="oscuro"] #manchas i,:root[data-tema="oscuro"] #manchas::after{display:none;}
-:root[data-tema="oscuro"] header.topbar,:root[data-tema="oscuro"] .page-header{background:rgba(28,28,30,.72);}
