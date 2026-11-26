@@ -31,8 +31,8 @@
         '<g class="m-pd"><line x1="16" y1="27" x2="17" y2="34"/></g>' +
         // cuerpo a rayas
         '<rect x="9" y="17" width="10" height="11" rx="4" fill="#F2B35A"/>' +
-        '<rect x="9" y="20.5" width="10" height="2.2" fill="#1B2132"/>' +
-        '<rect x="9" y="24.5" width="10" height="2" fill="#1B2132"/>' +
+        '<rect x="9" y="20.5" width="10" height="2.2" fill="#1F2023"/>' +
+        '<rect x="9" y="24.5" width="10" height="2" fill="#1F2023"/>' +
         // brazos
         '<g class="m-bi"><line x1="10" y1="19" x2="7" y2="25"/></g>' +
         '<g class="m-bd"><line x1="18" y1="19" x2="21" y2="25"/></g>' +
@@ -40,11 +40,11 @@
         '<line class="m-trazo" x1="11" y1="5" x2="9" y2="1.5"/><circle cx="9" cy="1.5" r="1.3" fill="#F2B35A"/>' +
         '<line class="m-trazo" x1="17" y1="5" x2="19" y2="1.5"/><circle cx="19" cy="1.5" r="1.3" fill="#F2B35A"/>' +
         '<circle class="m-cabeza" cx="14" cy="10.5" r="6.5"/>' +
-        '<circle cx="12" cy="10" r="1" fill="#1B2132"/><circle cx="16.5" cy="10" r="1" fill="#1B2132"/>' +
-        '<path d="M12.3 13 Q14.2 14.6 16.2 13" stroke="#1B2132" stroke-width="1" fill="none" stroke-linecap="round"/>' +
+        '<circle cx="12" cy="10" r="1" fill="#1F2023"/><circle cx="16.5" cy="10" r="1" fill="#1F2023"/>' +
+        '<path d="M12.3 13 Q14.2 14.6 16.2 13" stroke="#1F2023" stroke-width="1" fill="none" stroke-linecap="round"/>' +
         // ojitos cerrados (solo cuando duerme)
         '<g class="m-dormido"><circle cx="14" cy="10.5" r="5.4" fill="#FFD58A"/>' +
-          '<path d="M10.8 10.2 Q12 11.3 13.2 10.2 M15.3 10.2 Q16.5 11.3 17.7 10.2" stroke="#1B2132" stroke-width="1" fill="none" stroke-linecap="round"/></g>' +
+          '<path d="M10.8 10.2 Q12 11.3 13.2 10.2 M15.3 10.2 Q16.5 11.3 17.7 10.2" stroke="#1F2023" stroke-width="1" fill="none" stroke-linecap="round"/></g>' +
       '</g>' +
       '<text class="m-z" x="22" y="6">z</text><text class="m-z m-z2" x="25" y="1">z</text>' +
     '</svg>';
