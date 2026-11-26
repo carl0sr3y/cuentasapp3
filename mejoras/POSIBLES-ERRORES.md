@@ -67,7 +67,6 @@ en Perfil → Apariencia → Animaciones, y la app funciona igual.
 | El muñequito está dormido | Sí, de 9 p. m. a 6 a. m. | Usa la hora del teléfono. |
 | El muñequito no festejó un abono | Normal a veces | Solo se ve en la lista de cuentas: festeja al volver a la lista si es dentro del minuto siguiente al abono. |
 | La ventana tarda medio segundo más en cerrarse al guardar | Sí | Es la palomita ✓. El registro ya está guardado en ese momento; la pausa es solo visual. |
-| El color de la pestaña elegida queda fuera de su lugar | **No** | Avísame con una captura y el modelo del teléfono. Mientras, girar el teléfono o cambiar de pestaña lo recoloca. |
 | Al abrir o cerrar una cuenta la pantalla se queda "congelada" un momento | **No** | Avísame con el modelo del teléfono. Mientras, apagar las animaciones en el perfil lo evita. |
 
 ### Pistas técnicas (para revisar el código)
@@ -77,7 +76,7 @@ en Perfil → Apariencia → Animaciones, y la app funciona igual.
 - `transicionVista` / `marcarTransicion` / `limpiarNombresTransicion`: View Transitions con el nombre
   `cuenta-abierta` (la tarjeta ↔ `#detailPage`). Al volver, `applyHistoryState` la usa solo si va a una
   pestaña y no hay ventana abierta; si no, `aplicarEstadoHistorial` normal.
-- `moverIndicadorPestana`: `.tab-indicador` con `transform`; un `ResizeObserver` lo recoloca.
+- El fondo de la pestaña elegida que se deslizaba (`.tab-indicador`) se quitó el 25/11/2026: ver "Íconos en las pestañas de abajo".
 - `esqueletoCargaHtml`: pantalla de carga; el brillo es un `::after` que solo se traslada.
 - `animarSaldos`: clase `.destella` cuando un monto ya mostrado cambia.
 - muneco.js: `KaabMuneco.celebrar()` (modo `festeja`) y `esDeNoche()` (clase `duerme`).
@@ -201,7 +200,7 @@ computadora. Las acciones de cada usuario (cambiar nombre, contraseña, correo, 
 
 Cambio del 25/11/2026. Cada pestaña de la barra flotante tiene su ícono: flecha hacia abajo en un círculo
 (Por cobrar), flecha hacia arriba en un círculo (Por pagar) y una tiendita (Movimientos tienda). Solo la
-pestaña elegida muestra su nombre; las otras, solo el ícono.
+pestaña elegida muestra su nombre y se pinta de su color (sin fondo); las otras, solo el ícono en gris.
 
 ### Cosas que puedes notar en la app (y si son normales)
 
@@ -214,7 +213,6 @@ pestaña elegida muestra su nombre; las otras, solo el ícono.
 ### Pistas técnicas (para revisar el código)
 
 - `public/index.html`: botones `.tab-btn` con `svg.tab-ico` + `span.tab-nombre` (y `aria-label`/`title`).
-- `public/styles.css`: bloque "Íconos en las pestañas" (la elegida usa `flex-grow:2.6`; letra más chica bajo 340 px)
-  y `width` en la transición de `.tab-indicador`.
+- `public/styles.css`: bloque "Íconos en las pestañas" (la elegida usa `flex-grow:2.6`; letra más chica bajo 340 px).
 - `public/app.js`: `setTabUI` mide los íconos antes y después del cambio y los desliza con `animate()`.
 - Prueba local: `bash pruebas/correr.sh animaciones`.

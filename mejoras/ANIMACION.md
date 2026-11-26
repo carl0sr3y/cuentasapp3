@@ -11,7 +11,7 @@ si están desactivadas, o el teléfono es de bajos recursos, no se mostrarían.
 |---|--------|--------|
 | 1 | Confirmación visual al guardar | [x] Hecho (palomita ✓ en el botón) |
 | 2 | Pantallas de carga con la forma del contenido | [x] Hecho |
-| 3 | Indicador que se desliza en el menú de pestañas | [x] Hecho |
+| 3 | Indicador que se desliza en el menú de pestañas | Quitado el 25/11/2026 (el dueño prefirió la pestaña elegida sin fondo; ahora se deslizan los íconos) |
 | 4 | Más acciones del muñequito | [x] Festeja abonos y duerme de noche (tocarlo para que salude: no, para no estorbar) |
 | 5 | Vibración corta al guardar | [x] Hecho (al guardar y al eliminar; solo Android) |
 | 6 | La tarjeta de la cuenta crece hasta su pantalla | [x] Hecho (navegadores recientes; en los demás, la animación de antes) |

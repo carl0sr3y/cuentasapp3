@@ -1425,31 +1425,6 @@ function reiniciarBusqueda() {
 }
 document.getElementById('avatarBtn').addEventListener('click', () => openAccountSettingsPage());
 
-// Fondo de color de la pestaña elegida: se desliza de una pestaña a otra (solo se mueve, no se redibuja).
-const indicadorPestana = (() => {
-  const barra = document.querySelector('.tabbar');
-  if (!barra) return null;
-  const ind = document.createElement('span');
-  ind.className = 'tab-indicador';
-  ind.setAttribute('aria-hidden', 'true');
-  barra.prepend(ind);
-  barra.classList.add('con-indicador');
-  // Si el menú cambia de tamaño (girar el teléfono, o reaparece tras una búsqueda) se recoloca.
-  if (typeof ResizeObserver === 'function') new ResizeObserver(() => moverIndicadorPestana(true)).observe(barra);
-  return ind;
-})();
-function moverIndicadorPestana(sinAnimar) {
-  const ind = indicadorPestana;
-  if (!ind) return;
-  const btn = document.querySelector(`.tab-btn[data-tab="${currentTab}"]`);
-  if (!btn || !btn.offsetWidth) return; // menú oculto: se recoloca cuando vuelva a verse
-  if (sinAnimar) ind.classList.add('sin-animar');
-  ind.dataset.tab = currentTab;
-  ind.style.width = btn.offsetWidth + 'px';
-  ind.style.transform = `translateX(${btn.offsetLeft}px)`;
-  if (sinAnimar) { void ind.offsetWidth; ind.classList.remove('sin-animar'); }
-  ind.classList.add('listo');
-}
 function setTabUI(tab) {
   const anterior = currentTab;
   currentTab = tab;
@@ -1471,7 +1446,6 @@ function setTabUI(tab) {
   // "Por cobrar" y "Por pagar" comparten la misma vista: al cambiar de tipo se vuelve a dibujar.
   if (esTabCuentas(tab) && tipoCuentas !== tab) { tipoCuentas = tab; if (AUTH) renderDeudas(); }
   else if (esTabCuentas(tab)) ajustarMontosResumen();
-  moverIndicadorPestana();
   if (anterior !== tab && animOn()) {
     const vista = document.getElementById(tab === 'tienda' ? 'tiendaView' : 'deudasView');
     vista.classList.remove('entra-der', 'entra-izq');

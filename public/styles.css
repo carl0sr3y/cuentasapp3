@@ -721,17 +721,6 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
 ::view-transition-old(cuenta-abierta),::view-transition-new(cuenta-abierta){height:100%;object-fit:cover;object-position:top center;animation-duration:.28s;}
 ::view-transition-old(root),::view-transition-new(root){animation:none;}
 
-/* 3. Fondo de la pestaña elegida que se desliza (lo mueve app.js con transform) */
-.tabbar.con-indicador{position:fixed;}
-.tab-indicador{position:absolute;left:0;top:5px;bottom:5px;width:0;border-radius:15px;pointer-events:none;z-index:0;opacity:0;
-  background:var(--accent-bg);will-change:transform;transition:transform .42s var(--ease-spring),width .42s var(--ease-spring),background-color .3s ease,opacity .2s;}
-.tab-indicador[data-tab="pagar"]{background:var(--pagar-bg);}
-.tab-indicador[data-tab="tienda"]{background:var(--tienda-bg);}
-.tab-indicador.listo{opacity:1;}
-.tab-indicador.sin-animar{transition:none;}
-.tabbar.con-indicador .tab-btn{position:relative;z-index:1;}
-.tab-indicador.listo ~ .tab-btn.active{background:transparent;}
-
 /* 4. Pantalla de carga con la forma de la lista */
 .esqueleto{padding-top:4px;}
 .esq{display:block;position:relative;overflow:hidden;background:var(--surface-2);border-radius:8px;}
@@ -897,10 +886,11 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
 }
 @media(min-width:640px){.tabbar{margin:0 auto;}}
 .tab-btn{border-radius:15px;padding:11px 4px;}
-.tab-btn.active{box-shadow:none;}
-.tab-btn.active[data-tab="cobrar"]{background:var(--accent-bg);color:var(--accent);}
-.tab-btn.active[data-tab="pagar"]{background:var(--pagar-bg);color:var(--pagar);}
-.tab-btn.active[data-tab="tienda"]{background:var(--tienda-bg);color:var(--tienda);}
+/* La pestaña elegida no lleva fondo: se distingue por su color y su nombre */
+.tab-btn.active{box-shadow:none;background:transparent;}
+.tab-btn.active[data-tab="cobrar"]{color:var(--accent);}
+.tab-btn.active[data-tab="pagar"]{color:var(--pagar);}
+.tab-btn.active[data-tab="tienda"]{color:var(--tienda);}
 /* Íconos en las pestañas: todas muestran su ícono; solo la elegida dice su nombre y se estira.
    Al cambiar de pestaña, app.js (setTabUI) desliza los íconos a su nuevo lugar. */
 .tabbar .tab-btn{display:flex;align-items:center;justify-content:center;gap:7px;flex:1 1 0;padding:11px 4px;font-size:14.5px;line-height:1.15;white-space:nowrap;}
