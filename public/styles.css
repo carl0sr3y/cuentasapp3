@@ -20,14 +20,14 @@
   --favor:#876800;
   --favor-bg:rgba(176,138,0,0.12);
   --accent:#0076A3;            /* celeste del logo, más profundo para que las letras se lean sobre blanco */
-  --accent-solid:#2EC5FF;      /* celeste del logo: botones y rellenos */
+  --accent-solid:#1F2023;      /* botones y rellenos: blancos en modo oscuro, gris del logo en modo claro */
   --accent-bg:rgba(46,197,255,0.14);
-  --on-accent:#1F2023;
+  --on-accent:#FFFFFF;
   --on-pagar:#FFFFFF;
-  --tienda:#C77A12;
-  --tienda-bg:rgba(230,150,40,0.13);
-  --pagar:#0E877E;
-  --pagar-bg:rgba(14,143,134,0.11);
+  --tienda:#1F2023;            /* Por pagar y Movimientos tienda: blancos en modo oscuro, gris del logo en modo claro */
+  --tienda-bg:rgba(31,32,35,0.06);
+  --pagar:#1F2023;
+  --pagar-bg:rgba(31,32,35,0.06);
   --overlay:rgba(31,32,35,0.38);
   --shadow:0 4px 14px rgba(31,32,35,0.07);
   --shadow-lg:0 16px 40px rgba(31,32,35,0.16);
@@ -57,14 +57,14 @@
   --favor:#E8C84A;
   --favor-bg:rgba(232,200,74,0.14);
   --accent:#2EC5FF;
-  --accent-solid:#2EC5FF;
+  --accent-solid:#FFFFFF;
   --accent-bg:rgba(46,197,255,0.14);
   --on-accent:#121316;
   --on-pagar:#121316;
-  --tienda:#F2B35A;
-  --tienda-bg:rgba(242,179,90,0.13);
-  --pagar:#4FD1C5;
-  --pagar-bg:rgba(79,209,197,0.13);
+  --tienda:#FFFFFF;
+  --tienda-bg:rgba(255,255,255,0.08);
+  --pagar:#FFFFFF;
+  --pagar-bg:rgba(255,255,255,0.08);
   --overlay:rgba(0,0,0,0.55);
   --shadow:0 4px 14px rgba(0,0,0,0.25);
   --shadow-lg:0 16px 40px rgba(0,0,0,0.5);
@@ -75,8 +75,8 @@
     --bg:#141518; --surface:#1D1E21; --surface-2:#28292C; --surface-alt:#212225;
     --border:#2F3033; --border-soft:#26272A; --text:#E9EAED; --text-dim:#A7A8AB; --text-faint:#747578;
     --green:#4CC79A; --green-bg:rgba(76,199,154,0.13); --red:#FF7E75; --red-bg:rgba(255,126,117,0.13);
-    --yellow:#F2B35A; --favor:#E8C84A; --favor-bg:rgba(232,200,74,0.14); --accent:#2EC5FF; --accent-solid:#2EC5FF; --accent-bg:rgba(46,197,255,0.14); --on-accent:#121316; --on-pagar:#121316;
-    --tienda:#F2B35A; --tienda-bg:rgba(242,179,90,0.13); --pagar:#4FD1C5; --pagar-bg:rgba(79,209,197,0.13); --overlay:rgba(0,0,0,0.55);
+    --yellow:#F2B35A; --favor:#E8C84A; --favor-bg:rgba(232,200,74,0.14); --accent:#2EC5FF; --accent-solid:#FFFFFF; --accent-bg:rgba(46,197,255,0.14); --on-accent:#121316; --on-pagar:#121316;
+    --tienda:#FFFFFF; --tienda-bg:rgba(255,255,255,0.08); --pagar:#FFFFFF; --pagar-bg:rgba(255,255,255,0.08); --overlay:rgba(0,0,0,0.55);
     --shadow:0 4px 14px rgba(0,0,0,0.25); --shadow-lg:0 16px 40px rgba(0,0,0,0.5);
   }
 }
@@ -517,7 +517,7 @@ header.topbar,.page-header{border-bottom-color:transparent;}
 .tab-btn{border:none;border-radius:12px;padding:9px 4px;font-size:16px;transition:background .25s var(--ease-out),color .2s,box-shadow .25s;}
 .tab-btn.active{background:var(--surface);box-shadow:var(--shadow);color:var(--text);}
 
-/* Saldo: tarjeta teñida con el color de la sección (Deudas = azul, Tienda = ámbar) */
+/* Saldo: tarjeta teñida con el color de la sección (Por cobrar = celeste; Por pagar y Tienda = blanco en oscuro, gris en claro) */
 .balance-block{background:var(--accent-bg);border-radius:var(--radius);margin:4px 0 16px;padding:22px 16px 20px;}
 .balance-label{color:var(--accent);font-weight:700;font-size:15px;letter-spacing:0;}
 #tiendaView .balance-block{background:var(--tienda-bg);}
@@ -1032,8 +1032,8 @@ body:has(.select-bar) .tabbar{display:none;}
 .camara-marco span:nth-child(2){top:-2px;right:-2px;border-left:0;border-bottom:0;border-top-right-radius:18px;}
 .camara-marco span:nth-child(3){bottom:-2px;right:-2px;border-left:0;border-top:0;border-bottom-right-radius:18px;}
 .camara-marco span:nth-child(4){bottom:-2px;left:-2px;border-right:0;border-top:0;border-bottom-left-radius:18px;}
-.camara-qr .camara-marco::after{content:'';position:absolute;left:10%;right:10%;top:50%;height:2px;background:var(--accent-solid);
-  box-shadow:0 0 12px var(--accent-solid);animation:camaraLinea 2s ease-in-out infinite;}
+.camara-qr .camara-marco::after{content:'';position:absolute;left:10%;right:10%;top:50%;height:2px;background:#fff;
+  box-shadow:0 0 12px rgba(255,255,255,.8);animation:camaraLinea 2s ease-in-out infinite;}
 @keyframes camaraLinea{0%,100%{transform:translateY(-110px);}50%{transform:translateY(110px);}}
 @media (prefers-reduced-motion:reduce){.camara-qr .camara-marco::after{animation:none;}}
 .camara-ayuda{position:absolute;z-index:2;left:16px;right:16px;bottom:calc(130px + env(safe-area-inset-bottom));margin:0;text-align:center;
