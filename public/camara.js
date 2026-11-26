@@ -1,5 +1,5 @@
 /* ============================================================
-   CÁMARA DENTRO DE KAAB (sin salir a la app de cámara del teléfono)
+   CÁMARA DENTRO DE UP (sin salir a la app de cámara del teléfono)
    - KaabCamara.escanearQR({ validar })  → texto del QR, o null si se cancela.
    - KaabCamara.tomarFoto()              → <canvas> con la foto, 'galeria' si eligió la galería,
                                             o null si se cancela.

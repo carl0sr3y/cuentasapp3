@@ -150,7 +150,7 @@ computadora** (o escanear el QR), y aprobar con huella o contraseña.
 
 ---
 
-## Cámara dentro de Kaab (QR de la computadora y foto de factura)
+## Cámara dentro de Up (QR de la computadora y foto de factura)
 
 Cambio del 19/11/2026. "Tomar o elegir foto" (tienda) y "Escanear código QR" (Perfil → Conectar una
 computadora) abren la cámara dentro de la app, sin salir de ella.
@@ -159,13 +159,13 @@ computadora) abren la cámara dentro de la app, sin salir de ella.
 
 | Lo que ves | ¿Es normal? | Explicación |
 |---|---|---|
-| El teléfono pregunta "¿Permitir que Kaab use la cámara?" | Sí | La primera vez (en iPhone puede preguntarlo más seguido). Hay que permitirlo. |
-| "Kaab no tiene permiso para usar la cámara…" | Sí, si se negó el permiso | Activarlo en el candado junto a la dirección o en Ajustes del teléfono. Mientras tanto: escribir los 8 números (QR) o se abre la cámara del teléfono como antes (factura). |
+| El teléfono pregunta "¿Permitir que Up use la cámara?" | Sí | La primera vez (en iPhone puede preguntarlo más seguido). Hay que permitirlo. |
+| "Up no tiene permiso para usar la cámara…" | Sí, si se negó el permiso | Activarlo en el candado junto a la dirección o en Ajustes del teléfono. Mientras tanto: escribir los 8 números (QR) o se abre la cámara del teléfono como antes (factura). |
 | "No se pudo abrir la cámara…" | A veces | Otra app está usando la cámara. Cerrarla y volver a intentar. |
-| "Este no es un código de Kaab" | Sí | Se apuntó a otro QR. Solo se aceptan los que muestra Kaab en la computadora. |
-| Para la factura se abrió la cámara del teléfono (no la de Kaab) | Sí, en teléfonos o navegadores sin permiso o sin esa función | Funciona como antes; el borrador protege lo escrito si el teléfono reinicia la app. |
+| "Este no es un código de Up" | Sí | Se apuntó a otro QR. Solo se aceptan los que muestra Up en la computadora. |
+| Para la factura se abrió la cámara del teléfono (no la de Up) | Sí, en teléfonos o navegadores sin permiso o sin esa función | Funciona como antes; el borrador protege lo escrito si el teléfono reinicia la app. |
 | El botón de linterna no aparece | Sí | Solo sale si la cámara del teléfono la permite (muchos iPhone no dejan usarla desde una página). |
-| La foto con la cámara de Kaab sale un poco menos nítida que con la del teléfono | Posible en algunos teléfonos | Si la cámara de Kaab no puede tomar la foto "completa", usa la imagen del video (suficiente para leer la factura). Para más nitidez: "Galería". |
+| La foto con la cámara de Up sale un poco menos nítida que con la del teléfono | Posible en algunos teléfonos | Si la cámara de Up no puede tomar la foto "completa", usa la imagen del video (suficiente para leer la factura). Para más nitidez: "Galería". |
 
 ### Pistas técnicas (para revisar el código)
 

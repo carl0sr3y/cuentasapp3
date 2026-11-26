@@ -41,7 +41,7 @@ recordatorio para correr el script de vez en cuando.
 ## 3. Actualizar la librería de la huella 🟡
 
 **Qué es:** `@simplewebauthn/server` tiene un aviso de seguridad de nivel **bajo** que no aplica a cómo
-la usa Kaab. Aun así conviene tenerla al día.
+la usa Up. Aun así conviene tenerla al día.
 **Riesgo:** es una actualización grande (cambia de versión mayor). Hay que **probar la huella en un
 teléfono real** antes de subirla.
 

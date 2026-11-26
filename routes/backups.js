@@ -28,7 +28,7 @@ router.get('/:id/download', async (req, res) => {
   const backup = rows[0];
   if (!backup) return res.status(404).json({ error: 'Copia no encontrada' });
   const nombreArchivo = (backup.nombre || 'backup').replace(/[^\w\-]+/g, '-');
-  res.setHeader('Content-Disposition', `attachment; filename="kaab-${nombreArchivo}.json"`);
+  res.setHeader('Content-Disposition', `attachment; filename="up-${nombreArchivo}.json"`);
   res.setHeader('Content-Type', 'application/json');
   res.send(JSON.stringify(backup.data, null, 2));
 });
@@ -98,7 +98,7 @@ router.get('/tienda/:id/download', async (req, res) => {
   );
   if (!b) return res.status(404).json({ error: 'Copia no encontrada' });
   const nombreArchivo = (b.nombre || 'tienda').replace(/[^\w\-]+/g, '-');
-  res.setHeader('Content-Disposition', `attachment; filename="kaab-tienda-${nombreArchivo}.json"`);
+  res.setHeader('Content-Disposition', `attachment; filename="up-tienda-${nombreArchivo}.json"`);
   res.setHeader('Content-Type', 'application/json');
   res.on('finish', () => {
     pool.query('UPDATE backups_tienda SET descargado = true WHERE id = $1 AND empresa_id = $2 AND NOT desactualizado AND version = $3',

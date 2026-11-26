@@ -1,4 +1,4 @@
-# Pendientes de Kaab
+# Pendientes de Up
 
 Índice de todo lo que queda por hacer. Cada lista se revisa **una mejora a la vez**: nada se implementa
 sin decidirlo antes. Al terminar una mejora, se marca con `[x]` en su archivo y se anota el commit.
@@ -33,7 +33,7 @@ computadora; no se sube). Instrucciones en `pruebas/LEEME.md`.
 - [ ] **Pedir a los usuarios** que reportaron el problema de la huella que prueben la versión nueva
       (incluye el caso de tocar el botón mientras la huella ya se está pidiendo).
 - [ ] **Confirmar con los usuarios** que al agregar una salida con foto ya no se cierra la ventana. Ahora la
-      foto se toma con la cámara dentro de Kaab ([Movimientos tienda](TIENDA.md) #5, hecho); probarla en
+      foto se toma con la cámara dentro de Up ([Movimientos tienda](TIENDA.md) #5, hecho); probarla en
       Android y en iPhone.
 - [ ] **Revisar de vez en cuando Railway → Logs** buscando "Foto no procesada". Si aparece, compartir
       esa línea para saber la causa exacta.

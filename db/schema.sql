@@ -1,4 +1,4 @@
--- Kaab: esquema de base de datos (PostgreSQL)
+-- Up: esquema de base de datos (PostgreSQL)
 -- Este archivo se ejecuta en cada arranque. Los CREATE TABLE usan IF NOT EXISTS
 -- y las columnas nuevas usan ADD COLUMN IF NOT EXISTS para no romper una base ya existente.
 

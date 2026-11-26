@@ -53,7 +53,7 @@ async function main() {
     console.log('\n1) Abre Google Authenticator (o Microsoft Authenticator) → "+" → "Escanear código QR":\n');
     console.log(await QRCode.toString(uri, { type: 'terminal', small: true }));
     console.log('   Si no puedes escanear, elige "Ingresar clave de configuración" y escribe:');
-    console.log('   Cuenta: Kaab   Clave: ' + secreto.match(/.{1,4}/g).join(' ') + '   (basada en tiempo)\n');
+    console.log('   Cuenta: Up   Clave: ' + secreto.match(/.{1,4}/g).join(' ') + '   (basada en tiempo)\n');
 
     // Comprobamos que la app quedó bien configurada ANTES de guardar nada, para no dejarte afuera.
     let ok = false;

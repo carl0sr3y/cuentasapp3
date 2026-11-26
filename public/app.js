@@ -603,7 +603,7 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
     root.innerHTML = `
       <div class="login-card login-card-fp">
         <img class="login-logo" src="/favicon.svg" alt="" width="56" height="56">
-        <h1>Kaab</h1>
+        <h1>Up</h1>
         <p class="sub">Hola de nuevo. Entra con tu huella o Face ID.</p>
         <button class="fp-circle" id="fpCircle" aria-label="Entrar con huella o Face ID">${ICONS.fingerprint}</button>
         <p class="fp-hint">Toca para usar la huella</p>
@@ -621,7 +621,7 @@ function renderLogin(forcePasswordForm, { autoHuella = false } = {}) {
   root.innerHTML = `
     <div class="login-card">
       <img class="login-logo" src="/favicon.svg" alt="" width="56" height="56">
-      <h1>Kaab</h1>
+      <h1>Up</h1>
       <p class="sub">Inicia sesión en tu empresa.</p>
       <div class="field">
         <label for="loginUsuario">Usuario</label>
@@ -737,7 +737,7 @@ async function renderEntrarConTelefono() {
       <div class="enlace-codigo num" id="enlaceCodigo">···· ····</div>
       <p class="enlace-vence" id="enlaceVence"></p>
       <ol class="enlace-pasos">
-        <li>Abre Kaab en tu teléfono (con tu sesión iniciada).</li>
+        <li>Abre Up en tu teléfono (con tu sesión iniciada).</li>
         <li>Escanea este código con la cámara, o ve a <b>Perfil → Conectar una computadora</b> y escribe los números.</li>
         <li>Revisa que diga esta computadora y apruébalo con tu huella o tu contraseña.</li>
       </ol>
@@ -811,8 +811,8 @@ function renderCandado(modo, nombre) {
       <div class="candado-ico">${ICONS.key}</div>
       <h1>${crear ? 'Crea el PIN de esta computadora' : `Hola${NOMBRE_CANDADO ? ', ' + escapeHtml(NOMBRE_CANDADO.split(' ')[0]) : ''}`}</h1>
       <p class="sub">${crear
-        ? 'Son 6 números. Te los pediremos cuando pasen 15 minutos sin usar Kaab aquí. Solo sirven en esta computadora.'
-        : 'Kaab está bloqueado en esta computadora. Escribe tu PIN para seguir.'}</p>
+        ? 'Son 6 números. Te los pediremos cuando pasen 15 minutos sin usar Up aquí. Solo sirven en esta computadora.'
+        : 'Up está bloqueado en esta computadora. Escribe tu PIN para seguir.'}</p>
       <input id="pinUno" class="num pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" aria-label="PIN">
       ${crear ? '<input id="pinDos" class="num pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" aria-label="Repite el PIN"><p class="field-hint">Escríbelo dos veces.</p>' : ''}
       <button class="btn-primary" id="pinBtn">${crear ? 'Guardar PIN y entrar' : 'Desbloquear'}</button>
@@ -860,10 +860,10 @@ function renderCandado(modo, nombre) {
 // --- Cámara dentro de la app (public/camara.js) ---
 function camaraDisponible() { return !!(window.KaabCamara && KaabCamara.disponible()); }
 function mensajeErrorCamara(e, alternativa) {
-  if (e && e.codigo === 'permiso') return `Kaab no tiene permiso para usar la cámara. Actívalo en los ajustes del navegador (el candado junto a la dirección, o Ajustes del teléfono), o ${alternativa}.`;
+  if (e && e.codigo === 'permiso') return `Up no tiene permiso para usar la cámara. Actívalo en los ajustes del navegador (el candado junto a la dirección, o Ajustes del teléfono), o ${alternativa}.`;
   return `No se pudo abrir la cámara. Cierra otras apps que la estén usando, o ${alternativa}.`;
 }
-// El QR de la computadora es "https://<este sitio>/#conectar=12345678". Solo se aceptan los de Kaab.
+// El QR de la computadora es "https://<este sitio>/#conectar=12345678". Solo se aceptan los de Up.
 function codigoDeQR(texto) {
   try {
     const u = new URL(String(texto || ''));
@@ -895,7 +895,7 @@ function revisarCodigoConectarPendiente() {
 function openConectarComputadoraModal(codigoInicial = '') {
   showModal(`
     <h3>Conectar una computadora</h3>
-    <p class="desc">En la computadora, abre Kaab y elige <b>"Entrar con mi teléfono"</b>. Luego escanea el código QR que aparece${camaraDisponible() ? ', o escribe los 8 números' : ' escribiendo aquí los 8 números'}.</p>
+    <p class="desc">En la computadora, abre Up y elige <b>"Entrar con mi teléfono"</b>. Luego escanea el código QR que aparece${camaraDisponible() ? ', o escribe los 8 números' : ' escribiendo aquí los 8 números'}.</p>
     ${camaraDisponible() ? `<button class="btn-escanear" id="conEscanear" type="button">${ICONS.qr}<span>Escanear código QR</span></button>
     <p class="separador-o"><span>o escribe el código</span></p>` : ''}
     <div class="field"><label for="conCodigo">Código de la computadora</label>
@@ -929,7 +929,7 @@ function openConectarComputadoraModal(codigoInicial = '') {
       const texto = await KaabCamara.escanearQR({
         titulo: 'Escanear código QR',
         ayuda: 'Apunta al código QR que aparece en la computadora',
-        validar: t => (codigoDeQR(t) ? null : 'Este no es un código de Kaab. Apunta al QR de la computadora.'),
+        validar: t => (codigoDeQR(t) ? null : 'Este no es un código de Up. Apunta al QR de la computadora.'),
       });
       if (!texto || !document.getElementById('conCodigo')) return; // se canceló
       input.value = formatoCodigo(codigoDeQR(texto));
@@ -2320,12 +2320,12 @@ function openTiendaMovModal(tipo, prellenado = null) {
   });
   ['tMovDesc', 'tMovMonto'].forEach(id => document.getElementById(id).addEventListener('input', () => guardarBorrador()));
   setTimeout(() => document.getElementById('tMovDesc').focus(), 50);
-  // Cámara del sistema o galería: Kaab queda en segundo plano y el teléfono podría reiniciarla.
+  // Cámara del sistema o galería: Up queda en segundo plano y el teléfono podría reiniciarla.
   const usarSelectorDelSistema = (id) => {
     guardarBorrador({ camara: true }); // por si el teléfono reinicia la app mientras está la cámara
     document.getElementById(id).click();
   };
-  // Lo normal: la cámara dentro de Kaab (no sale de la app). Si el teléfono no la deja usar, se usa
+  // Lo normal: la cámara dentro de Up (no sale de la app). Si el teléfono no la deja usar, se usa
   // la cámara del sistema como antes.
   document.getElementById('btnTomarFoto').onclick = async () => {
     if (!camaraDisponible()) { usarSelectorDelSistema('tMovFotoInput'); return; }
@@ -2348,7 +2348,7 @@ function openTiendaMovModal(tipo, prellenado = null) {
     if (bf) { bf.disabled = activo; bf.innerHTML = activo ? 'Procesando foto…' : `${ICONS.camera} Tomar o elegir foto`; }
     if (bg) bg.disabled = activo;
   };
-  // obtener(): la imagen (<img>, ImageBitmap o <canvas> de la cámara de Kaab). file: el archivo, si lo hay.
+  // obtener(): la imagen (<img>, ImageBitmap o <canvas> de la cámara de Up). file: el archivo, si lo hay.
   const procesarFoto = async (obtener, file) => {
     estadoFoto(true);
     let etapa = 'abrir';
@@ -3159,7 +3159,7 @@ async function generarPdfTipo(tipo) {
   try { data = await api(`/reportes/general?tipo=${tipo}`); } catch (e) { toast('No se pudo generar el PDF'); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  pdfHeader(doc, 'Kaab — ' + T.pdfTitulo);
+  pdfHeader(doc, 'Up — ' + T.pdfTitulo);
   doc.setFontSize(11); doc.setTextColor(30, 30, 30);
   doc.text(T.total + ': ' + saldoTexto(data.balance, tipo), 14, 38);
   doc.text('Total de cuentas: ' + data.cuentas.length, 14, 45);
@@ -3178,7 +3178,7 @@ async function generarPdfCompleto() {
   const teDeben = suma(cobrar), debes = suma(pagar), neto = Math.round((teDeben - debes) * 100) / 100;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  pdfHeader(doc, 'Kaab — Reporte completo');
+  pdfHeader(doc, 'Up — Reporte completo');
   doc.setFontSize(11); doc.setTextColor(30, 30, 30);
   doc.text('Te deben (por cobrar): ' + money(teDeben), 14, 38);
   doc.text('Debes (por pagar): ' + money(debes), 14, 45);

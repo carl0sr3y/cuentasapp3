@@ -108,7 +108,7 @@ async function restaurar(pool, migrate, archivo) {
       if (!linea) continue;
       const o = JSON.parse(linea);
       if (o.tipo === 'cabecera') {
-        if (o.app !== 'cuentas-app') throw new Error('El archivo no es un respaldo de Kaab');
+        if (o.app !== 'cuentas-app') throw new Error('El archivo no es un respaldo de Up');
         continue;
       }
       if (o.tipo === 'fin_tabla') { await vaciar(); continue; }

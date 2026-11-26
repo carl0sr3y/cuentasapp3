@@ -1,4 +1,4 @@
-# Kaab (antes Cuentas-App)
+# Up (antes Kaab y Cuentas-App)
 
 App web (PWA) para negocios en Guatemala: **cuentas por cobrar** (clientes que deben), **cuentas por
 pagar** (proveedores) y **movimientos de tienda** (entradas/salidas con foto de factura). Multiempresa,

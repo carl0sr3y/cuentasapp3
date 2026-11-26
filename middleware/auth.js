@@ -96,7 +96,7 @@ const MINUTOS_PARA_CREAR_PIN = 10;
 const MSG_SUSPENDIDA = 'Tu empresa está suspendida. Comunícate con el administrador de la plataforma.';
 
 const MSG_BLOQUEO = {
-  BLOQUEADA: 'Kaab está bloqueado en esta computadora. Escribe tu PIN.',
+  BLOQUEADA: 'Up está bloqueado en esta computadora. Escribe tu PIN.',
   CREAR_PIN: 'Crea el PIN de esta computadora para continuar.',
 };
 // aunBloqueada: para las pocas rutas que se usan con la pantalla bloqueada (poner el PIN, desbloquear,

@@ -207,7 +207,7 @@ async function start() {
     .then(() => asegurarRespaldosTienda())
     .catch(e => console.error('Error con los respaldos de tienda:', e.message));
 
-  server.listen(PORT, () => console.log(`Kaab escuchando en el puerto ${PORT}`));
+  server.listen(PORT, () => console.log(`Up escuchando en el puerto ${PORT}`));
 }
 
 start();
