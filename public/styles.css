@@ -28,7 +28,7 @@
   --tienda-bg:rgba(31,32,35,0.06);
   --pagar:#1F2023;
   --pagar-bg:rgba(31,32,35,0.06);
-  --circulo:#1F2023;           /* círculo con la inicial de clientes y usuarios */
+  --circulo:#1F2023;           /* círculo con la inicial de los usuarios (perfil) */
   --circulo-bg:rgba(31,32,35,0.06);
   --overlay:rgba(31,32,35,0.38);
   --shadow:0 4px 14px rgba(31,32,35,0.07);
@@ -284,7 +284,6 @@ header.topbar{
   width:38px;height:38px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border);
   display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;flex-shrink:0;
 }
-.acc-info{flex:1;min-width:0;}
 .acc-name{font-size:19px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .acc-balance{font-size:16px;font-family:var(--mono);margin-top:2px;}
 .star-btn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -553,7 +552,6 @@ header.topbar,.page-header{border-bottom-color:transparent;}
 .account-card,.mov-row{background:var(--surface);border-radius:16px;margin-bottom:8px;padding:12px;box-shadow:var(--shadow);}
 .account-card:active,.mov-row:active{background:var(--surface-alt);}
 .acc-circ{background:var(--accent-bg);border:none;color:var(--accent);font-weight:800;}
-.account-card .acc-circ{background:var(--circulo-bg);color:var(--circulo);}
 .mov-icon{border-radius:12px;}
 .user-card{border-radius:var(--radius);}
 
@@ -794,8 +792,11 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
   .mini-btn{padding:7px 9px;gap:4px;}
 }
 @media (max-width:335px){.cuentas-head{flex-wrap:wrap;row-gap:8px;}}
-/* Lista por actividad reciente (sin favoritos ni letras): fecha del último movimiento a la derecha */
-.acc-actividad{flex:none;align-self:flex-start;margin-top:3px;font-size:12.5px;font-weight:600;color:var(--text-faint);white-space:nowrap;}
+/* Tarjeta de cliente: nombre grande a la izquierda y lo que debe a la derecha (sin inicial ni fecha).
+   La lista sigue ordenada por actividad reciente. */
+.account-card{padding:16px 14px;}
+.account-card .acc-name{flex:1;min-width:0;font-size:21px;}
+.account-card .acc-balance{flex:none;margin-top:0;font-size:17px;font-weight:700;white-space:nowrap;}
 .lista-actividad{padding-top:6px;}
 .animar-entrada .lista-actividad .account-card:nth-child(2){animation-delay:.14s}
 .animar-entrada .lista-actividad .account-card:nth-child(3){animation-delay:.18s}

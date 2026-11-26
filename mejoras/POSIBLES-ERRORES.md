@@ -216,3 +216,17 @@ pestaña elegida muestra su nombre y se pinta de su color (sin fondo); las otras
 - `public/styles.css`: bloque "Íconos en las pestañas" (la elegida usa `flex-grow:2.6`; letra más chica bajo 340 px).
 - `public/app.js`: `setTabUI` mide los íconos antes y después del cambio y los desliza con `animate()`.
 - Prueba local: `bash pruebas/correr.sh animaciones`.
+
+## Tarjetas de clientes más sencillas
+
+Cambio del 25/11/2026. Cada tarjeta de "Por cobrar" y "Por pagar" muestra solo el nombre (más grande) y, a la
+derecha, lo que debe. Ya no lleva el circulito con la inicial ni el día u hora del último movimiento.
+
+| Lo que ves | ¿Es normal? | Explicación |
+|---|---|---|
+| La tarjeta no dice cuándo fue el último movimiento | Sí | Se quitó a propósito. La lista sigue ordenada: arriba la cuenta con movimiento más reciente. La fecha de cada movimiento se ve al abrir la cuenta. |
+| Un nombre muy largo termina en "…" | Sí | Así cabe el monto completo a la derecha. Al abrir la cuenta se ve el nombre entero. |
+| El monto se sale de la tarjeta o tapa el nombre | **No** | Avísame con una captura y el modelo del teléfono. |
+
+Pistas técnicas: `accountCardHtml` en `public/app.js` (se quitó `fmtActividad`); estilos `.account-card .acc-name` y
+`.account-card .acc-balance` en `public/styles.css`.

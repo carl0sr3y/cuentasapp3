@@ -482,16 +482,6 @@ function fmtDateLabel(iso) {
 function fmtTime(iso) { return new Date(iso).toLocaleTimeString('es-GT', { hour: 'numeric', minute: '2-digit' }); }
 function fmtDateShort(iso) { return new Date(iso).toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
 function fmtDateTimeShort(iso) { return new Date(iso).toLocaleString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }); }
-// Fecha corta al estilo de los chats: hora si fue hoy, "Ayer", día de la semana o fecha.
-function fmtActividad(iso) {
-  if (!iso) return '';
-  const d = new Date(iso), hoy = new Date();
-  const dias = Math.round((new Date(hoy.toDateString()) - new Date(d.toDateString())) / 86400000);
-  if (dias <= 0) return fmtTime(iso);
-  if (dias === 1) return 'Ayer';
-  if (dias < 7) return d.toLocaleDateString('es-GT', { weekday: 'long' }).replace(/^./, x => x.toUpperCase());
-  return d.toLocaleDateString('es-GT', { day: 'numeric', month: 'short', ...(d.getFullYear() !== hoy.getFullYear() ? { year: 'numeric' } : {}) }).replace('.', '');
-}
 const tiempoActividad = c => new Date(c.ultima_actividad || c.fecha_creacion || 0).getTime();
 function initialOf(name) { return (name || '?').trim().charAt(0).toUpperCase(); }
 function toast(msg) {
@@ -1627,12 +1617,8 @@ function accountCardHtml(c) {
   return `
     <div class="account-card ${selectMode ? 'selectable' : ''}" data-id="${c.id}">
       ${selectMode ? `<div class="select-check ${checked ? 'checked' : ''}" data-check="${c.id}">${checked ? ICONS.check : ''}</div>` : ''}
-      <div class="acc-circ">${escapeHtml(initialOf(c.nombre))}</div>
-      <div class="acc-info">
-        <div class="acc-name">${escapeHtml(c.nombre)}</div>
-        <div class="acc-balance ${claseSaldo(c.balance, c.tipo)}">${saldoHtml(c.balance)}</div>
-      </div>
-      ${!selectMode ? `<div class="acc-actividad">${fmtActividad(c.ultima_actividad)}</div>` : ''}
+      <div class="acc-name">${escapeHtml(c.nombre)}</div>
+      <div class="acc-balance ${claseSaldo(c.balance, c.tipo)}">${saldoHtml(c.balance)}</div>
     </div>`;
 }
 function bindAccountCardEvents(el) {
