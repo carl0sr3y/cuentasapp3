@@ -1453,7 +1453,14 @@ function moverIndicadorPestana(sinAnimar) {
 function setTabUI(tab) {
   const anterior = currentTab;
   currentTab = tab;
+  const iconos = [...document.querySelectorAll('.tab-btn .tab-ico')];
+  const antes = iconos.map(i => i.getBoundingClientRect().left);
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  // La pestaña elegida se estira para mostrar su nombre: los íconos se deslizan a su nuevo lugar.
+  if (anterior !== tab && animOn()) iconos.forEach((ico, n) => {
+    const dx = antes[n] - ico.getBoundingClientRect().left;
+    if (Math.abs(dx) > 0.5 && ico.animate) ico.animate([{ transform: `translateX(${dx}px)` }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.34,1.45,.64,1)' });
+  });
   document.getElementById('deudasView').classList.toggle('hidden', !esTabCuentas(tab));
   document.getElementById('tiendaView').classList.toggle('hidden', tab !== 'tienda');
   if (anterior !== tab) reiniciarBusqueda();

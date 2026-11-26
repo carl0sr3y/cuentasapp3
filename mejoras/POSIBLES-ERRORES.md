@@ -196,3 +196,25 @@ computadora. Las acciones de cada usuario (cambiar nombre, contraseña, correo, 
 - `public/app.js`: `openAccountSettingsPage`, `renderUsersPage` (según `perfilSub`), `abrirSubPerfil`,
   `filaPerfil`, `abrirAccionesUsuario`. Historial: `{ view: 'users', sub }`. Estilos `.perfil-*` en `public/styles.css`.
 - Prueba local: `bash pruebas/correr.sh perfil-botones`.
+
+## Íconos en las pestañas de abajo
+
+Cambio del 25/11/2026. Cada pestaña de la barra flotante tiene su ícono: flecha hacia abajo en un círculo
+(Por cobrar), flecha hacia arriba en un círculo (Por pagar) y una tiendita (Movimientos tienda). Solo la
+pestaña elegida muestra su nombre; las otras, solo el ícono.
+
+### Cosas que puedes notar en la app (y si son normales)
+
+| Lo que ves | ¿Es normal? | Explicación |
+|---|---|---|
+| Las pestañas no elegidas no dicen su nombre | Sí | Es a propósito. En la computadora, al pasar el ratón encima sale el nombre. |
+| Al cambiar de pestaña, los íconos se deslizan | Sí | La pestaña elegida se estira para que quepa su nombre. Con las animaciones apagadas cambian al instante. |
+| El nombre de la pestaña elegida se corta o se sale de su fondo | **No** | Avísame con una captura y el modelo del teléfono. |
+
+### Pistas técnicas (para revisar el código)
+
+- `public/index.html`: botones `.tab-btn` con `svg.tab-ico` + `span.tab-nombre` (y `aria-label`/`title`).
+- `public/styles.css`: bloque "Íconos en las pestañas" (la elegida usa `flex-grow:2.6`; letra más chica bajo 340 px)
+  y `width` en la transición de `.tab-indicador`.
+- `public/app.js`: `setTabUI` mide los íconos antes y después del cambio y los desliza con `animate()`.
+- Prueba local: `bash pruebas/correr.sh animaciones`.

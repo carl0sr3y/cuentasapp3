@@ -724,7 +724,7 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
 /* 3. Fondo de la pestaña elegida que se desliza (lo mueve app.js con transform) */
 .tabbar.con-indicador{position:fixed;}
 .tab-indicador{position:absolute;left:0;top:5px;bottom:5px;width:0;border-radius:15px;pointer-events:none;z-index:0;opacity:0;
-  background:var(--accent-bg);will-change:transform;transition:transform .42s var(--ease-spring),background-color .3s ease,opacity .2s;}
+  background:var(--accent-bg);will-change:transform;transition:transform .42s var(--ease-spring),width .42s var(--ease-spring),background-color .3s ease,opacity .2s;}
 .tab-indicador[data-tab="pagar"]{background:var(--pagar-bg);}
 .tab-indicador[data-tab="tienda"]{background:var(--tienda-bg);}
 .tab-indicador.listo{opacity:1;}
@@ -901,6 +901,14 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
 .tab-btn.active[data-tab="cobrar"]{background:var(--accent-bg);color:var(--accent);}
 .tab-btn.active[data-tab="pagar"]{background:var(--pagar-bg);color:var(--pagar);}
 .tab-btn.active[data-tab="tienda"]{background:var(--tienda-bg);color:var(--tienda);}
+/* Íconos en las pestañas: todas muestran su ícono; solo la elegida dice su nombre y se estira.
+   Al cambiar de pestaña, app.js (setTabUI) desliza los íconos a su nuevo lugar. */
+.tabbar .tab-btn{display:flex;align-items:center;justify-content:center;gap:7px;flex:1 1 0;padding:11px 4px;font-size:14.5px;line-height:1.15;white-space:nowrap;}
+.tabbar .tab-btn.active{flex-grow:2.6;padding-left:12px;padding-right:12px;}
+.tab-ico{width:23px;height:23px;flex:none;display:block;}
+.tab-nombre{display:none;}
+.tab-btn.active .tab-nombre{display:inline;animation:aparecerSuave .3s ease-out;}
+@media(max-width:340px){.tabbar .tab-btn{font-size:13.5px;gap:6px;}}
 :root[data-tema="oscuro"] .tabbar{box-shadow:0 10px 30px rgba(0,0,0,.5);}
 @media (prefers-color-scheme: dark){:root:not([data-tema="claro"]) .tabbar{box-shadow:0 10px 30px rgba(0,0,0,.5);}}
 /* Espacio al final para que el menú no tape la última cuenta o movimiento */
