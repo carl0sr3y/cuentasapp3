@@ -28,6 +28,8 @@
   --tienda-bg:rgba(31,32,35,0.06);
   --pagar:#1F2023;
   --pagar-bg:rgba(31,32,35,0.06);
+  --circulo:#1F2023;           /* círculo con la inicial de clientes y usuarios */
+  --circulo-bg:rgba(31,32,35,0.06);
   --overlay:rgba(31,32,35,0.38);
   --shadow:0 4px 14px rgba(31,32,35,0.07);
   --shadow-lg:0 16px 40px rgba(31,32,35,0.16);
@@ -65,6 +67,8 @@
   --tienda-bg:rgba(255,255,255,0.08);
   --pagar:#FFFFFF;
   --pagar-bg:rgba(255,255,255,0.08);
+  --circulo:#FFFFFF;
+  --circulo-bg:rgba(255,255,255,0.08);
   --overlay:rgba(0,0,0,0.55);
   --shadow:0 4px 14px rgba(0,0,0,0.25);
   --shadow-lg:0 16px 40px rgba(0,0,0,0.5);
@@ -76,7 +80,7 @@
     --border:#2F3033; --border-soft:#26272A; --text:#E9EAED; --text-dim:#A7A8AB; --text-faint:#747578;
     --green:#4CC79A; --green-bg:rgba(76,199,154,0.13); --red:#FF7E75; --red-bg:rgba(255,126,117,0.13);
     --yellow:#F2B35A; --favor:#E8C84A; --favor-bg:rgba(232,200,74,0.14); --accent:#2EC5FF; --accent-solid:#FFFFFF; --accent-bg:rgba(46,197,255,0.14); --on-accent:#121316; --on-pagar:#121316;
-    --tienda:#FFFFFF; --tienda-bg:rgba(255,255,255,0.08); --pagar:#FFFFFF; --pagar-bg:rgba(255,255,255,0.08); --overlay:rgba(0,0,0,0.55);
+    --tienda:#FFFFFF; --tienda-bg:rgba(255,255,255,0.08); --pagar:#FFFFFF; --pagar-bg:rgba(255,255,255,0.08); --circulo:#FFFFFF; --circulo-bg:rgba(255,255,255,0.08); --overlay:rgba(0,0,0,0.55);
     --shadow:0 4px 14px rgba(0,0,0,0.25); --shadow-lg:0 16px 40px rgba(0,0,0,0.5);
   }
 }
@@ -528,9 +532,7 @@ header.topbar,.page-header{border-bottom-color:transparent;}
 #detailPage[data-tipo="pagar"] .balance-label,#detailPage[data-tipo="pagar"] .balance-pdf-btn,
 #deudasView[data-tipo="pagar"] .balance-label,
 #deudasView[data-tipo="pagar"] .balance-pdf-btn,
-#deudasView[data-tipo="pagar"] .mini-btn:not(.danger) svg,
-#deudasView[data-tipo="pagar"] .acc-circ{color:var(--pagar);}
-#deudasView[data-tipo="pagar"] .acc-circ{background:var(--pagar-bg);}
+#deudasView[data-tipo="pagar"] .mini-btn:not(.danger) svg{color:var(--pagar);}
 /* Tres pestañas: textos un poco más compactos */
 .tab-btn{font-size:15px;line-height:1.15;}
 
@@ -551,6 +553,7 @@ header.topbar,.page-header{border-bottom-color:transparent;}
 .account-card,.mov-row{background:var(--surface);border-radius:16px;margin-bottom:8px;padding:12px;box-shadow:var(--shadow);}
 .account-card:active,.mov-row:active{background:var(--surface-alt);}
 .acc-circ{background:var(--accent-bg);border:none;color:var(--accent);font-weight:800;}
+.account-card .acc-circ{background:var(--circulo-bg);color:var(--circulo);}
 .mov-icon{border-radius:12px;}
 .user-card{border-radius:var(--radius);}
 
@@ -1062,7 +1065,7 @@ body:has(.select-bar) .tabbar{display:none;}
    ============================================================ */
 .perfil-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:6px 0 4px;}
 .perfil-av{width:38px;height:38px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
-  background:var(--accent-bg);color:var(--accent);font-weight:800;font-size:17px;}
+  background:var(--circulo-bg);color:var(--circulo);font-weight:800;font-size:17px;}
 .perfil-av.grande{width:74px;height:74px;font-size:32px;font-family:var(--rounded);}
 .perfil-nombre{margin-top:10px;font-size:23px;font-weight:700;color:var(--text);}
 .perfil-nombre .rol-chip{vertical-align:4px;}
