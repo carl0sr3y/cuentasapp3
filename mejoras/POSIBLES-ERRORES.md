@@ -198,7 +198,7 @@ computadora. Las acciones de cada usuario (cambiar nombre, contraseña, correo, 
 
 ## Íconos en las pestañas de abajo
 
-Cambio del 25/11/2026. Cada pestaña de la barra flotante tiene su ícono: flecha hacia abajo en un círculo
+Cambio del 25/11/2026. Cada pestaña de la barra de abajo tiene su ícono: flecha hacia abajo en un círculo
 (Por cobrar), flecha hacia arriba en un círculo (Por pagar) y una tiendita (Movimientos tienda). Solo la
 pestaña elegida muestra su nombre y se pinta de su color (sin fondo); las otras, solo el ícono en gris.
 

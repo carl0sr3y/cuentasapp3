@@ -85,7 +85,7 @@
     return (barra ? barra.getBoundingClientRect().bottom : 0) + ALTO + 4;
   }
   function tarjeta(id) { return id == null ? null : document.querySelector('#accountListWrap .account-card[data-id="' + id + '"]'); }
-  // Límite de abajo: el menú flotante de pestañas (si se ve) o el borde de la pantalla.
+  // Límite de abajo: el menú de pestañas (si se ve) o el borde de la pantalla.
   function piso() {
     var menu = document.querySelector('.tabbar');
     var r = menu ? menu.getBoundingClientRect() : null; // si está oculto, mide 0 de alto

@@ -879,16 +879,17 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
 @keyframes m-zzz{0%{opacity:0;transform:translate(0,3px)}30%{opacity:.85}100%{opacity:0;transform:translate(3px,-5px)}}
 
 /* ============================================================
-   MENÚ DE PESTAÑAS FLOTANTE ABAJO (Por cobrar · Por pagar · Movimientos tienda)
+   MENÚ DE PESTAÑAS ABAJO (Por cobrar · Por pagar · Movimientos tienda), pegado al borde de la pantalla
+   de lado a lado. En pantallas anchas los botones quedan al centro (máx. 560 px).
    Por encima del muñequito (30) y debajo de la barra de selección (45), detalle (50) y ventanas (60).
    ============================================================ */
 .tabbar{
-  position:fixed;left:0;right:0;bottom:calc(12px + env(safe-area-inset-bottom));
-  margin:0 auto;width:calc(100% - 24px);max-width:560px;z-index:41;
-  background:var(--surface);border:1px solid var(--border-soft);border-radius:20px;padding:5px;gap:4px;
-  box-shadow:0 10px 30px rgba(31,32,35,.18),0 2px 6px rgba(31,32,35,.08);
+  position:fixed;left:0;right:0;bottom:0;margin:0;width:auto;max-width:none;z-index:41;
+  background:var(--surface);border:none;border-top:1px solid var(--border);border-radius:0;gap:4px;
+  padding:5px max(8px, calc((100% - 560px) / 2)) calc(5px + env(safe-area-inset-bottom));
+  box-shadow:none;
 }
-@media(min-width:640px){.tabbar{margin:0 auto;}}
+@media(min-width:640px){.tabbar{margin:0;}}
 .tab-btn{border-radius:15px;padding:11px 4px;}
 /* La pestaña elegida no lleva fondo: se distingue por su color y su nombre */
 .tab-btn.active{box-shadow:none;background:transparent;}
@@ -903,16 +904,14 @@ button.exito,button.exito[disabled]{background:var(--green) !important;color:#ff
 .tab-nombre{display:none;}
 .tab-btn.active .tab-nombre{display:inline;animation:aparecerSuave .3s ease-out;}
 @media(max-width:340px){.tabbar .tab-btn{font-size:13.5px;gap:6px;}}
-:root[data-tema="oscuro"] .tabbar{box-shadow:0 10px 30px rgba(0,0,0,.5);}
-@media (prefers-color-scheme: dark){:root:not([data-tema="claro"]) .tabbar{box-shadow:0 10px 30px rgba(0,0,0,.5);}}
 /* Espacio al final para que el menú no tape la última cuenta o movimiento */
-#deudasView,#tiendaView{padding-bottom:calc(96px + env(safe-area-inset-bottom));}
+#deudasView,#tiendaView{padding-bottom:calc(40px + env(safe-area-inset-bottom));}
 /* Los avisos salen por encima del menú */
-#toast{bottom:calc(88px + env(safe-area-inset-bottom));}
+#toast{bottom:calc(72px + env(safe-area-inset-bottom));}
 /* Mientras se eliminan cuentas, la barra Eliminar/Cancelar ocupa ese lugar */
 body:has(.select-bar) .tabbar{display:none;}
 /* La animación al cambiar de pestaña desliza la vista 26px hacia un lado; sin este recorte, Chrome en el
-   teléfono "aleja" la página para que quepa y el menú flotante queda medio fuera de la pantalla.
+   teléfono "aleja" la página para que quepa y el menú de abajo queda medio fuera de la pantalla.
    overflow-x:clip (no hidden) para no romper la barra superior pegajosa (position:sticky). */
 #mainScreen{overflow-x:clip;}
 
@@ -979,7 +978,7 @@ body:has(.select-bar) .tabbar{display:none;}
 #offlineBanner .offline-auto{font-size:14px;color:var(--text-faint);margin:-6px 0 18px;}
 
 /* Aviso fijo de registros que no se guardaron (mostrarPanelPendientes). Encima del detalle (50), debajo de las ventanas (60). */
-.pendientes-panel{position:fixed;left:0;right:0;margin:0 auto;bottom:calc(92px + env(safe-area-inset-bottom));width:calc(100% - 24px);max-width:560px;z-index:55;
+.pendientes-panel{position:fixed;left:0;right:0;margin:0 auto;bottom:calc(76px + env(safe-area-inset-bottom));width:calc(100% - 24px);max-width:560px;z-index:55;
   background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--red);border-radius:16px;padding:12px 14px;box-shadow:var(--shadow-lg);}
 .pp-cab{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .pp-cab b{font-size:15.5px;color:var(--text);}
